@@ -99,6 +99,14 @@ MAT_MOI_N_GIAY = 3.0              # ... va CHI toi da 3 lan/giay (gioi han that)
 ANH_THE = 150                     # canh anh crop vuong cua 1 the
 XEM_VIDEO_JPEG = 85               # chat luong anh day qua hang doi
 XEM_VIDEO_JPEG_THE = 80           # chat luong anh crop cua 1 the
+# --- v3.2: khung hinh che do phan tich theo lo (batch) ---
+# Pipeline gui khung hinh co overlay ra GUI. Gioi han ~10 fps: du hien thi
+# nhung, khong lam cham phan tich (va khong phinh bo nho).
+# CHI PHI (do that 2026-10-20, 960x540, yolo11n + ArcFace):
+#   encode JPEG q=80 = 2.80 ms/khung.
+#   interval=0 (moi khung hinh) -> +2.81 ms/khung (~+5% so voi pipeline).
+#   interval=0.1 (10 fps, muc nay) -> +1.07 ms/khung (~+2%).
+KHOUNG_HINH_FPS = 10
 
 # --- KEO CUA SO: tach viec RE khoi viec DAT -------------------------------
 # Keo cua so thi kich thuoc o hinh doi LIEN TUC. Neu moi lan doi deu
@@ -1749,6 +1757,16 @@ class CamAIGui(ctk.CTk):
         self._anh_gu = None                      # khung goc cuoi (de ve lai)
         self._anh_dang_co = False
         self._xem_dang_chay = False
+        # --- v3.2: khung hinh che do phan tich theo lo (batch) ---
+        # HOP THU 1 O (single slot): thread pipeline ghi de gia tri cuoi cung,
+        # luong UI doc va xoa. KHONG dua vao `self.queue` (hang doi khong
+        # gioi han -> phinh bo nho khi quet video dai).
+        self._khung_hinh_moi = None           # bytes JPEG moi nhat
+        self._lock_khung_hinh = threading.Lock()
+        self._khung_hinh_seq = 0              # so lan co khung hinh moi
+        self._khung_hinh_seq_da_doc = 0       # seq da hien thi tren panel
+        self._hien_anh_batch = False          # dang hien khung hinh che do batch
+        self._luc_gui_hinh = 0.0              # thoi diem gui khung hinh gan nhat
         self._ten_nguoi_quen = ""                # do UI thread gan, thread doc
         self._bar_cu = -1.0
         self._phan_tram_cu = ""
@@ -2686,7 +2704,9 @@ class CamAIGui(ctk.CTk):
             khung, text="Tạm dừng", width=120, height=28, state="disabled",
             command=self._doi_tam_dung_xem,
         )
-        self.btn_tam_dung_xem.grid(row=0, column=2, padx=(0, 12), pady=(8, 0))
+        # KHONG grid o day: nut "Tam dung" thuoc che do XEM TRUC TIEP.
+        # `_cap_nhat_nut_tam_dung_xem` se hien no (dung vi tri grid o day)
+        # khi bat xem truc tiep, va AN di o che do phan tich theo lo.
 
         # Nen DEN cua khung hinh: moi chuyen do lon nhat se do vao day.
         self.khung_den = ctk.CTkFrame(khung, fg_color="#000000", corner_radius=6)
@@ -3088,11 +3108,24 @@ class CamAIGui(ctk.CTk):
         self._set_trang_thai("chay", frame=0, tong=0, phan_tram=0)
         self._ghi_log("=" * 52)
         self._ghi_log(f"BẮT ĐẦU xử lý: {cfg.input}")
-        if self.v_xem_video.get() == "1":
+        # --- v3.2: 2 che do hien thi khung hinh ---
+        # * xem truc tiep (tick "Xem video khi chay"): thread rieng do YOLO.
+        # * phan tich theo lo (tick OFF): pipeline gui khung hinh co overlay
+        #   qua `frame_cb` -> panel "Xem video" KHONG con den.
+        self._hien_anh_batch = False
+        xem_truc_tiep = self.v_xem_video.get() == "1"
+        if xem_truc_tiep:
             self._bat_xem_truc_tiep(cfg)
-        threading.Thread(target=self._chay_pipeline, args=(cfg,), daemon=True).start()
+        else:
+            self._hien_anh_batch = True
+            self._cap_nhat_nut_tam_dung_xem()
+            self.lbl_khung_hinh.configure(text=os.path.basename(cfg.input))
+            self.o_hinh.configure(image=None, text="")
+        threading.Thread(
+            target=self._chay_pipeline, args=(cfg, xem_truc_tiep), daemon=True
+        ).start()
 
-    def _chay_pipeline(self, cfg: AnalysisConfig):
+    def _chay_pipeline(self, cfg: AnalysisConfig, xem_truc_tiep: bool = True):
         """CHAY TREN THREAD NEN. Chi day vao hang doi, khong go widget."""
         old_stdout = sys.stdout
         sys.stdout = QueueWriter(self.queue)
@@ -3102,6 +3135,11 @@ class CamAIGui(ctk.CTk):
                 cfg,
                 progress_cb=self._tien_trinh_cb,
                 log=lambda text: self.queue.put(("log", text)),
+                # Che do xem truc tiep: thread rieng da lo anh roi -> KHONG
+                # gui them khung hinh tu pipeline (tranh 2 nguon anh).
+                # Che do phan tich theo lo: pipeline gui khung hinh co overlay.
+                frame_cb=None if xem_truc_tiep else self._cb_khung_hinh_batch,
+                frame_cb_interval=1.0 / KHOUNG_HINH_FPS,
             )
         except CamAIError as exc:
             self.queue.put(("error", str(exc)))
@@ -3121,6 +3159,23 @@ class CamAIGui(ctk.CTk):
             self.last_progress_at = now
             self.queue.put(("progress", p))
         return not self.stop_flag.is_set()
+
+    def _cb_khung_hinh_batch(self, jpeg: bytes) -> None:
+        """CHAY TREN THREAD NEN: nhan khung hinh JPEG tu pipeline phan tich.
+
+        KHONG dua vao `self.queue`: hang doi khong gioi han se PHINH BO NHO
+        khi quet video dai (moi khung ~50-150 KB x hang chuc nghin khung).
+        Dung HOP THU 1 O (single slot): ghi de gia tri cuoi cung, luong UI
+        doc va xoa (`_hut_hang_doi`).
+        Gioi han ~10 fps bang `time.monotonic()` de khong lam cham pipeline.
+        """
+        luc = time.monotonic()
+        if luc - self._luc_gui_hinh < 1.0 / KHOUNG_HINH_FPS:
+            return
+        self._luc_gui_hinh = luc
+        with self._lock_khung_hinh:
+            self._khung_hinh_moi = jpeg
+            self._khung_hinh_seq += 1
 
     def _dung(self):
         self.stop_flag.set()
@@ -3220,6 +3275,14 @@ class CamAIGui(ctk.CTk):
                 self._ket_thuc_hinh()
         if dong_log:
             self._ghi_log_nhieu(dong_log)
+        # --- v3.2: khung hinh che do phan tich theo lo ---
+        # Doc tu HOP THU 1 O (khong phai hang doi). Chi ve khi seq MOI (khong
+        # giai ma lai cung mot khung -> lam cham luong UI).
+        if khung_hinh is None:
+            with self._lock_khung_hinh:
+                if self._khung_hinh_seq != self._khung_hinh_seq_da_doc:
+                    self._khung_hinh_seq_da_doc = self._khung_hinh_seq
+                    khung_hinh = self._khung_hinh_moi
         if khung_hinh is not None:
             self._hien_khung_hinh(khung_hinh)
         else:
@@ -3748,19 +3811,32 @@ class CamAIGui(ctk.CTk):
         self._xem_dang_chay = True
         self._ket_thuc_xem.clear()
         self._tam_dung_xem.clear()
-        self.btn_tam_dung_xem.configure(state="normal",
-                                         text=self.dich("Tạm dừng"))
+        self._cap_nhat_nut_tam_dung_xem()
         self.o_hinh.configure(image=None, text="")
         self.lbl_khung_hinh.configure(text=os.path.basename(cfg.input))
         self._ghi_log("> Bật xem video trực tiếp (tốn thêm một ít máy).")
         threading.Thread(target=self._chay_xem_truc_tiep, args=(cfg,),
                          daemon=True).start()
 
+    def _cap_nhat_nut_tam_dung_xem(self) -> None:
+        """Nut 'Tạm dừng' CHỈ có ý nghĩa ở chế độ xem trực tiếp.
+
+        Chế độ phân tích theo lô (batch): AN nút đi -> không bấm nhầm (bấm
+        cũng không có tác dụng gì nhưng trông như có).
+        """
+        btn = getattr(self, "btn_tam_dung_xem", None)
+        if btn is None:
+            return
+        if self._xem_dang_chay:
+            btn.grid(row=0, column=2, padx=(0, 12), pady=(8, 0))
+            btn.configure(state="normal", text=self.dich("Tạm dừng"))
+        else:
+            btn.grid_remove()
+
     def _dung_xem_truc_tiep(self) -> None:
         self._ket_thuc_xem.set()
         self._xem_dang_chay = False
-        if getattr(self, "btn_tam_dung_xem", None) is not None:
-            self.btn_tam_dung_xem.configure(state="disabled")
+        self._cap_nhat_nut_tam_dung_xem()
 
     def _ket_thuc_hinh(self) -> None:
         """Thread xem da dung.
@@ -3770,7 +3846,7 @@ class CamAIGui(ctk.CTk):
         dung thay video bien mat dung luc phan tich chua xong.
         """
         self._xem_dang_chay = False
-        self.btn_tam_dung_xem.configure(state="disabled")
+        self._cap_nhat_nut_tam_dung_xem()
         if self.busy or self._anh_dang_co:
             self._set_trang_thai("tam_dung" if self.busy else self._mau_trang_thai)
             self._ghi_log("> Xem video trực tiếp đã kết thúc "
@@ -3834,7 +3910,7 @@ class CamAIGui(ctk.CTk):
         se duoc ve lai dung kich thuoc moi ngay khi ngu keo
         (`_ve_lai_sau_khi_ngung_keo`).
         """
-        if not self._xem_dang_chay:
+        if not (self._xem_dang_chay or self._hien_anh_batch):
             return          # xem da ket thuc - bo qua anh con ton tai
         import cv2
 

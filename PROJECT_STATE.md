@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 00:40 — bản **3.1** đã sửa 3 lỗi chết app tìm được khi rà bản PC, `VERSION` nay là **3.1**)
+**Ngày cập nhật:** 2026-10-20 (sau 01:30 — bản **3.2** sửa xong lỗi panel "Xem video" đen khi chạy lô, `VERSION` nay là **3.2**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 **Trạng thái ngắn:** **6 mục nghiệm thu tự đo — CẢ 6 ĐÃ ĐẠT** ở bản 2.8 (đo lại toàn bộ
 sau khi thêm `--tach-o`), mỗi mục có output thật kèm tên file. Mục 7 và 8 **chờ anh tự
@@ -8,7 +8,15 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.1 (đã commit):** sửa **3 lỗi chết app** tìm được khi rà toàn bộ bản PC —
+**Bản 3.2 (mới nhất):** sửa **1 lỗi hiển thị** còn lại từ lần rà bản PC — panel
+**"Xem video"** (panel lớn nhất của GUI) **đen suốt** khi chạy phân tích theo lô.
+Thêm `frame_cb` + `frame_cb_interval` vào `run_analysis()` (khung **đã có overlay**;
+`None` → chi phí 0; callback lỗi không làm chết pipeline) + GUI nhận khung qua **hộp
+thư 1 ô** (tránh phình bộ nhớ) + giới hạn **10 fps** + ẩn nút "Tạm dừng" ở chế độ lô.
+Kiểm chứng **7/7 PASS**, vùng panel đo được **118.735 màu / sáng TB 73,95** (trước là
+đen), coordinator **tự xem ảnh** thấy khung người + nhãn **An**/**Binh**. Xem **mục 2.1f**.
+
+**Bản 3.1:** sửa **3 lỗi chết app** tìm được khi rà toàn bộ bản PC —
 (1) đường dẫn tương đối bị phân giải theo thư mục đang chạy nên chạy `app.py` từ
 thư mục khác là **chết ngay** với `[loi] khong thay bo model ArcFace`; (2) app không
 tự tạo thư mục output → lỗi khó hiểu; (3) `--tu-luu-clip` cùng thư mục với video
@@ -151,6 +159,7 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | **Chạy app từ thư mục bất kỳ** (BUG #1 đã sửa) | CWD = `C:\Windows` + có nhận diện mặt → **EXIT=0**, `[model] ...models\face_core \| GPU \| detection:CUDA`, CSV cột `nguoi_quen` = **"An \| Binh"** |
 | **App tự tạo thư mục output** (BUG #2 đã sửa) | `--output` vào thư mục **chưa tồn tại** → thư mục được tạo, có cả `.mp4` + `.csv` |
 | **Video kết quả không bị mất khi bật `--tu-luu-clip`** (BUG #3 đã sửa) | Chạy lại B3: file rác `.part.mp4` **bị xoá** (`da don 1 file`) **và** `ket_qua_ket_qua.mp4` **16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540` |
+| **Xem video ngay trong lúc chạy phân tích theo lô (GUI)** (bản 3.2) | `_kk_kiem_gui_batch_preview.py` → **PASS**: khung hình hiện lên panel **82 lần**; vùng panel đo được **118.735 màu đơn sắc / sáng TB 73,95 / max 255 min 0** (trước là đen) — **coordinator tự xem ảnh** `v5_dang_chay.png` thấy khung tím `Người 1..4`, khung xanh mặt nhãn **An**/**Binh**, badge `Người: 4 \| Mặt: 2` |
 
 #### MỨC 2 — đã chạy thật, chưa tự xem bằng mắt (nên mở xem 1 lần rồi đánh dấu)
 
@@ -163,7 +172,6 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | Tính năng | Ghi chú |
 |---|---|
 | OCR biển số trên **ảnh thật** | Chưa có ảnh thật của anh → chưa chạy được |
-| **Xem video ngay trong lúc chạy phân tích theo lô (GUI)** | Panel lớn nhất của GUI **đen** — `run_analysis()` không có callback khung hình. Tìm ra khi rà bản PC 2026-10-20; **chưa sửa** (xem mục 2.1e mục E) |
 | Webcam live `--input 0` | Chưa thử camera thật |
 | Web trên điện thoại thật | Chưa |
 | Nhiều người dùng đồng thời trên web | Chưa |
@@ -252,7 +260,7 @@ Kết quả từ 2 ảnh coordinator **tự mở xem bằng mắt**:
 | Số liệu chạy thật | `2 Người · 2 Mặt · 2 Người quen`, nhật ký `frame 200/250 \| Người: 3` | **ĐẠT** |
 | Nhận diện tên | `Nguoi da hoc trong video: ['An', 'Binh']` | **ĐẠT** |
 | File sinh ra | `video_test_ket_qua.mp4` 16.247.979 B + `video_test_bao_cao.csv` | **ĐẠT** |
-| **Khung "Xem video" trong lúc chạy** | **ĐEN, không có hình** | **CHƯA ĐẠT** — xem mục 8 |
+| **Khung "Xem video" trong lúc chạy** | **ĐEN, không có hình** | **CHƯA ĐẠT ở bản 3.1** → **đã sửa ở bản 3.2**, xem mục 2.1f |
 
 #### D) 3 BUG THẬT tìm được khi rà — đã sửa ở bản 3.1
 
@@ -262,11 +270,62 @@ Kết quả từ 2 ảnh coordinator **tự mở xem bằng mắt**:
 | **BUG #2** | `--output` trỏ vào **thư mục chưa tồn tại** → `[loi] khong gia duoc file video ket qua` | `cv2.VideoWriter` **không tự tạo thư mục** | `cam_ai_core.py`: thêm `tao_thu_muc_cha()`, gọi trước khi mở writer và trước khi ghi CSV; lỗi giờ **nêu rõ thư mục cha** | CWD = `C:\Windows` + thư mục output chưa có → **EXIT=0**, thư mục được tạo, có cả `.mp4` + `.csv` |
 | **BUG #3** | `--tu-luu-clip` **cùng thư mục** với video kết quả → log `[clip] da don 1 file .part.mp4 con sot lai` + `[video] ⚠ không ghi được video kết quả`, **exit 0 nhưng MẤT video kết quả** | `don_file_tam_trong_thu_muc()` xoá **mọi** `*.part.mp4` trong thư mục, kể cả file tạm của video kết quả đang được writer giữ | Thêm tham số `giu=(out_path_tam,)` + **lớp bảo vệ thứ hai** registry `_FILE_DANG_GHI` (mọi `VideoWriter` đang ghi đều được bảo vệ) | Chạy lại B3: `[clip] da don 1 file .part.mp4 con sot lai` (file rác **bị xoá**) **và** `ket_qua_ket_qua.mp4` **16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540` |
 
-#### E) 1 lỗi hiển thị — CHƯA sửa
+#### E) 1 lỗi hiển thị — ĐÃ sửa ở bản 3.2
 
-| Vấn đề | Chi tiết |
+| Vấn đề | Chi tiết | Trạng thái |
+|---|---|---|
+| **Khung "Xem video" (panel lớn nhất) đen khi chạy phân tích theo lô** | `run_analysis()` chỉ có `progress_cb` + `log`, **không có callback khung hình**; GUI chỉ đẩy `("frame", ...)` ở chế độ **xem trực tiếp** (`gui.py:3631`). Nên bấm "Chạy" trên 1 file → panel lớn nhất **đen suốt**, dù mọi thứ khác chạy đúng. Ngoài ra nút **"Tạm dừng"** (thuộc chế độ trực tiếp) vẫn hiện ở chế độ lô → bấm không có tác dụng | **ĐÃ SỬA** ở bản 3.2 → xem mục 2.1f |
+
+---
+
+### 2.1f BẢN 3.2 — SỬA PANEL "XEM VIDEO" ĐEN KHI CHẠY LÔ (2026-10-20)
+
+**Phát hiện:** 2026-10-20 khi rà bản PC (mục 2.1e mục E). **Sửa xong trong ngày** —
+`VERSION` 3.1 → **3.2**.
+
+**Cách sửa (1 lỗi, 4 điểm):**
+
+| # | File | Thay đổi |
+|---|---|---|
+| 1 | `cam_ai_core.py` | `run_analysis()` nhận thêm `frame_cb: Callable[[bytes], None] \| None = None` + `frame_cb_interval: float = 0.0`. Ngay sau `writer.write(frame)` → encode JPEG (`JPEG_CHAT_LUONG = 80`) rồi gọi `frame_cb`. Khung gửi ra là **khung ĐÃ vẽ overlay** → hiển thị y hình pipeline. `frame_cb is None` → **không encode, chi phí = 0**. Callback ném lỗi → `try/except`, **không làm chết pipeline**, báo lỗi 1 lần |
+| 2 | `gui.py` | Hộp thư **1 ô** (`_khung_hinh_moi` + `threading.Lock` + `_khung_hinh_seq`) thay cho `self.queue` — queue không giới hạn sẽ **phình bộ nhớ** (~100 KB/khung × hàng chục nghìn khung) |
+| 3 | `gui.py` | Giới hạn **10 fps** (`KHOUNG_HINH_FPS = 10`) |
+| 4 | `gui.py` | Nút **"Tạm dừng"** **ẩn** ở chế độ lô (`_cap_nhat_nut_tam_dung_xem()`) — nút này thuộc chế độ xem trực tiếp |
+
+**Bằng chứng — coordinator tự chạy + TỰ XEM ẢNH BẰNG MẮT:**
+
+| Bước | Kết quả |
 |---|---|
-| **Khung "Xem video" (panel lớn nhất) đen khi chạy phân tích theo lô** | `run_analysis()` chỉ có `progress_cb` + `log`, **không có callback khung hình**; GUI chỉ đẩy `("frame", ...)` ở chế độ **xem trực tiếp** (`gui.py:3631`). Nên bấm "Chạy" trên 1 file → panel lớn nhất **đen suốt**, dù mọi thứ khác chạy đúng. Ngoài ra nút **"Tạm dừng"** (thuộc chế độ trực tiếp) vẫn hiện ở chế độ lô → bấm không có tác dụng |
+| `_kk_kiem_gui_batch_preview.py` (GUI chế độ lô, `v_xem_video="0"`) | **PASS** — khung hình hiện lên panel **82 lần**; vùng panel đo được **118.735 màu đơn sắc**, sáng TB **73,95**, max 255 / min 0 → **KHÔNG đen** (trước: ~1 màu, sáng ~0) |
+| Ảnh `_kk_out/pc_audit/V5_batch_preview/v5_dang_chay.png` — **coordinator tự mở xem** | Khung hình thật + khung tím `Người 1..4`, khung xanh mặt với nhãn **An** / **Binh**, badge `Người: 4 \| Mặt: 2 \| Vào: 0 \| Ra: 0`, nút "Tạm dừng" **không còn** trong panel |
+| Vùng panel cắt riêng `v5_vung_khung_hinh.png` — **tự xem** | Ảnh thật, **không có vùng đen nào** |
+| `_kk_kiem_gui_chay_thuc.py` (bộ e2e đầy đủ, thêm mục [7]) | **7/7 PASS** — video `h264,960,540`, CSV **251 dòng**, 250 frame đọc được, thời gian 23,6 s |
+| Callback ném lỗi | Pipeline **vẫn chạy hết 250 khung**, không chết |
+| Hồi quy CLI | `app.py` không bị ảnh hưởng (`frame_cb=None` → không encode) |
+
+**Chi phí (đo thật, có warm-up + 2 vòng, lấy vòng 2):**
+
+| Cấu hình | Thời gian | Khung/s | Callback gọi |
+|---|---|---|---|
+| Không `frame_cb` (CLI) | 27,01 s | 9,26 | 0 |
+| `frame_cb` mỗi khung | 28,63 s | 8,73 | 250/250 |
+| `frame_cb` giới hạn 10 fps (mức GUI dùng) | 29,27 s | 8,54 | 147/250 (~59%) |
+
+> **Nhiễu đo ~3–4%** giữa hai lần chạy cùng cấu hình → hao tổn thực tế của việc xem
+> trong lúc chạy nằm trong khoảng **3–8%**. Con số chắc chắn là chi phí encode đo
+> riêng: **2,80 ms/khung** (JPEG q=80) → 250 khung = **0,7 s**.
+
+**Bài học:** lần đo đầu của coordinator báo *"callback 0 lần"* là do **lỗi của script
+đo** (truyền `lambda j: None` thay vì hàm đếm) — **không phải lỗi app**. Đã sửa
+script và đo lại. Bài học chung: **đo bằng công cụ thôi chưa đủ, phải tự mở ảnh xem
+bằng mắt** mới tin được "panel không còn đen".
+
+**Còn lại ở bản 3.2 (không tự sửa, cần anh):**
+
+| Vấn đề | Vì sao chưa tự quyết |
+|---|---|
+| Nhãn ô **"Xem video khi chạy"** giờ mô tả **2** chế độ: TẮT = xem khung hình kết quả (có overlay), BẬT = xem trực tiếp (có nút Tạm dừng) | Đổi nhãn là **copy user-facing** → theo quy tắc đã chốt, **phải hỏi anh** mới đổi. Hiện giữ nguyên nhãn cũ |
+| **Mục 7** (kéo cửa sổ) & **mục 8** (độ nhận diện) | Phải do **anh** xác nhận, em không tự đánh dấu đạt |
 
 ---
 
@@ -731,7 +790,8 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
-| 2026-10-20 (sau 00:40) | **Bản 3.1 — rà toàn bộ bản PC.** Coordinator tự chạy **32 cờ CLI** (26/26 EXIT=0) + **6 script OCR** (6/6 PASS) + **GUI end-to-end** (tự xem ảnh) → phát hiện và sửa **3 lỗi chết app**: (1) đường dẫn tương đối phân giải theo CWD → app chết khi chạy ngoài thư mục dự án (thêm file mới `duong_dan.py` làm nguồn sự thật); (2) app không tự tạo thư mục output; (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`). Phát hiện thêm **1 lỗi hiển thị chưa sửa**: panel "Xem video" đen khi chạy phân tích theo lô. Bump 3.0 → **3.1**. Xem mục **2.1e**. |
+| 2026-10-20 (sau 01:30) | **Bản 3.2 — sửa panel "Xem video" đen khi chạy phân tích theo lô.** `run_analysis()` nhận thêm `frame_cb` + `frame_cb_interval` (khung **đã có overlay**; `None` → chi phí 0; callback lỗi không làm chết pipeline). GUI nhận khung qua **hộp thư 1 ô** (tránh phình bộ nhớ), giới hạn **10 fps**, ẩn nút "Tạm dừng" ở chế độ lô. Kiểm chứng: **7/7 PASS**, vùng panel **118.735 màu / sáng TB 73,95** (trước là đen), coordinator **tự xem ảnh** thấy khung người + nhãn **An**/**Binh**. Chi phí đo thật: **3–8%** (nhiễu ~3–4%), encode **2,80 ms/khung**. Bump 3.1 → **3.2**. Xem mục **2.1f**. |
+| 2026-10-20 (sau 00:40) | **Bản 3.1 — rà toàn bộ bản PC.** Coordinator tự chạy **32 cờ CLI** (26/26 EXIT=0) + **6 script OCR** (6/6 PASS) + **GUI end-to-end** (tự xem ảnh) → phát hiện và sửa **3 lỗi chết app**: (1) đường dẫn tương đối phân giải theo CWD → app chết khi chạy ngoài thư mục dự án (thêm file mới `duong_dan.py` làm nguồn sự thật); (2) app không tự tạo thư mục output; (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`). Phát hiện thêm **1 lỗi hiển thị** (panel "Xem video" đen khi chạy lô) → **đã sửa ở bản 3.2**. Bump 3.0 → **3.1**. Xem mục **2.1e**. |
 | 2026-10-19 (sau 22h) | **Sửa lỗi codec video.** Video kết quả/clip tự lưu dùng `mp4v` (MPEG-4 **Part 2**) → trình duyệt **không phát được** ("Unable to play media."). Chuyển sang **H.264 (`avc1`)** bằng probe 1 lần có cache, lùi về `mp4v` nếu máy không có encoder. Đo thật: `ffprobe` → **`codec_name=h264`**, `ffmpeg` decode sạch, mở HTML bằng **browser thật** → player load (`total time: 0:10`), **0 lỗi console**. Nâng "Video player trong HTML xem lại" từ MỨC 2 → **MỨC 1**. |
 | 2026-10-19 (sau 20h) | **Bản 3.0.** Thêm **đọc biển số xe Việt Nam** (`bien_so.py`) + **tự chụp ảnh sự kiện** (`tu_chup.py`), mặc định TẮT; 8 cờ CLI; 2 nhóm GUI mới. Sửa 3 lỗi nghiêm trọng pipeline OCR (dùng nhầm engine, bịa biển số, crash `--help`). Chuyển pha tìm vùng biển sang **luồng nền** → pipeline **680–1916 ms/khung → 5,2–7,5 ms/khung**. Sửa lỗi **ô gợi ý trong ô nhập không hiện** (lớp `GoiYTronO`). Ghi chú tốc độ OCR trên GUI thay bằng **số đo thật** (9–15 ms/lần quét, max 62 ms). Bump 2.8 → **3.0**. Mục 7/8 và mục OCR biển số **chờ anh**. |
 | 2026-10-19 (sau 09:00) | **Nghiệm thu 2.5 — 6/6 mục tự đo ĐẠT.** Sửa `PUMP_MS` 120→30 (live view **14.34 fps** 300s); sửa `_vuot_nhau` (0 cặp nhãn chồm ở khung 15 người); cột sự kiện co theo (bố cục **75.4%–83.2%**, 0 nhãn tràn). 6 video demo mới → 13 thẻ. Bump 2.5 → 2.6 → **2.7**. Mục 7/8 chờ anh. |

@@ -9,6 +9,58 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Panel "Xem video" (lớn nhất của GUI) đen khi chạy phân tích theo lô
+
+**Triệu chứng:** mở GUI → bấm **"Chạy"** trên 1 file video → panel lớn nhất bên giữa
+("Xem video") **đen suốt**, không hiện khung hình nào, dù mọi thứ khác chạy đúng
+(thanh tiến trình chạy, số liệu `2 Người / 2 Mặt / 2 Người quen` có giá trị, file
+`.mp4` + `.csv` vẫn sinh ra).
+
+**Nguyên nhân:** `run_analysis()` trong `cam_ai_core.py` chỉ có 2 callback:
+`progress_cb` (tiến trình) và `log` (dòng log) — **không có callback khung hình**.
+GUI chỉ đẩy `self.queue.put(("frame", buf.tobytes()))` ở chế độ **xem trực tiếp**.
+Vì vậy ở chế độ phân tích theo lô không có gì đẩy vào `self.o_hinh` → panel đen.
+
+**Kèm theo:** nút **"Tạm dừng"** (thuộc chế độ xem trực tiếp) vẫn hiện ở chế độ lô →
+bấm vào **không có tác dụng** nhưng trông như có.
+
+**Cách sửa (`VERSION` 3.2):**
+
+1. `cam_ai_core.py` — thêm 2 tham số tuỳ chọn vào `run_analysis()`:
+   `frame_cb: Callable[[bytes], None] | None = None` và `frame_cb_interval: float = 0.0`.
+   Ngay sau `writer.write(frame)` thì encode JPEG (`IMWRITE_JPEG_QUALITY = 80`) rồi
+   gọi `frame_cb`.
+   - Khung hình gửi ra là **khung ĐÃ vẽ overlay** (khung người, nhãn tên, vùng canh,
+     badge) → hiển thị **y hình pipeline**, khác với ảnh thô.
+   - `frame_cb is None` → **không encode, chi phí = 0** → CLI không bị ảnh hưởng.
+   - `frame_cb_interval > 0` → chỉ gửi **một khung sau mỗi khoảng giây** (giảm chi phí).
+   - Callback **ném lỗi** → `try/except` bên trong, **không bao giờ làm chết pipeline**,
+     chỉ báo lỗi **1 lần** (`bao_loi_gui_hinh`).
+2. `gui.py` — hộp thư **1 ô** (`_khung_hinh_moi` + `threading.Lock` + `_khung_hinh_seq`)
+   thay vì đẩy vào `self.queue`. Lý do: `self.queue` **không giới hạn**, đẩy khung
+   hình vào đó sẽ **phình bộ nhớ** khi quét video dài (~100 KB/khung × hàng chục
+   nghìn khung). Luồng UI đọc và xoá ô sau mỗi vòng `_hut_hang_doi()`.
+3. `gui.py` — giới hạn **10 fps** (`KHOUNG_HINH_FPS = 10`).
+4. `gui.py` — nút "Tạm dừng" **ẩn** ở chế độ lô (`_cap_nhat_nut_tam_dung_xem()`).
+
+**Kiểm chứng (coordinator tự chạy + tự xem ảnh bằng mắt):**
+
+| Bước | Kết quả |
+|---|---|
+| `_kk_kiem_gui_batch_preview.py` (GUI chế độ lô, `v_xem_video="0"`) | **PASS** — khung hình hiện lên panel **82 lần**; vùng panel đo được **118.735 màu đơn sắc**, sáng TB **73,95**, max 255 / min 0 → **KHÔNG đen** |
+| Ảnh `v5_dang_chay.png` (coordinator tự mở xem) | Thấy khung hình thật + khung tím `Người 1..4`, khung xanh mặt với nhãn **An** / **Binh**, badge `Người: 4 \| Mặt: 2 \| Vào: 0 \| Ra: 0` |
+| Vùng panel cắt riêng `v5_vung_khung_hinh.png` | Ảnh thật, **không có vùng đen nào** |
+| Nút "Tạm dừng" trong chế độ lô | `hien_thi = False` (đã ẩn) |
+| `_kk_kiem_gui_chay_thuc.py` (bộ e2e đầy đủ) | **7/7 PASS** (thêm mục [7] đo vùng panel) — video `h264,960,540`, CSV 251 dòng, 250 frame đọc được |
+| Callback ném lỗi | Pipeline **vẫn chạy hết 250 khung**, không chết |
+
+**Bài học:** đo bằng **công cụ** thôi chưa đủ — lần đo đầu của coordinator báo
+"callback 0 lần" là do **lỗi của script đo** (truyền `lambda j: None` thay vì hàm
+đếm), không phải lỗi app. Đã sửa script và đo lại. Và phải **tự mở ảnh xem bằng mắt**
+thì mới tin được "panel không còn đen".
+
+---
+
 ## App chết ngay khi chạy từ thư mục khác thư mục dự án — "không thấy bộ model ArcFace"
 
 **Triệu chứng:** chạy `app.py` với thư mục đang chạy (CWD) khác thư mục gốc dự án →
@@ -596,38 +648,6 @@ riêng, đừng dựa vào `in` với chuỗi phủ định.
 ---
 
 # CHƯA SỬA
-
-## Panel "Xem video" (lớn nhất của GUI) đen khi chạy phân tích theo lô
-
-**Triệu chứng:** mở GUI → bấm **"Chạy"** trên 1 file video → panel lớn nhất bên giữa
-("Xem video") **đen suốt**, không hiện khung hình nào, dù mọi thứ khác chạy đúng
-(thanh tiến trình chạy, số liệu `2 Người / 2 Mặt / 2 Người quen` có giá trị, file
-`.mp4` + `.csv` vẫn sinh ra).
-
-**Nguyên nhân:** `run_analysis()` trong `cam_ai_core.py` chỉ có 2 callback:
-`progress_cb` (tiến trình) và `log` (dòng log) — **không có callback khung hình**.
-GUI chỉ đẩy `self.queue.put(("frame", buf.tobytes()))` ở chế độ **xem trực tiếp**
-(`gui.py:3631`). Vì vậy ở chế độ phân tích theo lô không có gì đẩy vào
-`self.o_hinh` → panel đen.
-
-**Kèm theo:** nút **"Tạm dừng"** (thuộc chế độ xem trực tiếp) vẫn hiện ở chế độ lô →
-bấm vào **không có tác dụng** nhưng trông như có.
-
-**Cách sửa dự kiến:**
-
-1. Thêm tham số tuỳ chọn `frame_cb: Callable[[bytes], None] | None = None` vào
-   `run_analysis()`; sau `writer.write(frame)` thì encode JPEG rồi gọi `frame_cb`.
-   **Khi `frame_cb is None` thì chi phí = 0** (CLI không bị ảnh hưởng).
-2. GUI truyền `frame_cb` vào `run_analysis()`; **đẩy vào hộp thư 1 ô (single-slot)**
-   chứ không đẩy vào `self.queue` — nếu đẩy vào queue thì video dài sẽ **phình bộ nhớ**
-   (mỗi khung ~50–150 KB × hàng chục nghìn khung).
-3. Giới hạn tần suất (~10 fps) để không làm chậm pipeline.
-4. Ẩn / vô hiệu nút "Tạm dừng" khi đang chạy theo lô.
-
-**Trạng thái:** chưa sửa. Phát hiện 2026-10-20 khi rà bản PC (coordinator tự xem ảnh
-`_kk_out/gui_e2e/gui_dang_chay.png` và `gui_chay_thuc.png`).
-
----
 
 ## Nhãn người chồng lên nhau trên khung — lỗi tái diễn 2 lần
 

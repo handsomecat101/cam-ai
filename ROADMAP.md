@@ -67,12 +67,16 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       (2) app không tự tạo thư mục output;
       (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả
       nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`)
+- [x] **Sửa panel "Xem video" đen khi chạy phân tích theo lô** (bản 3.2):
+      thêm `frame_cb` + `frame_cb_interval` vào `run_analysis()` (khung **đã có overlay**,
+      `frame_cb=None` → chi phí = 0, callback lỗi không làm chết pipeline) + GUI nhận
+      khung qua **hộp thư 1 ô** (tránh phình bộ nhớ) + giới hạn **10 fps** + ẩn nút
+      "Tạm dừng" ở chế độ lô. Kiểm chứng: **7/7 PASS**, vùng panel đo được
+      **118.735 màu / sáng TB 73,95** (trước là đen), coordinator **tự xem ảnh** thấy
+      khung người + nhãn **An**/**Binh**
 
 ## Đang làm
 
-- [ ] **Sửa panel "Xem video" đen khi chạy phân tích theo lô** (tìm ra 2026-10-20):
-      thêm callback khung hình cho `run_analysis()` + đẩy vào GUI qua hộp thư 1 ô
-      (tránh phình bộ nhớ) + ẩn nút "Tạm dừng" ở chế độ lô
 - [ ] **Chờ anh xác nhận mục 7** — kéo cửa sổ, còn giật hay không (chỉ có số đo)
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh
 - [ ] **Chờ ảnh biển số Việt Nam thật** của anh — mới nghiệm thu được OCR biển số

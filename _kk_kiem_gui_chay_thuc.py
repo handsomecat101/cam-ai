@@ -105,6 +105,53 @@ def thong_tin_anh(anh):
     }
 
 
+def do_vung_khung_video(anh, app, rc):
+    """Do RIENG vung o hinh 'Xem video' trong anh chup cua so.
+
+    Day la bang chung quan trong nhat cua v3.2: panel 'Xem video' (o_hinh)
+    TRUOC v3.2 luon DEN trong che do phan tich theo lo (batch).
+    Den = so mau don sac ~1 va do sang tb ~0.
+    """
+    from PIL import ImageStat
+
+    try:
+        x0 = app.o_hinh.winfo_rootx() - rc.left
+        y0 = app.o_hinh.winfo_rooty() - rc.top
+        w = app.o_hinh.winfo_width()
+        h = app.o_hinh.winfo_height()
+    except Exception as exc:  # noqa: BLE001
+        return {"loi": f"khong doc duoc toa do o_hinh: {exc}"}
+    if w <= 1 or h <= 1:
+        return {"loi": f"o_hinh chua co kich thuoc ({w}x{h})"}
+    vung = (max(0, x0), max(0, y0), max(0, x0 + w), max(0, y0 + h))
+    cat = anh.crop(vung)
+    rgb = cat.convert("RGB")
+    mau = rgb.getcolors(maxcolors=2_000_000)
+    stat = ImageStat.Stat(rgb)
+    tb = stat.mean
+    ld = stat.stddev
+    return {
+        "toa_do": vung,
+        "kich_thuoc": cat.size,
+        "so_mau_don_sac": len(mau) if mau is not None else -1,
+        "sang_tb": round(sum(tb) / 3.0, 2),
+        "sang_lc": round(sum(ld) / 3.0, 2),
+    }
+
+
+def trang_thai_nut_tam_dung(app):
+    """Trang thai nut 'Tam dung' (thuoc che do xem truc tiep)."""
+    try:
+        btn = app.btn_tam_dung_xem
+        return {
+            "state": str(btn.cget("state")),
+            "hien_thi": bool(btn.winfo_ismapped()),
+            "text": str(btn.cget("text")),
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"loi": str(exc)}
+
+
 def chup_cua_so(app, duong_dan):
     """Chup cua so that va luu xuong dia chi. Tra ve thong tin do duoc."""
     from PIL import ImageGrab
@@ -126,6 +173,8 @@ def chup_cua_so(app, duong_dan):
     tt = thong_tin_anh(anh)
     tt["duong_dan"] = duong_dan
     tt["toa_do"] = (rc.left, rc.top, rc.right, rc.bottom)
+    tt["khung_video"] = do_vung_khung_video(anh, app, rc)
+    tt["nut_tam_dung"] = trang_thai_nut_tam_dung(app)
     return tt
 
 
@@ -239,6 +288,32 @@ def kt_6_codec(video_path):
         return "FAIL", f"ffprobe tra ve ma loi {ket.returncode}: {ket.stderr[:200]}"
     dong = ket.stdout.strip().replace("\n", " | ")
     return "PASS", f"ffprobe: {dong}"
+
+
+def kt_7_khung_video_khong_den(tt_dang_chay):
+    """v3.2: panel 'Xem video' co anh (KHONG den) o che do phan tich theo lo.
+
+    Den = so mau don sac ~1 va do sang tb ~0. Phai >1 mau + sang >5.
+    Nut 'Tam dung' (thuoc che do xem truc tiep) phai AN trong che do batch.
+    """
+    if not tt_dang_chay:
+        return False, "KHONG CO ANH khi dang chay"
+    kv = tt_dang_chay.get("khung_video") or {}
+    if "loi" in kv:
+        return False, str(kv["loi"])
+    so_mau = int(kv.get("so_mau_don_sac", 0))
+    sang = float(kv.get("sang_tb", 0))
+    ok = so_mau > 50 and sang > 5.0
+    do_so = (f"vung={kv.get('toa_do')} | kich thuoc={kv.get('kich_thuoc')} | "
+             f"so mau don sac={so_mau} | do sang tb={sang} | "
+             f"do lech chuan={kv.get('sang_lc')}")
+    nt = tt_dang_chay.get("nut_tam_dung") or {}
+    if nt.get("hien_thi"):
+        ok = False
+        do_so += f" | nut 'Tam dung' VAN HIEN THI (state={nt.get('state')})"
+    else:
+        do_so += f" | nut 'Tam dung' da AN (state={nt.get('state')})"
+    return ok, do_so
 
 
 # ---------------------------------------------------------------------- chay
@@ -460,6 +535,10 @@ def chay() -> int:
     in_ky(f"  [6] Codec (ffprobe)      : {trang6}")
     in_ky(f"      {do6}")
 
+    ok7, do7 = kt_7_khung_video_khong_den(anh_dang_chay)
+    in_ky(f"  [7] Khung 'Xem video'    : {'PASS' if ok7 else 'FAIL'}")
+    in_ky(f"      {do7}")
+
     # --- anh chup ---
     in_ky("")
     in_ky("[5/6] 2 ANH CHUP CUA SO")
@@ -473,6 +552,16 @@ def chay() -> int:
               f"so mau don sac={tt['so_mau_don_sac']} | "
               f"do sang tb={tt['sang_tb']} | do lech chuan={tt['sang_lc']} | "
               f"toa do={tt['toa_do']}")
+        kv = tt.get("khung_video") or {}
+        if "loi" in kv:
+            in_ky(f"  {'':<20}  KHUNG 'Xem video': {kv['loi']}")
+        else:
+            in_ky(f"  {'':<20}  KHUNG 'Xem video': vung={kv.get('toa_do')} | "
+                  f"kich thuoc={kv.get('kich_thuoc')} | "
+                  f"so mau don sac={kv.get('so_mau_don_sac')} | "
+                  f"do sang tb={kv.get('sang_tb')} | "
+                  f"do lech chuan={kv.get('sang_lc')}")
+        in_ky(f"  {'':<20}  nut 'Tam dung': {tt.get('nut_tam_dung')}")
 
     # --- so lieu tong hop tu AnalysisResult ---
     in_ky("")
@@ -510,12 +599,13 @@ def chay() -> int:
         ("4", "File CSV bao cao", "PASS" if ok4 else "FAIL", do4),
         ("5", "Video doc duoc that", "PASS" if ok5 else "FAIL", do5),
         ("6", "Codec (ffprobe)", trang6, do6),
+        ("7", "Khung 'Xem video' khong den", "PASS" if ok7 else "FAIL", do7),
     ]
     for ma, ten, kq, do_so in bang:
         in_ky(f"  {ma:<4}{ten:<30}{kq:<10}{do_so}")
     in_ky("  " + "-" * 74)
 
-    bat_buoc_ok = ok1 and ok2 and ok3 and ok4 and ok5 and trang6 != "FAIL"
+    bat_buoc_ok = ok1 and ok2 and ok3 and ok4 and ok5 and trang6 != "FAIL" and ok7
     tong = "PASS" if bat_buoc_ok else "FAIL"
     in_ky(f"  TONG KET: {tong}"
           + (" (het gioi)" if het_gioi else "")

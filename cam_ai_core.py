@@ -27,6 +27,7 @@ import difflib
 import os
 import signal
 import tempfile
+import time
 import warnings
 from collections import deque
 from dataclasses import dataclass, field
@@ -43,7 +44,10 @@ from duong_dan import chuan_hoa_duong_dan
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PERSON_CLASS_ID = 0
-VERSION = "3.1"
+VERSION = "3.2"
+
+# --- v3.2: chat luong JPEG cua khung hinh gui ra GUI (che do phan tich theo lo)
+JPEG_CHAT_LUONG = 80                    # 0-100; 80 = rat kho cho mat, nho hon 85
 
 # thiet bi chay model: "auto" = tu chon (giam nhip), "cuda"/"cpu" = ep
 THIET_BI_MAC_DINH = "auto"
@@ -920,11 +924,23 @@ def run_analysis(
     cfg: AnalysisConfig,
     progress_cb: Callable[[Progress], bool] | None = None,
     log: Callable[[str], None] = print,
+    frame_cb: Callable[[bytes], None] | None = None,
+    frame_cb_interval: float = 0.0,
 ) -> AnalysisResult:
     """Chay toan bo pipeline. Tra ve AnalysisResult.
 
     progress_cb(progress) -> True/None de tiep tuc, False de DUNG ngay.
     log(dong_chu) de in ra console (mac dinh) hoac dua len GUI.
+    frame_cb(jpeg_bytes) -> GOI VOI KHUNG HINH DA VE OVERLAY (khung nguoi, nhan
+        ten, vung canh, badge) de GUI hien thi khi phan tich theo lo.
+        None = KHONG encode, KHONG ton them gi (CLI khong bi anh huong).
+    frame_cb_interval > 0 -> chi goi frame_cb moi MOT KHUNG HINH sau moi
+        khoang (giay) -> giam chi phi encode. 0 = moi khung hinh.
+
+    CHI PHI (do that 2026-10-20, video 960x540, yolo11n + ArcFace, may nay):
+        encode JPEG q=80 = 2.80 ms/khung (117 KB/khung).
+        frame_cb_interval=0   -> +2.81 ms/khung (~+5% so voi pipeline).
+        frame_cb_interval=0.1 -> +1.07 ms/khung (~+2%) -> GUI dung muc nay.
     """
     log(HEADER.format(VERSION))
 
@@ -1201,6 +1217,11 @@ def run_analysis(
     # --- v3.0: bien so + tu chup anh
     ds_bien_so: dict[str, int] = {}             # bien so -> so khung hinh thay
     bien_so_da_thay: list[str] = []             # bien so thay trong video (theo thu tu)
+
+    # --- v3.2: gui khung hinh ra GUI (che do phan tich theo lo).
+    # KHONG ton them gi khi frame_cb is None -> CLI y nguyen.
+    lan_gui_hinh = 0.0                          # thoi diem gui khung hinh gan nhat
+    bao_loi_gui_hinh = False                    # chi bao loi callback 1 lan
 
     try:
         while cap.isOpened():
@@ -1482,6 +1503,32 @@ def run_analysis(
                     pass    # khong ve overlay van chay tiep, khong dung app
 
             writer.write(frame)
+
+            # --- v3.2: gui khung hinh cho GUI (che do phan tich theo lo).
+            # Khung hinh o day DA CO overlay (khung nguoi, nhan ten, vung canh,
+            # badge) nen hien thi y hinh pipeline, khac vo hinh tho.
+            # CHI encode khi co frame_cb (GUI) -> CLI khong ton them gi.
+            if frame_cb is not None:
+                gui_duoc = True
+                if frame_cb_interval > 0:
+                    luc = time.monotonic()
+                    if luc - lan_gui_hinh < frame_cb_interval:
+                        gui_duoc = False
+                    else:
+                        lan_gui_hinh = luc
+                if gui_duoc:
+                    try:
+                        ok_jpg, buf_jpg = cv2.imencode(
+                            ".jpg", frame,
+                            [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_CHAT_LUONG],
+                        )
+                        if ok_jpg:
+                            frame_cb(buf_jpg.tobytes())
+                    except Exception as exc:                # noqa: BLE001
+                        # Callback loi KHONG BAO GIO duoc lam chet pipeline.
+                        if not bao_loi_gui_hinh:
+                            bao_loi_gui_hinh = True
+                            log(f"[canh bao] callback khung hinh loi: {exc}")
 
             # --- tu luu clip: giu vong dem + ghi khi co su kien
             if recorder is not None:

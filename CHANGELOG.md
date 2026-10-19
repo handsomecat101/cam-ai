@@ -2,6 +2,76 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.2] — 2026-10-20 (sau 01:30)
+
+`VERSION` trong `cam_ai_core.py` = **3.2**.
+
+Bản này **không thêm tính năng mới**. Đây là bản **sửa 1 lỗi hiển thị** — lỗi mà
+coordinator phát hiện khi rà bản PC: panel **"Xem video"** (panel lớn nhất của GUI)
+**đen suốt** khi chạy phân tích theo lô.
+
+### Đã sửa — panel "Xem video" đen khi chạy theo lô
+
+- **Triệu chứng:** bấm "Chạy" trên file video → panel lớn nhất bên giữa **đen suốt**,
+  không hiện khung hình nào, dù mọi thứ khác chạy đúng (tiến trình chạy, số liệu
+  `2 Người / 2 Mặt / 2 Người quen` có giá trị, file `.mp4` + `.csv` vẫn sinh ra).
+  Ngoài ra nút **"Tạm dừng"** (thuộc chế độ xem trực tiếp) vẫn hiện ở chế độ lô →
+  bấm không có tác dụng nhưng trông như có.
+- **Nguyên nhân:** `run_analysis()` chỉ có `progress_cb` + `log`, **không có callback
+  khung hình**. GUI chỉ đẩy `("frame", ...)` ở chế độ **xem trực tiếp**.
+- **Cách sửa:**
+  1. `cam_ai_core.py`: thêm `frame_cb` + `frame_cb_interval` vào `run_analysis()`.
+     Khung hình gửi ra là **khung ĐÃ vẽ overlay** (khung người, nhãn tên, vùng canh,
+     badge) → hiển thị **y hình pipeline**, khác ảnh thô. `frame_cb is None` →
+     **không encode, chi phí = 0** (CLI không bị ảnh hưởng). Callback ném lỗi →
+     **không làm chết pipeline**, chỉ báo 1 lần.
+  2. `gui.py`: hộp thư **1 ô** (`_khung_hinh_moi` + `threading.Lock` + `_khung_hinh_seq`)
+     thay vì `self.queue` — queue không giới hạn sẽ **phình bộ nhớ** khi quét video
+     dài (~100 KB/khung × hàng chục nghìn khung).
+  3. `gui.py`: giới hạn **10 fps** (`KHOUNG_HINH_FPS = 10`).
+  4. `gui.py`: nút "Tạm dừng" **ẩn** ở chế độ lô (`_cap_nhat_nut_tam_dung_xem()`).
+
+### Bằng chứng — coordinator tự chạy + tự xem ảnh bằng mắt
+
+| Bước | Kết quả |
+|---|---|
+| `_kk_kiem_gui_batch_preview.py` (GUI chế độ lô, `v_xem_video="0"`) | **PASS** — khung hình hiện lên panel **82 lần**; vùng panel đo được **118.735 màu đơn sắc**, sáng TB **73,95**, max 255 / min 0 → **KHÔNG đen** |
+| Ảnh `v5_dang_chay.png` (coordinator **tự mở xem**) | Khung hình thật + khung tím `Người 1..4`, khung xanh mặt với nhãn **An** / **Binh**, badge `Người: 4 \| Mặt: 2 \| Vào: 0 \| Ra: 0` |
+| Vùng panel cắt riêng `v5_vung_khung_hinh.png` | Ảnh thật, **không có vùng đen nào** |
+| Nút "Tạm dừng" trong chế độ lô | `hien_thi = False` → đã ẩn |
+| `_kk_kiem_gui_chay_thuc.py` (bộ e2e đầy đủ) | **7/7 PASS** (thêm mục [7] đo vùng panel) — video `h264,960,540`, CSV 251 dòng, 250 frame đọc được |
+| Callback ném lỗi | Pipeline **vẫn chạy hết 250 khung**, không chết |
+
+### Chi phí — đo thật (video 960×540, yolo11n + ArcFace, RTX 3090)
+
+> Số đo lấy từ `_kk_do_chi_phi_frame_cb.py`: có **warm-up** (nạp model + mở CUDA) rồi
+> chạy **2 vòng**, lấy **vòng 2** (máy đã nóng). Bản đầu tiên của script đo bị sai
+> (lỗi của script, không phải của app) → đã sửa và đo lại.
+
+| Cấu hình | Thời gian | Khung/s | Callback gọi | Ghi chú |
+|---|---|---|---|---|
+| Không `frame_cb` (CLI) | 27,01 s | **9,26** | 0 | không encode → không tốn thêm |
+| `frame_cb` mỗi khung | 28,63 s | **8,73** | 250 / 250 | −5,7% so với CLI |
+| `frame_cb` giới hạn 10 fps | 29,27 s | **8,54** | 147 / 250 (~59%) | −7,7% so với CLI — **mức GUI thật dùng** |
+
+**CẢNH BÁO về độ chính xác:** nhiễu đo giữa hai lần chạy **cùng cấu hình** là
+~3–4% (vòng 1 của chính lần đo này cho 8,79 / 8,41 / 8,05 khung/s). Vì vậy:
+- Chênh lệch **5,7%–7,7%** so với CLI là **con số đo thật nhưng nằm gần ngưỡng nhiễu**
+  → **hao tổn thực tế nằm trong khoảng 3–8%**.
+- Chênh lệch giữa "mỗi khung" và "giới hạn 10 fps" **nằm trong nhiễu** → không khẳng
+  định được 10 fps nhanh hơn bao nhiêu.
+- Con số **chắc chắn** là chi phí encode đo riêng: **2,80 ms/khung** (JPEG q=80,
+  117 KB/khung) → 250 khung = **0,7 s**.
+
+Vì `frame_cb is None` ở CLI nên **lệnh `app.py` không bị ảnh hưởng gì cả** — phần
+chi phí nằm ở đúng chế độ GUI là chế độ cần nó.
+
+### CHƯA ĐẠT (không thay đổi so với 3.1)
+
+- **Mục 7** — cảm giác kéo cửa sổ: chỉ có số đo, **anh phải tự xác nhận**.
+- **Mục 8** — độ nhận diện trên video thật: cần video thật của anh (xem `PROJECT_STATE.md` mục 2.3).
+- **OCR biển số Việt Nam**: cần ảnh biển số VN thật (10 ảnh kiểm chứng hiện là **ảnh giả**).
+
 ## [3.1] — 2026-10-20 (sau 00:40)
 
 `VERSION` trong `cam_ai_core.py` = **3.1**.
