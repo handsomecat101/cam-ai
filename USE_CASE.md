@@ -37,8 +37,8 @@ trì mà không giải quyết vấn đề "người không rành kỹ thuật v
 
 | # | Tầng nền tảng | Hiện trạng | Việc cần làm | Có thể dùng cho use case |
 |---|---|---|---|---|
-| N1 | **Vẽ vùng / đường ngắm trong GUI, nhiều vùng** | Đã có `ve_vung.py` (CLI, bấm chuột, 1 vùng, toạ độ tương đối) | Đưa nút "Vẽ vùng" vào GUI + hỗ trợ **nhiều vùng** | 1, 2, 3, 5, 6, 8 |
-| N2 | **Đăng ký người quen trong GUI** | Đã có `dang_ky_anh.py` (CLI, lấy mặt từ video, tối đa 5 ảnh/người) | Nút "Thêm người quen" trong GUI, chọn tên, xem danh sách | 1, 2, 6, 9, 10 |
+| N1 | **Vẽ vùng / đường ngắm trong GUI, nhiều vùng** | **Xong bản 3.3**: nút "Vẽ vùng ngay tại đây" — kéo chuột **trong chính cửa sổ** (module mới `ve_vung_gui.py`), ghi ra file vùng `.txt`, đo **sai số 0.0000** | Còn **nhiều vùng** trong 1 file | 1, 2, 3, 5, 6, 8 |
+| N2 | **Đăng ký người quen trong GUI** | **Xong bản 3.3**: nút "Đăng ký người quen…" — chọn ảnh/video → nhập tên → lưu `known_faces/<Tên>/`, tự nạp lại danh sách người quen | Còn: đăng ký **nhiều người cùng lúc** trong 1 video | 1, 2, 6, 9, 10 |
 | N3 | **Dashboard tổng quan + lịch sử sự kiện lưu lâu dài** | Chỉ có timeline sự kiện trong 1 phiên | 1 màn hình "hôm nay: N người · M sự kiện · camera nào lỗi" + lưu lâu dài | tất cả |
 | N4 | **Rule cảnh báo theo điều kiện** | Cảnh báo cố định: vượt ngưỡng / đứng lâu | Cấu hình được trong GUI: *"quá 3 người trong vùng sau 22h"*, *"xe vào lúc 3h"*, kèm **ảnh** | 1, 3, 4, 6, 8 |
 | N5 | **Nhiều camera / nhiều nguồn** | `--input` chỉ nhận **1** nguồn | Chạy N nguồn, gộp vào 1 báo cáo | 3, 4, 10 |

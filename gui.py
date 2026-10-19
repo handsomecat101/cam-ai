@@ -801,6 +801,100 @@ DICH_VI_EN = {
     "Lỗi": "Error",
     "Đã dừng": "Stopped",
     "Xong": "Done",
+
+    # --- v3.3: 2 o xem video + dang ky nguoi quen + doc bien so thu + ve vung ---
+    "Xem trực tiếp": "Live view",
+    "Xem khung hình kết quả": "Show result frames",
+    "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' tạm không dùng "
+    "(tránh 2 nguồn hình đè nhau).":
+        "Live view is on, so 'Show result frames' is not used for now "
+        "(avoids 2 image sources overlapping).",
+    "> Bật xem khung hình kết quả.": "> Result frames turned on.",
+    "> Tắt xem khung hình kết quả.": "> Result frames turned off.",
+
+    # --- dang ky nguoi quen ---
+    "Đăng ký người quen…": "Register a known person…",
+    "Đăng ký người quen": "Register a known person",
+    "Chọn ảnh hoặc video có người quen":
+        "Choose a photo or video containing the person",
+    "Nhập tên người quen (tối đa 50 ký tự):":
+        "Enter the person's name (50 characters max):",
+    "Chưa nhập tên": "No name entered",
+    "Hãy nhập tên người quen.": "Please enter the person's name.",
+    "Tên quá dài": "Name too long",
+    "Tên người quen không được quá 50 ký tự.":
+        "The person's name must be 50 characters or fewer.",
+    "Tên không hợp lệ": "Invalid name",
+    "Tên người quen không được chứa các ký tự cấm của tên thư mục.":
+        "The person's name must not contain characters that are not allowed "
+        "in a folder name.",
+    "Thư mục đã tồn tại": "Folder already exists",
+    "Thư mục đã tồn tại: ": "Folder already exists: ",
+    "Đăng ký lại sẽ XOÁ các ảnh cũ trong thư mục đó. Có tiếp tục không?":
+        "Registering again will DELETE the old photos in that folder. "
+        "Continue?",
+    "> Đăng ký người quen '": "> Registering the known person '",
+    "' từ: ": "' from: ",
+    "> Tìm thấy ": "> Found ",
+    " khuôn mặt trong ảnh/video đã chọn.":
+        " faces in the chosen photo/video.",
+    "Không tìm thấy khuôn mặt nào trong ảnh/video đã chọn. "
+    "Thử video rõ mặt hơn, hoặc ảnh chụp gần hơn.":
+        "No face found in the chosen photo/video. "
+        "Try a video with clearer faces, or a closer photo.",
+    "Không gom được nhóm người nào.": "Could not group any person.",
+    "> Đã lưu ảnh cho người quen: ": "> Saved photos for the known person: ",
+    "> Số ảnh đã lưu: ": "> Number of photos saved: ",
+    " | thư mục: ": " | folder: ",
+    "Lỗi khi đăng ký người quen: ": "Error when registering the known person: ",
+    "> Không mở được hộp thoại nhập tên.":
+        "> Could not open the name input dialog.",
+    "Chọn 1 ảnh hoặc 1 video có người quen, phần mềm tự tìm mặt và lưu vào "
+    "thư mục của người đó.":
+        "Pick 1 photo or 1 video with the person - the software finds the face "
+        "and saves it in that person's folder.",
+
+    # --- doc bien so thu ---
+    "Đọc biển số thử…": "Test plate reading…",
+    "Chọn ảnh có biển số": "Choose a photo with a licence plate",
+    "> Thử đọc biển số trong ảnh: ": "> Testing plate reading in the photo: ",
+    "Biển số: ": "Plate: ",
+    " | tin cậy ": " | confidence ",
+    " | số hàng: ": " | rows: ",
+    " | vùng: ": " | region: ",
+    "Ảnh biển số đã lưu: ": "Saved plate photo: ",
+    "Không đọc được biển số trong ảnh này.":
+        "Could not read a licence plate in this photo.",
+    "Không nạp được engine đọc biển số.":
+        "Could not load the plate reading engine.",
+    "Không đọc được ảnh: ": "Could not read the photo: ",
+    "Lỗi khi thử đọc biển số: ": "Error while testing plate reading: ",
+    "Thử trên 1 ảnh. Khi chạy video, biển số phải được xác nhận qua 2 khung "
+    "hình liên tiếp mới ghi nhận - nên kết quả thử 1 ảnh chưa giống hệt lúc "
+    "chạy video.":
+        "This is a test on 1 photo. When running a video, a plate is only "
+        "accepted after it is confirmed on 2 consecutive frames - so a "
+        "1-photo test is not exactly the same as a video run.",
+
+    # --- ve vung ngay trong cua so ---
+    "Vẽ vùng ngay tại đây": "Draw the zone right here",
+    "> Đang lấy khung hình để vẽ vùng: ": "> Getting a frame to draw the zone: ",
+    "Không mở được video: ": "Could not open the video: ",
+    "Không đọc được khung hình nào từ video.":
+        "Could not read any frame from the video.",
+    "Lỗi khi lấy khung hình: ": "Error while getting the frame: ",
+    "Chưa có module ve_vung_gui, hãy dùng nút 'Vẽ vùng trên video này'.":
+        "No ve_vung_gui module yet - use the "
+        "'Draw the zone on this video' button.",
+    "> Đã huỷ vẽ vùng.": "> Zone drawing cancelled.",
+    "Lỗi khi vẽ vùng: ": "Error while drawing the zone: ",
+    "Lỗi khi lưu file vùng: ": "Error while saving the zone file: ",
+    "Đã lưu vùng: ": "Saved zone: ",
+    "Vùng (tương đối): ": "Zone (relative): ",
+    "Vẽ ngay trong cửa sổ này: kéo chuột khoanh vùng rồi bấm Lưu. "
+    "Cần chọn video trước.":
+        "Draw it right in this window: drag the mouse over the zone then press "
+        "Save. Pick a video first.",
 }
 
 # KHOA DUOC PHEP "DICH TIEU DOAN" (chuoi co noi dung bien nhau phia sau).
@@ -1750,6 +1844,9 @@ class CamAIGui(ctk.CTk):
 
         # --- xem video truc tiep ---
         self.v_xem_video = ctk.StringVar(value="1")
+        # v3.3: tach 2 o xem. "Xem truc tiep" = thread rieng do YOLO.
+        # "Xem khung hinh ket qua" = pipeline gui anh co overlay (che do lo).
+        self.v_xem_ket_qua = ctk.StringVar(value="1")
         self.v_nhan_ten = ctk.StringVar(value="1")   # rut ten len khung video
         self._tam_dung_xem = threading.Event()   # set = dang tam dung hinh
         self._ket_thuc_xem = threading.Event()   # set = thread xem phai dung
@@ -2281,6 +2378,21 @@ class CamAIGui(ctk.CTk):
             pass
         return chk
 
+    def _dich_widget(self, wdg, chu_vi: str):
+        """Chuoi hien thi cua widget: dich ngay + GIU chu tieng Viet GOC.
+
+        CANH BAO: `self.dich()` luc TAO widget chi dung khi app khoi dong o
+        tieng Viet. Neu app khoi dong o tieng Anh, text da la tieng Anh ->
+        `_ghi_nhan_chu` se ghi nham SAI chu goc -> khi chuyen ve tieng Viet
+        chu khong doi lai. `_dich_widget` gan `_chu_vi` = chu tieng Viet GOC
+        TRUOC khi `_ghi_nhan_chu` chay -> doi ngon ngu 2 chieu deu dung.
+        """
+        try:
+            wdg._chu_vi = chu_vi
+        except Exception:                                     # noqa: BLE001
+            pass
+        return wdg
+
     # ------------------------------------------------------ nhom 1: nguoi
 
     def _n_phat_hien(self, b):
@@ -2372,6 +2484,15 @@ class CamAIGui(ctk.CTk):
         self._ghi_y(b, "Cấu trúc: known_faces / <Tên> / *.jpg — mỗi người một thư mục con.")
 
         f = self._hang(b, "")
+        self.btn_dang_ky = self._dich_widget(ctk.CTkButton(
+            f, text=self.dich("Đăng ký người quen…"), width=280,
+            command=self._mo_dang_ky_nguoi_quen,
+        ), "Đăng ký người quen…")
+        self.btn_dang_ky.grid(row=0, column=1, sticky="w")
+        self._ghi_y(b, "Chọn 1 ảnh hoặc 1 video có người quen, phần mềm tự "
+                       "tìm mặt và lưu vào thư mục của người đó.")
+
+        f = self._hang(b, "")
         self.btn_hoc_lai = ctk.CTkButton(
             f, text="Đọc lại danh sách người đã học", width=280,
             command=self._ve_lai_nguoi_hoc,
@@ -2410,6 +2531,15 @@ class CamAIGui(ctk.CTk):
                       command=self._mo_ve_vung).grid(row=0, column=1, sticky="w")
         self._ghi_y(b, "Mở cửa sổ riêng: xem video, kéo chuột khoanh vùng, "
                        "lưu lại thành file .txt.")
+
+        f = self._hang(b, "")
+        self.btn_ve_vung_tai_day = self._dich_widget(ctk.CTkButton(
+            f, text=self.dich("Vẽ vùng ngay tại đây"), width=280,
+            command=self._ve_vung_ngay_tai_day,
+        ), "Vẽ vùng ngay tại đây")
+        self.btn_ve_vung_tai_day.grid(row=0, column=1, sticky="w")
+        self._ghi_y(b, "Vẽ ngay trong cửa sổ này: kéo chuột khoanh vùng rồi "
+                       "bấm Lưu. Cần chọn video trước.")
 
         f = self._hang(b, "")
         self._checkbox(f, "Chỉ cần một phần chân vào vùng là bị báo",
@@ -2515,6 +2645,16 @@ class CamAIGui(ctk.CTk):
         ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
                      text_color=MAU["chu_phu_the"], anchor="w").grid(
             row=0, column=2, sticky="w", padx=(8, 0))
+
+        f = self._hang(b, "")
+        self.btn_doc_bien_so_thu = self._dich_widget(ctk.CTkButton(
+            f, text=self.dich("Đọc biển số thử…"), width=280,
+            command=self._mo_doc_bien_so_thu,
+        ), "Đọc biển số thử…")
+        self.btn_doc_bien_so_thu.grid(row=0, column=1, sticky="w")
+        self._ghi_y(b, "Thử trên 1 ảnh. Khi chạy video, biển số phải được xác "
+                       "nhận qua 2 khung hình liên tiếp mới ghi nhận - nên kết "
+                       "quả thử 1 ảnh chưa giống hệt lúc chạy video.")
 
         self._ghi_y(b, "Đọc bằng RapidOCR chạy 100% trên máy này, không gửi "
                        "ảnh ra ngoài.")
@@ -2729,24 +2869,35 @@ class CamAIGui(ctk.CTk):
         hang_duoi = ctk.CTkFrame(khung, fg_color="transparent")
         hang_duoi.grid(row=2, column=0, columnspan=3, sticky="ew", padx=12,
                        pady=(0, 10))
-        hang_duoi.grid_columnconfigure(2, weight=1)
-        self.chk_xem_video = ctk.CTkCheckBox(
-            hang_duoi, text="Xem video khi chạy", variable=self.v_xem_video,
-            font=self.font_nho_xam, command=self._doi_bat_xem_video, onvalue="1", offvalue="0"
-        )
+        hang_duoi.grid_columnconfigure(3, weight=1)
+        # v3.3: 2 o xem tach rieng: "Xem truc tiep" va "Xem khung hinh ket qua".
+        # 3 checkbox + 1 dong ghi chu -> ghi chu XUONG HANG RIENG (dong 1) de
+        # khong chu nao bi cat/chong nhau trong be ngang cua so.
+        self.chk_xem_video = self._dich_widget(ctk.CTkCheckBox(
+            hang_duoi, text=self.dich("Xem trực tiếp"), variable=self.v_xem_video,
+            font=self.font_nho_xam, command=self._doi_bat_xem_truc_tiep,
+            onvalue="1", offvalue="0"
+        ), "Xem trực tiếp")
         self.chk_xem_video.grid(row=0, column=0, sticky="w")
+        self.chk_xem_ket_qua = self._dich_widget(ctk.CTkCheckBox(
+            hang_duoi, text=self.dich("Xem khung hình kết quả"),
+            variable=self.v_xem_ket_qua, font=self.font_nho_xam,
+            command=self._doi_bat_xem_ket_qua, onvalue="1", offvalue="0"
+        ), "Xem khung hình kết quả")
+        self.chk_xem_ket_qua.grid(row=0, column=1, sticky="w", padx=(18, 0))
         self.chk_nhan_ten = ctk.CTkCheckBox(
             hang_duoi, text="Nhận diện tên trên ảnh", variable=self.v_nhan_ten,
             font=self.font_nho_xam, onvalue="1", offvalue="0"
         )
-        self.chk_nhan_ten.grid(row=0, column=1, sticky="w", padx=(18, 0))
+        self.chk_nhan_ten.grid(row=0, column=2, sticky="w", padx=(18, 0))
         self.lbl_goi_y_xem = ctk.CTkLabel(
             hang_duoi,
             text="Tên lấy từ bộ nhận diện mặt đang chạy song song. "
                  "Tắt đi thì nhẹ máy hơn.",
-            font=self.font_nho_xam, text_color=MAU["chu_phu"], anchor="e",
+            font=self.font_nho_xam, text_color=MAU["chu_phu"], anchor="w",
         )
-        self.lbl_goi_y_xem.grid(row=0, column=2, sticky="e")
+        self.lbl_goi_y_xem.grid(row=1, column=0, columnspan=4, sticky="w",
+                                pady=(2, 0))
 
     def _bang_so_lieu_gon(self, parent):
         """Dải số liệu GỌN 1 hàng ngay dưới khung video.
@@ -3109,23 +3260,33 @@ class CamAIGui(ctk.CTk):
         self._ghi_log("=" * 52)
         self._ghi_log(f"BẮT ĐẦU xử lý: {cfg.input}")
         # --- v3.2: 2 che do hien thi khung hinh ---
-        # * xem truc tiep (tick "Xem video khi chay"): thread rieng do YOLO.
+        # * xem truc tiep (tick "Xem truc tiep"): thread rieng do YOLO.
         # * phan tich theo lo (tick OFF): pipeline gui khung hinh co overlay
         #   qua `frame_cb` -> panel "Xem video" KHONG con den.
+        # v3.3: tach 2 o. "Xem khung hinh ket qua" CHI dung khi KHONG bat
+        # "Xem truc tiep" - bat ca 2 se co 2 nguon hinh de len nhau.
         self._hien_anh_batch = False
         xem_truc_tiep = self.v_xem_video.get() == "1"
+        xem_ket_qua = self.v_xem_ket_qua.get() == "1"
         if xem_truc_tiep:
+            if xem_ket_qua:
+                self._ghi_log(
+                    "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' "
+                    "tạm không dùng (tránh 2 nguồn hình đè nhau)."
+                )
             self._bat_xem_truc_tiep(cfg)
         else:
-            self._hien_anh_batch = True
+            self._hien_anh_batch = xem_ket_qua
             self._cap_nhat_nut_tam_dung_xem()
             self.lbl_khung_hinh.configure(text=os.path.basename(cfg.input))
             self.o_hinh.configure(image=None, text="")
         threading.Thread(
-            target=self._chay_pipeline, args=(cfg, xem_truc_tiep), daemon=True
+            target=self._chay_pipeline, args=(cfg, xem_truc_tiep, xem_ket_qua),
+            daemon=True
         ).start()
 
-    def _chay_pipeline(self, cfg: AnalysisConfig, xem_truc_tiep: bool = True):
+    def _chay_pipeline(self, cfg: AnalysisConfig, xem_truc_tiep: bool = True,
+                       xem_ket_qua: bool = False):
         """CHAY TREN THREAD NEN. Chi day vao hang doi, khong go widget."""
         old_stdout = sys.stdout
         sys.stdout = QueueWriter(self.queue)
@@ -3138,7 +3299,10 @@ class CamAIGui(ctk.CTk):
                 # Che do xem truc tiep: thread rieng da lo anh roi -> KHONG
                 # gui them khung hinh tu pipeline (tranh 2 nguon anh).
                 # Che do phan tich theo lo: pipeline gui khung hinh co overlay.
-                frame_cb=None if xem_truc_tiep else self._cb_khung_hinh_batch,
+                # v3.3: chi gui khi anh TAT "Xem truc tiep" va BAT
+                # "Xem khung hinh ket qua".
+                frame_cb=(self._cb_khung_hinh_batch
+                          if (xem_ket_qua and not xem_truc_tiep) else None),
                 frame_cb_interval=1.0 / KHOUNG_HINH_FPS,
             )
         except CamAIError as exc:
@@ -3215,6 +3379,350 @@ class CamAIGui(ctk.CTk):
             sys.stdout = old_stdout
             self.queue.put(("done", None))
 
+    # ------------------------------------------ v3.3: DANG KY NGUOI QUEN
+    #
+    # Luu 1 nguoi quen tu 1 ANH hoac 1 VIDEO. Nap model ArcFace mat vai giay
+    # nen phai chay o THREAD NEN (khong dung `_che_do_busy` - no do khoa ca
+    # app; chi khoa DUNG nut dang ky).
+
+    KY_TU_CAM_TEN = '\\/:*?"<>|'
+
+    def _mo_dang_ky_nguoi_quen(self):
+        """Chon 1 anh / video co nguoi quen -> luu vao known_faces/<Ten>/."""
+        if self.busy:
+            return
+        path = filedialog.askopenfilename(
+            title=self.dich("Chọn ảnh hoặc video có người quen"),
+            filetypes=[
+                ("Anh", "*.jpg *.jpeg *.png *.bmp"),
+                ("Video", "*.mp4 *.avi *.mov *.mkv"),
+                ("Tat ca file", "*.*"),
+            ],
+        )
+        if not path:
+            return
+        ten = self._hoi_ten_nguoi_quen()
+        if ten is None:
+            return
+        ten = ten.strip()
+        if not ten:
+            self._bao_canh_bao("Chưa nhập tên", "Hãy nhập tên người quen.")
+            return
+        if len(ten) > 50:
+            self._bao_canh_bao(
+                "Tên quá dài", "Tên người quen không được quá 50 ký tự.")
+            return
+        if any(c in ten for c in self.KY_TU_CAM_TEN):
+            self._bao_canh_bao(
+                "Tên không hợp lệ",
+                "Tên người quen không được chứa các ký tự cấm của tên thư mục.")
+            return
+        faces_dir = (self.v_faces_dir.get().strip()
+                     or os.path.join(APP_DIR, "known_faces"))
+        thu_muc = os.path.join(faces_dir, ten)
+        if os.path.isdir(thu_muc):
+            # `save_group` XOA thu muc cu neu da ton tai -> phai hoi TRUOC.
+            hoi = (self.dich("Thư mục đã tồn tại: ") + ten + "\n\n"
+                   + self.dich("Đăng ký lại sẽ XOÁ các ảnh cũ trong thư mục "
+                               "đó. Có tiếp tục không?"))
+            if not messagebox.askyesno(self.dich("Thư mục đã tồn tại"), hoi):
+                return
+        try:
+            threshold = float(self.v_face_threshold.get() or 0.40)
+        except ValueError:
+            threshold = 0.40
+        self.btn_dang_ky.configure(state="disabled")
+        self._ghi_log(self.dich("> Đăng ký người quen '") + ten
+                      + self.dich("' từ: ") + path)
+        threading.Thread(
+            target=self._chay_dang_ky_nguoi_quen,
+            args=(path, ten, faces_dir, threshold), daemon=True,
+        ).start()
+
+    def _hoi_ten_nguoi_quen(self):
+        """Hop thoai nhap ten nguoi quen. Tra None neu huy / khong mo duoc."""
+        try:
+            hop = ctk.CTkInputDialog(
+                title=self.dich("Đăng ký người quen"),
+                text=self.dich("Nhập tên người quen (tối đa 50 ký tự):"),
+                font=self.font_nho,
+            )
+        except Exception:                             # noqa: BLE001
+            self._ghi_log("> Không mở được hộp thoại nhập tên.")
+            return None
+        try:
+            return hop.get_input()
+        except Exception:                             # noqa: BLE001
+            return None
+
+    def _chay_dang_ky_nguoi_quen(self, source, ten, faces_dir, threshold):
+        """CHAY TREN THREAD NEN: nap model + quet mat -> luu known_faces/<Ten>."""
+        import contextlib
+
+        from dang_ky_anh import cluster, collect_faces, save_group
+        from face_engine import FaceEngine
+
+        def ghi(dong):
+            self.queue.put(("log", dong))
+
+        try:
+            # `collect_faces` co `print()` -> bat stdout cho vao nhat ky GUI
+            # (khong du loi ra cua so console).
+            with contextlib.redirect_stdout(QueueWriter(self.queue)):
+                engine = FaceEngine(faces_dir=faces_dir, threshold=threshold)
+                faces = collect_faces(engine, source, max_frames=60)
+            ghi(self.dich("> Tìm thấy ") + f"{len(faces)}"
+                + self.dich(" khuôn mặt trong ảnh/video đã chọn."))
+            if not faces:
+                ghi("Không tìm thấy khuôn mặt nào trong ảnh/video đã chọn. "
+                    "Thử video rõ mặt hơn, hoặc ảnh chụp gần hơn.")
+                return
+            groups = cluster(faces, max_people=1)
+            if not groups:
+                ghi("Không gom được nhóm người nào.")
+                return
+            n = save_group(groups[0], ten, faces_dir)
+            ghi(self.dich("> Đã lưu ảnh cho người quen: ") + ten)
+            ghi(self.dich("> Số ảnh đã lưu: ") + f"{n}"
+                + self.dich(" | thư mục: ") + os.path.join(faces_dir, ten))
+            # Doc lai danh sach nguoi quen -> GUI co danh sach moi ngay.
+            # SUA LOI "main thread is not in main loop": KHONG goi
+            # `_nap_lai_danh_sach_nguoi_quen()` o day. Ham do doc
+            # `self.v_faces_dir` (tkinter.StringVar) -> goi Tk tu thread nen
+            # se nem RuntimeError. Chi day thong bao ve hang doi, de luong UI
+            # (trong `_hut_hang_doi`) thuc hien viec nap lai danh sach.
+            self.queue.put(("nap_lai_danh_sach", (faces_dir, threshold)))
+        except SystemExit as exc:
+            self.queue.put(("error", str(exc)))
+            return
+        except Exception as exc:                      # noqa: BLE001
+            self.queue.put(("error", self.dich("Lỗi khi đăng ký người quen: ")
+                            + str(exc)))
+            return
+        finally:
+            # Luon bat lai nut (ke ca khi loi) - khong dung `_che_do_busy`.
+            self.queue.put(("xong_dang_ky", None))
+
+    def _nap_lai_danh_sach_nguoi_quen(self, faces_dir=None, threshold=None):
+        """Nap lai danh sach nguoi quen - KHONG dung `_che_do_busy`.
+
+        `_ve_lai_nguoi_hoc` khoa ca app (va "done" cua no se TAT xem truc
+        tiep) -> khong dung o day. Day la ban rieng: chi nap lai danh sach.
+
+        CHAY TREN LUONG UI (khong phai thread nen). Neu `faces_dir` /
+        `threshold` da duoc dua vao thi dung luon gia tri do (gia tri doc
+        o luong UI truoc do) -> khong phai doc bien Tk o day nua. Neu khong
+        dua vao -> doc `self.v_faces_dir` / `self.v_face_threshold` (chi an
+        toan tren luong UI).
+        """
+        if faces_dir is None:
+            faces_dir = self.v_faces_dir.get().strip() or "known_faces"
+        if threshold is None:
+            try:
+                threshold = float(self.v_face_threshold.get() or 0.40)
+            except ValueError:
+                threshold = 0.40
+        threading.Thread(
+            target=self._chay_nap_lai_nguoi_quen,
+            args=(faces_dir, threshold), daemon=True,
+        ).start()
+
+    def _chay_nap_lai_nguoi_quen(self, faces_dir: str, threshold: float):
+        """CHAY TREN THREAD NEN. Chi ghi nhat ky, KHONG dung widget."""
+        from face_engine import FaceEngine
+
+        old_stdout = sys.stdout
+        sys.stdout = QueueWriter(self.queue)
+        try:
+            engine = FaceEngine(faces_dir=faces_dir, threshold=threshold)
+            names = sorted({name for name, _ in engine.known})
+            self.queue.put(
+                ("log", f"> Đã học được: {', '.join(names) if names else 'không có ai'}")
+            )
+        except SystemExit as exc:
+            self.queue.put(("error", str(exc)))
+        except Exception as exc:                      # noqa: BLE001
+            self.queue.put(("error", f"Không đọc được danh sách người: {exc}"))
+        finally:
+            sys.stdout = old_stdout
+
+    # ------------------------------------------- v3.3: DOC BIEN SO THU
+    #
+    # CHI DOC 1 ANH. `BoDocBienSo.doc()` chi tra ve bien so da duoc XAC NHAN
+    # qua >= 2 khung hinh lien tiep -> goi tren 1 anh se KHONG ra ket qua.
+    # Nen o day dung `tim_vung()` + `doc_vung()` (doc truc tiep 1 vung).
+
+    def _mo_doc_bien_so_thu(self):
+        """Chon 1 anh -> thu doc bien so (thread nen)."""
+        if self.busy:
+            return
+        path = filedialog.askopenfilename(
+            title=self.dich("Chọn ảnh có biển số"),
+            filetypes=[("Anh", "*.jpg *.jpeg *.png *.bmp"),
+                       ("Tat ca file", "*.*")],
+        )
+        if not path:
+            return
+        self.btn_doc_bien_so_thu.configure(state="disabled")
+        self._ghi_log(self.dich("> Thử đọc biển số trong ảnh: ") + path)
+        threading.Thread(
+            target=self._chay_doc_bien_so_thu,
+            args=(path, self.v_bien_so_vung.get().strip() or None,
+                  self.v_bien_so_dir.get().strip()),
+            daemon=True,
+        ).start()
+
+    def _chay_doc_bien_so_thu(self, path, vung, thu_muc_luu):
+        """CHAY TREN THREAD NEN: nap engine OCR -> tim vung -> doc bien so."""
+        import cv2
+
+        from bien_so import BoDocBienSo
+
+        bo = None
+        try:
+            bo = BoDocBienSo(
+                vung=vung,
+                thu_muc_luu=thu_muc_luu,
+                log=lambda dong: self.queue.put(("log", dong)),
+            )
+            if not bo.nap():
+                self.queue.put(("error", "Không nạp được engine đọc biển số."))
+                return
+            anh = cv2.imread(path)
+            if anh is None:
+                self.queue.put(("error", self.dich("Không đọc được ảnh: ") + path))
+                return
+            so_kq = 0
+            for (x1, y1, x2, y2) in bo.tim_vung(anh):
+                crop = anh[y1:y2, x1:x2]
+                for kq in bo.doc_vung(crop, (x1, y1, x2, y2)):
+                    so_kq += 1
+                    self.queue.put(("log", self.dich("Biển số: ") + kq.chuoi
+                                    + self.dich(" | tin cậy ")
+                                    + f"{kq.tin_cay:.2f}"
+                                    + self.dich(" | số hàng: ")
+                                    + f"{kq.so_hang}"
+                                    + self.dich(" | vùng: ")
+                                    + str(kq.khung)))
+                    duong_dan = self._luu_crop_bien_so_thu(crop, kq, thu_muc_luu)
+                    if duong_dan:
+                        self.queue.put(("log", self.dich("Ảnh biển số đã lưu: ")
+                                        + duong_dan))
+            if so_kq == 0:
+                self.queue.put(("log", "Không đọc được biển số trong ảnh này."))
+        except Exception as exc:                      # noqa: BLE001
+            self.queue.put(("error", self.dich("Lỗi khi thử đọc biển số: ")
+                            + str(exc)))
+        finally:
+            if bo is not None:
+                try:
+                    bo.close()
+                except Exception:                     # noqa: BLE001
+                    pass
+            self.queue.put(("xong_doc_bien_so_thu", None))
+
+    def _luu_crop_bien_so_thu(self, crop, kq, thu_muc_luu):
+        """Luu anh crop bien so -> tra duong dan (rong = khong luu duoc)."""
+        import cv2
+
+        thu_muc = thu_muc_luu or THU_MUC_BIEN_SO
+        try:
+            os.makedirs(thu_muc, exist_ok=True)
+            ten = "".join(c if c.isalnum() else "_" for c in kq.chuoi) or "bien_so"
+            duong_dan = os.path.join(
+                thu_muc, f"thu_{ten}_{int(time.time())}.jpg")
+            if not cv2.imwrite(duong_dan, crop,
+                               [cv2.IMWRITE_JPEG_QUALITY, 95]):
+                return ""
+            return duong_dan
+        except Exception:                             # noqa: BLE001
+            return ""
+
+    # ----------------------------------------- v3.3: VE VUNG TRONG CUA SO
+    #
+    # Ve vung bang chuot NGAY trong cua so nay (module `ve_vung_gui`).
+    # Module do do agent khac viet - gui.py CHI GOI, khong viet lai.
+
+    def _ve_vung_ngay_tai_day(self):
+        """Ve vung ngay trong cua so nay (chuot keo tren khung hinh)."""
+        if self.busy:
+            return
+        source = self.v_video.get().strip()
+        if not source:
+            self._bao_canh_bao(
+                "Thiếu video", "Hãy chọn video trước khi vẽ vùng.")
+            return
+        self._ghi_log(self.dich("> Đang lấy khung hình để vẽ vùng: ") + source)
+        threading.Thread(
+            target=self._chay_lay_frame_ve_vung, args=(source,), daemon=True
+        ).start()
+
+    def _chay_lay_frame_ve_vung(self, source):
+        """CHAY TREN THREAD NEN: doc 1 khung hinh (giua video) -> hang doi."""
+        import cv2
+
+        try:
+            cap = cv2.VideoCapture(source)
+            if not cap.isOpened():
+                self.queue.put(("error",
+                                self.dich("Không mở được video: ") + source))
+                return
+            try:
+                total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+                if total > 10:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, total // 2)
+                ok, frame = cap.read()
+            finally:
+                cap.release()
+            if not ok or frame is None:
+                self.queue.put(
+                    ("error", "Không đọc được khung hình nào từ video."))
+                return
+            # Hang doi luon la cap (loai, du_lieu) -> du lieu la 1 cap.
+            self.queue.put(("ve_vung_frame", (frame, source)))
+        except Exception as exc:                      # noqa: BLE001
+            self.queue.put(("error", self.dich("Lỗi khi lấy khung hình: ")
+                            + str(exc)))
+
+    def _xem_ve_vung_trong_gui(self, frame, source):
+        """CHAY TREN LUONG UI: mo hop thoai ve vung -> luu file vung.
+
+        `ve_vung_trong_gui` tra ve (x1, y1, x2, y2) TUONG DOI 0..1 hoac None
+        neu huy. Import LAZY + try/except: module co the chua co -> chi ghi
+        nhat ky, KHONG lam chet app.
+        """
+        try:
+            from ve_vung_gui import ve_vung_trong_gui
+        except Exception:                             # noqa: BLE001
+            self._ghi_log("Chưa có module ve_vung_gui, hãy dùng nút "
+                          "'Vẽ vùng trên video này'.")
+            return
+        try:
+            rect = ve_vung_trong_gui(self, frame, nguon=source, log=self._ghi_log)
+        except Exception as exc:                      # noqa: BLE001
+            self._ghi_log(self.dich("Lỗi khi vẽ vùng: ") + str(exc))
+            return
+        if not rect:
+            self._ghi_log("> Đã huỷ vẽ vùng.")
+            return
+        try:
+            from ve_vung import save_zone
+
+            h, w = frame.shape[:2]
+            rx1, ry1, rx2, ry2 = rect
+            path = (self.v_vung_file.get().strip()
+                    or os.path.join(APP_DIR, "vung.txt"))
+            save_zone(path, (rx1 * w, ry1 * h, rx2 * w, ry2 * h), w, h, source)
+        except Exception as exc:                      # noqa: BLE001
+            self._ghi_log(self.dich("Lỗi khi lưu file vùng: ") + str(exc))
+            return
+        finally:
+            frame = None              # giai phong anh (khong ro bo nho)
+        self.v_vung_file.set(path)
+        self._ghi_log(self.dich("Đã lưu vùng: ") + path)
+        self._ghi_log(self.dich("Vùng (tương đối): ")
+                      + f"x {rx1:.3f} -> {rx2:.3f} | y {ry1:.3f} -> {ry2:.3f}")
+
     def _che_do_busy(self, dang_chay: bool):
         self.busy = dang_chay
         self.stop_flag.clear()
@@ -3273,6 +3781,25 @@ class CamAIGui(ctk.CTk):
                 self._cap_nhat_trang_thai()
             elif kind == "xem_xong":
                 self._ket_thuc_hinh()
+            elif kind == "ve_vung_frame":
+                # v3.3: ve vung ngay trong cua so (module `ve_vung_gui`).
+                # CHAY TREN LUONG UI - hop thoai modal, chan den khi anh
+                # keo xong + bam Luu.
+                self._xem_ve_vung_trong_gui(payload[0], payload[1])
+            elif kind == "nap_lai_danh_sach":
+                # v3.3: nap lai danh sach nguoi quen sau khi dang ky xong.
+                # CHAY TREN LUONG UI -> doc `self.v_faces_dir` (StringVar) an
+                # toan. Gia tri (faces_dir, threshold) do thread nen day len.
+                f_dir, f_threshold = payload
+                self._nap_lai_danh_sach_nguoi_quen(f_dir, f_threshold)
+            elif kind == "xong_dang_ky":
+                btn = getattr(self, "btn_dang_ky", None)
+                if btn is not None:
+                    btn.configure(state="normal")
+            elif kind == "xong_doc_bien_so_thu":
+                btn = getattr(self, "btn_doc_bien_so_thu", None)
+                if btn is not None:
+                    btn.configure(state="normal")
         if dong_log:
             self._ghi_log_nhieu(dong_log)
         # --- v3.2: khung hinh che do phan tich theo lo ---
@@ -3803,7 +4330,7 @@ class CamAIGui(ctk.CTk):
             }
 
     def _bat_xem_truc_tiep(self, cfg: AnalysisConfig) -> None:
-        """Mo khung xem video (chi khi nguoi dung con bam 'Xem video khi chay')."""
+        """Mo khung xem video (chi khi nguoi dung con bam 'Xem truc tiep')."""
         if self._xem_dang_chay or cfg.input == "0":
             if cfg.input == "0":
                 self._ghi_log("> Xem trực tiếp không dùng được với webcam.")
@@ -3858,11 +4385,27 @@ class CamAIGui(ctk.CTk):
         if getattr(self, "o_hinh", None) is not None:
             self.o_hinh.configure(image=None, text=self.dich("Chưa chạy video"))
 
-    def _doi_bat_xem_video(self) -> None:
-        """Bam checkbox 'Xem video khi chay' khi phan tich dang chay."""
+    def _doi_bat_xem_truc_tiep(self) -> None:
+        """Bam checkbox 'Xem truc tiep'."""
         self._ghi_log("> Tắt xem video trực tiếp." if self.v_xem_video.get() != "1"
                       else "> Bật xem video trực tiếp (tốn thêm một ít máy).")
         self._xem_video_bat = self.v_xem_video.get() == "1"
+        if self.v_xem_video.get() == "1" and self.v_xem_ket_qua.get() == "1":
+            self._ghi_log(
+                "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' "
+                "tạm không dùng (tránh 2 nguồn hình đè nhau)."
+            )
+
+    def _doi_bat_xem_ket_qua(self) -> None:
+        """Bam checkbox 'Xem khung hinh ket qua'."""
+        if self.v_xem_video.get() == "1":
+            self._ghi_log(
+                "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' "
+                "tạm không dùng (tránh 2 nguồn hình đè nhau)."
+            )
+            return
+        self._ghi_log("> Bật xem khung hình kết quả." if self.v_xem_ket_qua.get() == "1"
+                      else "> Tắt xem khung hình kết quả.")
 
     def _doi_tam_dung_xem(self) -> None:
         """Nut Tam dung / Tiep tuc: chi dung HINH, khong dung phan tich."""

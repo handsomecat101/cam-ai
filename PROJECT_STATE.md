@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 01:30 — bản **3.2** sửa xong lỗi panel "Xem video" đen khi chạy lô, `VERSION` nay là **3.2**)
+**Ngày cập nhật:** 2026-10-20 (sau 04:50 — bản **3.3** thêm 3 tính năng "dùng tay" vào GUI + sửa 1 lỗi Tk từ thread nền, `VERSION` nay là **3.3**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 **Trạng thái ngắn:** **6 mục nghiệm thu tự đo — CẢ 6 ĐÃ ĐẠT** ở bản 2.8 (đo lại toàn bộ
 sau khi thêm `--tach-o`), mỗi mục có output thật kèm tên file. Mục 7 và 8 **chờ anh tự
@@ -8,7 +8,17 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.2 (mới nhất):** sửa **1 lỗi hiển thị** còn lại từ lần rà bản PC — panel
+**Bản 3.3 (mới nhất):** anh chốt hướng **"bộ công cụ AI dùng tay"** — đẩy những thứ
+đã có sẵn ở CLI vào **GUI**. Thêm: (1) tách **2 ô xem video** → **"Xem trực tiếp"** +
+**"Xem khung hình kết quả"** (trước 1 ô mang 2 nghĩa); (2) nút **"Đăng ký người quen…"**
+(lưu vào `known_faces/<Tên>/` ngay trong GUI); (3) nút **"Vẽ vùng ngay tại đây"** (kéo
+chuột trong chính cửa sổ, module mới `ve_vung_gui.py`); (4) nút **"Đọc biển số thử…"**
+(đọc 1 ảnh để anh gửi ảnh biển số thật mà không cần chạy video). Sửa **1 lỗi thật** do
+coordinator phát hiện khi tự chạy: đọc `StringVar` từ thread nền → `main thread is not
+in main loop`. Kiểm chứng **4/4 PASS** (bộ script riêng của coordinator) + hồi quy
+**7/7 PASS**. Xem **mục 2.1g**.
+
+**Bản 3.2:** sửa **1 lỗi hiển thị** còn lại từ lần rà bản PC — panel
 **"Xem video"** (panel lớn nhất của GUI) **đen suốt** khi chạy phân tích theo lô.
 Thêm `frame_cb` + `frame_cb_interval` vào `run_analysis()` (khung **đã có overlay**;
 `None` → chi phí 0; callback lỗi không làm chết pipeline) + GUI nhận khung qua **hộp
@@ -160,6 +170,10 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | **App tự tạo thư mục output** (BUG #2 đã sửa) | `--output` vào thư mục **chưa tồn tại** → thư mục được tạo, có cả `.mp4` + `.csv` |
 | **Video kết quả không bị mất khi bật `--tu-luu-clip`** (BUG #3 đã sửa) | Chạy lại B3: file rác `.part.mp4` **bị xoá** (`da don 1 file`) **và** `ket_qua_ket_qua.mp4` **16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540` |
 | **Xem video ngay trong lúc chạy phân tích theo lô (GUI)** (bản 3.2) | `_kk_kiem_gui_batch_preview.py` → **PASS**: khung hình hiện lên panel **82 lần**; vùng panel đo được **118.735 màu đơn sắc / sáng TB 73,95 / max 255 min 0** (trước là đen) — **coordinator tự xem ảnh** `v5_dang_chay.png` thấy khung tím `Người 1..4`, khung xanh mặt nhãn **An**/**Binh**, badge `Người: 4 \| Mặt: 2` |
+| **Tách 2 ô xem video** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [1] → **PASS**: `chk_xem_video` = **"Xem trực tiếp"**, `chk_xem_ket_qua` = **"Xem khung hình kết quả"**, mặc định cả 2 = "1" — **coordinator tự xem ảnh** `b3_full.png`: cả 3 checkbox hiện đủ chữ, không chồm nhau |
+| **Đăng ký người quen trong GUI** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [2] → **PASS**: nút "Đăng ký người quen…" chạy thật trên `known_faces/An/01.jpg` → tạo `known_faces_test/KiemThuV33/01.jpg`, log `> Tìm thấy 1 khuôn mặt`, `> Số ảnh đã lưu: 1`, `> Đã học được: KiemThuV33` |
+| **Vẽ vùng trong GUI** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [4] + `_kk_kiem_canvas_vung.py` → **PASS**: canvas kéo chuột trả tọa độ **sai số 0.0000**; file vùng ghi đúng `0.2000 0.1500 0.8000 0.9500`; **coordinator tự xem ảnh** thấy hình chữ nhật xanh đúng chỗ kéo |
+| **Đọc biển số thử trong GUI** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [3] → **PASS**: nút "Đọc biển số thử…" đọc ảnh biển số giả 2 hàng → log `Biển số: 30A-12345 \| tin cậy 0.67 \| số hàng: 2`, ảnh crop đã lưu. **Lưu ý: ảnh này là ảnh GIẢ, chưa phải nghiệm thu ảnh thật** |
 
 #### MỨC 2 — đã chạy thật, chưa tự xem bằng mắt (nên mở xem 1 lần rồi đánh dấu)
 
@@ -179,8 +193,8 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | Multi-camera | Chưa — `--input` chỉ nhận **1** nguồn |
 | Chống đếm trùng 1 người | Chưa |
 | Báo cáo theo ca / ngày | Chưa (CSV là **theo giây**) |
-| Đăng ký người quen trong GUI | Chưa (đã có `dang_ky_anh.py` **CLI**) |
-| Vẽ vùng trong GUI / nhiều vùng | Chưa (đã có `ve_vung.py` **CLI**, 1 vùng) |
+| Đăng ký **nhiều người cùng lúc** trong GUI | Bản 3.3 làm **1 người / 1 lần** (`cluster(max_people=1)`). Muốn nhiều người trong 1 video thì phải tách nhóm nhiều người + giao tên cho từng nhóm |
+| **Nhiều vùng** cảnh trong 1 file | Bản 3.3 làm **1 vùng** (đúng như CLI cũ `ve_vung.py`) |
 | Dashboard tổng quan | Chưa |
 | Rule cảnh báo theo điều kiện (theo giờ, kèm ảnh) | Chưa |
 | Giám sát sức khoẻ hệ thống (camera lỗi, ổ đầy) | Chưa |
@@ -324,8 +338,69 @@ bằng mắt** mới tin được "panel không còn đen".
 
 | Vấn đề | Vì sao chưa tự quyết |
 |---|---|
-| Nhãn ô **"Xem video khi chạy"** giờ mô tả **2** chế độ: TẮT = xem khung hình kết quả (có overlay), BẬT = xem trực tiếp (có nút Tạm dừng) | Đổi nhãn là **copy user-facing** → theo quy tắc đã chốt, **phải hỏi anh** mới đổi. Hiện giữ nguyên nhãn cũ |
+| Nhãn ô **"Xem video khi chạy"** giờ mô tả **2** chế độ: TẮT = xem khung hình kết quả (có overlay), BẬT = xem trực tiếp (có nút Tạm dừng) | Đổi nhãn là **copy user-facing** → theo quy tắc đã chốt, **phải hỏi anh** mới đổi. **ĐÃ HỎI 2026-10-20 → anh chọn tách 2 ô, xem mục 2.1g** |
 | **Mục 7** (kéo cửa sổ) & **mục 8** (độ nhận diện) | Phải do **anh** xác nhận, em không tự đánh dấu đạt |
+
+---
+
+### 2.1g BẢN 3.3 — ĐẨY 3 TÍNH NĂNG "DÙNG TAY" VÀO GUI + SỬA 1 LỖI THẬT (2026-10-20)
+
+**Anh chốt (2026-10-20):**
+1. Nhãn: đổi **"Xem video khi chạy"** → **"Xem trực tiếp"** + thêm ô mới
+   **"Xem khung hình kết quả"** (tách 2 nghĩa cũ).
+2. Hướng sản phẩm: **(A) Bộ công cụ AI dùng tay** — đẩy những thứ đã có sẵn ở CLI
+   vào GUI: OCR biển số, đăng ký người quen, vẽ vùng.
+
+**Cách làm (2 agent, file không chồng lấn):**
+
+| Agent | File sở hữu | Nội dung |
+|---|---|---|
+| A | `gui.py` | 2 ô xem video + nút "Đăng ký người quen…" + nút "Đọc biển số thử…" + nối nút "Vẽ vùng ngay tại đây" |
+| B | `ve_vung_gui.py` (file MỚI) | Module canvas: kéo chuột trong chính cửa sổ → tọa độ tương đối 0..1 |
+
+**4 thay đổi trong `gui.py`:**
+
+| # | Thay đổi | Ghi chú |
+|---|---|---|
+| 1 | `chk_xem_video` → nhãn **"Xem trực tiếp"**; thêm `v_xem_ket_qua` (mặc định "1") + `chk_xem_ket_qua` → **"Xem khung hình kết quả"** | Bật CẢ 2 → log giải thích "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' tạm không dùng (tránh 2 nguồn hình đè nhau)"; `frame_cb` chỉ bật khi TẮT "Xem trực tiếp" |
+| 2 | Nút **"Đăng ký người quen…"** (nhóm Mặt) | Chọn ảnh/video → nhập tên → `collect_faces` + `cluster` + `save_group` (dùng lại `dang_ky_anh.py`) → lưu `known_faces/<Tên>/`. Hỏi xác nhận trước khi ghi đè thư mục đã có (`save_group` xoá thư mục cũ). Chạy ở thread nền, chỉ khoá nút (không khoá cả app) |
+| 3 | Nút **"Đọc biển số thử…"** (nhóm biển số) | Đọc **1 ảnh**: `tim_vung()` + `doc_vung()` — **KHÔNG dùng `doc()`** vì `doc()` cần ≥2 khung hình xác nhận nên 1 ảnh sẽ không ra kết quả. Ghi rõ trong UI là chế độ thử 1 ảnh, chưa qua xác nhận đa khung hình |
+| 4 | Nút **"Vẽ vùng ngay tại đây"** (nhóm vùng) | Lấy 1 frame giữa video ở thread nền → gọi `ve_vung_gui.ve_vung_trong_gui()` (modal, UI thread) → `ve_vung.save_zone()` ghi file vùng → điền vào ô "File vùng". Import lazy + try/except: thiếu module thì chỉ ghi nhật ký, **không làm chết app**. Nút cũ "Vẽ vùng trên video này" (mở cửa sổ CLI) **giữ nguyên** |
+
+**Module mới `ve_vung_gui.py`:** hộp thoại `CTkToplevel` — ảnh nền co vừa khung, **kéo chuột
+trái** để khoanh (hình chữ nhật xanh realtime), nút **Lưu vùng / Chọn lại / Bỏ**, dòng tọa
+độ tương đối 4 số hiện realtime, `Esc` = hủy, `grab_set()` + `wait_window()` (modal).
+Chuyển pixel→tương đối theo kích thước **ảnh gốc** (không phải ảnh đã co).
+
+**BUG THẬT phát hiện khi coordinator tự chạy (đã sửa):**
+
+| Mục | Nội dung |
+|---|---|
+| Triệu chứng | Sau khi đăng ký người quen xong, nhật ký hiện `[LỖI] Lỗi khi đăng ký người quen: main thread is not in main loop` và **không** có dòng `> Đã học được: ...` |
+| Nguyên nhân | `_chay_dang_ky_nguoi_quen` chạy ở **thread nền** nhưng gọi `_nap_lai_danh_sach_nguoi_quen()` → hàm đó đọc `self.v_faces_dir` (một `tkinter.StringVar`) → **gọi Tk từ thread không phải thread chính** → Tcl ném `RuntimeError` |
+| Cách sửa | Thread nền **không** gọi hàm đó nữa mà đẩy `("nap_lai_danh_sach", (faces_dir, threshold))` vào hàng đợi; `_hut_hang_doi()` (UI thread) nhận rồi mới gọi. Giá trị `faces_dir`/`threshold` đọc sẵn ở UI thread nên không đọc biến Tk ở thread nền |
+| Kiểm chứng độ nhạy | Cố tình vô hiệu hóa fix → lỗi **tái hiện đúng** → bật lại fix → PASS. Rà toàn bộ code v3.3: không còn chỗ nào khác gọi Tk từ thread nền |
+
+**BẰNG CHỨNG — coordinator tự chạy (không tin báo cáo agent):**
+
+| Bước | Kết quả |
+|---|---|
+| `_kk_kiem_canvas_vung.py` (script **của coordinator**, không dùng script agent) | **PASS** — kéo chuột giả lập (120,90)→(330,210) trên canvas 640×480 → hàm trả `(0.1875, 0.1875, 0.515625, 0.4375)`, **sai số 0.0000** so với tọa độ mong đợi |
+| Ảnh `_kk_out/kiem_canvas/canvas_vung.png` — **coordinator tự mở xem** | Thấy hộp thoại "Vẽ vùng canh — kéo chuột rồi bấm Lưu", **hình chữ nhật xanh** đúng chỗ kéo, dòng `0.1875 0.1875 0.5156 0.4375`, 3 nút Lưu vùng / Chọn lại / Bỏ, chữ tiếng Việt **có dấu** không bị cắt |
+| `_kk_kiem_gui_b3.py` (script **của coordinator**, 4 mục) | **4/4 PASS** — (1) 2 ô xem video đúng nhãn + đúng mặc định; (2) đăng ký người quen: tạo thật `known_faces_test/KiemThuV33/01.jpg`, log `> Số ảnh đã lưu: 1`; (3) đọc biển số thử: log `Biển số: 30A-12345 \| tin cậy 0.67 \| số hàng: 2`, ảnh crop đã lưu; (4) vẽ vùng: file `vung_test.txt` có đúng `0.2000 0.1500 0.8000 0.9500` |
+| Chạy lại sau khi sửa lỗi Tk | **4/4 PASS** và **KHÔNG còn** dòng `main thread is not in main loop`; có lại dòng `> Đã học được: KiemThuV33` |
+| Ảnh `_kk_out/kiem_gui_b3/b3_full.png` — **coordinator tự mở xem** | Thấy 3 checkbox dưới khung video: **"Xem trực tiếp"**, **"Xem khung hình kết quả"**, **"Nhận diện tên trên ảnh"** — đều hiện đủ chữ, không chồm nhau; dòng ghi chú nằm hàng riêng bên dưới |
+| Hồi quy `_kk_kiem_gui_batch_preview.py` (tính năng bản 3.2) | **PASS** — khung hình hiện panel **79 lần**, vùng panel **107.129 màu / sáng TB 68,57 / max 255 min 0** → không đen |
+| Hồi quy `_kk_kiem_gui_chay_thuc.py` (e2e 7 mục) | **7/7 PASS** — thời gian chạy 28,3 s |
+
+**Còn lại ở bản 3.3 (chưa làm, cần anh quyết):**
+
+| Vấn đề | Vì sao chưa tự quyết |
+|---|---|
+| **Nhiều vùng** (nhiều vùng cảnh trong 1 file) | Anh chốt hướng A nhưng **"nhiều vùng"** chưa nằm trong yêu cầu cụ thể; bản 3.3 làm **1 vùng** như bản CLI cũ |
+| **Đăng ký người quen hàng loạt** (nhiều người cùng lúc) | `cluster(max_people=1)` → hiện **1 người / 1 lần**. Muốn nhiều người trong 1 video thì cần tách nhóm nhiều người + giao tên cho từng nhóm |
+| **Mục 7** (kéo cửa sổ) & **mục 8** (độ nhận diện) | Phải do **anh** xác nhận, em không tự đánh dấu đạt |
+| **OCR biển số trên ảnh THẬT** | Vẫn **chưa có ảnh thật** của anh. Bản 3.3 chỉ làm **đường đi ngắn** để anh gửi ảnh → bấm 1 nút → có kết quả ngay |
 
 ---
 
@@ -335,7 +410,7 @@ bằng mắt** mới tin được "panel không còn đen".
 |---|---|---|
 | **7. Cảm giác kéo cửa sổ** | Chỉ có số đo, **anh chưa xác nhận**. Em đã sai một lần vì coi số đo là bằng chứng xong | **Anh mở GUI, kéo cửa sổ, xác nhận còn giật hay không.** Nếu còn giật: em sẽ báo cáo tiếp kèm số đo mới |
 | **8. Độ nhận diện trên video** | Video demo là video tải về, không phải video thật của anh; `known_faces/An`, `known_faces/Binh` là **dữ liệu giả**. **Đã đo thật (mục 2.3) và phát hiện hạn chế lớn:** quay drone `nguoi-di-lai` nhận 0/12 khung dù có hàng trăm người; `dam-dong` nhận 2–6 người dù cảnh rất đông | **Anh gửi video thật** (và ảnh người quen nếu muốn nhận diện tên), hoặc tự xem và nhận xét. Nếu anh cần nhận tốt ở cự ly xa/đám đông, xem 3 phương án sửa trong mục 2.3 |
-| **Đọc biển số xe Việt Nam** (bản 3.0) | **Chưa có ảnh biển số VN thật.** 10 ảnh kiểm chứng là **ảnh giả do PIL dựng**, không đại diện ánh sáng / nhiễu / góc nghiêng / độ nét thật. Logic thì 10/10 PASS nhưng **chưa nghiệm thu được** | **Anh gửi ảnh biển 2 hàng kiểu `30A`/`12345`** (và biển 1 hàng nếu có). Chi tiết ở mục 2.1c |
+| **Đọc biển số xe Việt Nam** (bản 3.0) | **Chưa có ảnh biển số VN thật.** 10 ảnh kiểm chứng là **ảnh giả do PIL dựng**, không đại diện ánh sáng / nhiễu / góc nghiêng / độ nét thật. Logic thì 10/10 PASS nhưng **chưa nghiệm thu được**. **Bản 3.3 đã làm đường đi ngắn**: nút "Đọc biển số thử…" trong GUI → anh gửi ảnh → bấm 1 nút → có kết quả trong vài giây, không cần chạy video | **Anh gửi ảnh biển 2 hàng kiểu `30A`/`12345`** (và biển 1 hàng nếu có) → bấm nút "Đọc biển số thử…" rồi chụp màn hình gửi lại. Chi tiết ở mục 2.1c và 2.1g |
 | **Trạng thái khẩu trang** | Chưa làm | Cột `Mask:` luôn hiện `Chưa rõ`. `FaceResult` không có trường này và **dự án chưa có model khẩu trang**. Chờ anh quyết có cần không |
 | **Lưới "Đối tượng phát hiện" đã bị bỏ** | Agent tự quyết khi đổi bố cục; vai trò chuyển sang danh sách sự kiện. Class `PanelDoiTuong` còn nguyên trong `gui_khung.py` | Chờ anh chọn: giữ lại lưới, hay chỉ giữ timeline sự kiện |
 | **Chọn kênh cảnh báo** | 3 checkbox cũ (Phát chuông / Mở hộp thoại / Telegram) bị thay bằng 4 ô khớp cờ lõi. `AnalysisConfig` chỉ có 4 cờ nên không truyền được kênh nào bật | Cần thêm cờ vào `cam_ai_core.py` — chờ anh xác nhận muốn có |
@@ -678,6 +753,11 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
    là trash có thể khôi phục, còn `Remove-Item -Force` bị chặn.
 9. **`ast.parse()` PASS không bảo chứng GUI mở được.** Lỗi hằng số chưa định nghĩa là
    lỗi runtime. Phải chạy thật rồi chụp ảnh.
+9b. **Tkinter: mọi lời gọi widget / `StringVar` phải ở UI thread.** Đọc `self.v_*` (một
+   `tkinter.StringVar`) từ thread nền → `RuntimeError: main thread is not in main loop`
+   (bản 3.3 đã dính: xem `ISSUE_LOG.md`). Việc nặng → thread nền → **chỉ** giao tiếp qua
+   hàng đợi; giá trị cần đọc từ Tk thì **đọc ở UI thread rồi truyền vào**.
+   `self.dich()` thì an toàn vì `self.ngon_ngu` là thuộc tính Python thuần.
 10. **`cv2.putText` không hiển thị tiếng Việt có dấu.** Mọi overlay vẽ bằng PIL/Pillow.
 11. **Log `nhan_dien` của pipeline chính không tự đẩy tên xuống overlay live-view.**
     Live-view chạy YOLO + ArcFace riêng; phải tự quét tên theo track ID.
@@ -790,6 +870,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 04:50) | **Bản 3.3 — đẩy 3 tính năng "dùng tay" vào GUI + sửa 1 lỗi thật.** Anh chốt: tách 2 ô xem video (**"Xem trực tiếp"** + **"Xem khung hình kết quả"**) và đi theo hướng **(A) bộ công cụ AI dùng tay**. Thêm trong `gui.py`: nút **"Đăng ký người quen…"** (lưu `known_faces/<Tên>/`, dùng lại `dang_ky_anh.py`), nút **"Đọc biển số thử…"** (đọc 1 ảnh bằng `tim_vung`+`doc_vung`, **không** dùng `doc()` vì cần ≥2 khung hình), nút **"Vẽ vùng ngay tại đây"**; thêm module mới **`ve_vung_gui.py`** (canvas kéo chuột trong chính cửa sổ → tọa độ tương đối 0..1). Coordinator tự chạy và **phát hiện lỗi thật**: đọc `StringVar` từ thread nền → `main thread is not in main loop` → **đã sửa** (đẩy qua hàng đợi, UI thread xử lý) + kiểm chứng độ nhạy (vô hiệu hóa fix → lỗi tái hiện → bật lại → PASS). Kiểm chứng của coordinator: canvas **sai số 0.0000**, GUI **4/4 PASS**, hồi quy batch **PASS** (79 lần hiện khung, 107.129 màu), e2e **7/7 PASS** (28,3 s). Bump 3.2 → **3.3**. Xem mục **2.1g**. |
 | 2026-10-20 (sau 01:30) | **Bản 3.2 — sửa panel "Xem video" đen khi chạy phân tích theo lô.** `run_analysis()` nhận thêm `frame_cb` + `frame_cb_interval` (khung **đã có overlay**; `None` → chi phí 0; callback lỗi không làm chết pipeline). GUI nhận khung qua **hộp thư 1 ô** (tránh phình bộ nhớ), giới hạn **10 fps**, ẩn nút "Tạm dừng" ở chế độ lô. Kiểm chứng: **7/7 PASS**, vùng panel **118.735 màu / sáng TB 73,95** (trước là đen), coordinator **tự xem ảnh** thấy khung người + nhãn **An**/**Binh**. Chi phí đo thật: **3–8%** (nhiễu ~3–4%), encode **2,80 ms/khung**. Bump 3.1 → **3.2**. Xem mục **2.1f**. |
 | 2026-10-20 (sau 00:40) | **Bản 3.1 — rà toàn bộ bản PC.** Coordinator tự chạy **32 cờ CLI** (26/26 EXIT=0) + **6 script OCR** (6/6 PASS) + **GUI end-to-end** (tự xem ảnh) → phát hiện và sửa **3 lỗi chết app**: (1) đường dẫn tương đối phân giải theo CWD → app chết khi chạy ngoài thư mục dự án (thêm file mới `duong_dan.py` làm nguồn sự thật); (2) app không tự tạo thư mục output; (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`). Phát hiện thêm **1 lỗi hiển thị** (panel "Xem video" đen khi chạy lô) → **đã sửa ở bản 3.2**. Bump 3.0 → **3.1**. Xem mục **2.1e**. |
 | 2026-10-19 (sau 22h) | **Sửa lỗi codec video.** Video kết quả/clip tự lưu dùng `mp4v` (MPEG-4 **Part 2**) → trình duyệt **không phát được** ("Unable to play media."). Chuyển sang **H.264 (`avc1`)** bằng probe 1 lần có cache, lùi về `mp4v` nếu máy không có encoder. Đo thật: `ffprobe` → **`codec_name=h264`**, `ffmpeg` decode sạch, mở HTML bằng **browser thật** → player load (`total time: 0:10`), **0 lỗi console**. Nâng "Video player trong HTML xem lại" từ MỨC 2 → **MỨC 1**. |

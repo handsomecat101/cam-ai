@@ -44,7 +44,7 @@ from duong_dan import chuan_hoa_duong_dan
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PERSON_CLASS_ID = 0
-VERSION = "3.2"
+VERSION = "3.3"
 
 # --- v3.2: chat luong JPEG cua khung hinh gui ra GUI (che do phan tich theo lo)
 JPEG_CHAT_LUONG = 80                    # 0-100; 80 = rat kho cho mat, nho hon 85

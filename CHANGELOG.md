@@ -2,6 +2,66 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.3] — 2026-10-20 (sau 04:50)
+
+`VERSION` trong `cam_ai_core.py` = **3.3**.
+
+Bản này **thêm 3 tính năng** và **sửa 1 lỗi thật**. Cả hai đều do **anh chốt**:
+tách 2 ô xem video, và đi theo hướng **"(A) bộ công cụ AI dùng tay"** — đẩy những thứ
+đã có sẵn ở CLI vào **GUI** để anh không phải mở cửa sổ lệnh.
+
+### Đã thêm
+
+| # | Tính năng | Chi tiết |
+|---|---|---|
+| 1 | **Tách 2 ô xem video** | `chk_xem_video` → nhãn **"Xem trực tiếp"**; thêm `chk_xem_ket_qua` → **"Xem khung hình kết quả"** (mặc định BẬT). Trước đó 1 ô mang 2 nghĩa. Bật cả 2 → log giải thích "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' tạm không dùng (tránh 2 nguồn hình đè nhau)". `frame_cb` chỉ bật khi TẮT "Xem trực tiếp" |
+| 2 | **Nút "Đăng ký người quen…"** | Chọn ảnh/video → nhập tên → lưu vào `known_faces/<Tên>/`. Dùng lại `dang_ky_anh.collect_faces` + `cluster` + `save_group`. Hỏi xác nhận trước khi ghi đè thư mục đã có (`save_group` xoá thư mục cũ). Chạy ở thread nền; chỉ khoá nút, **không khoá cả app** |
+| 3 | **Nút "Vẽ vùng ngay tại đây"** | Kéo chuột **ngay trong cửa sổ** để khoanh vùng → ghi file vùng `.txt` → điền vào ô "File vùng". Dùng module mới `ve_vung_gui.py`. Nút cũ "Vẽ vùng trên video này" (mở cửa sổ CLI) **giữ nguyên** |
+| 4 | **Nút "Đọc biển số thử…"** | Đọc **1 ảnh** → trả chuỗi biển + tin cậy + số hàng + ảnh crop đã lưu. Dùng `tim_vung()` + `doc_vung()` — **KHÔNG dùng `doc()`** vì `doc()` chỉ trả về biển đã xác nhận qua ≥2 khung hình nên 1 ảnh sẽ không ra kết quả. Ghi rõ trong UI: đây là chế độ thử 1 ảnh, chưa qua xác nhận đa khung hình |
+| 5 | **Module mới `ve_vung_gui.py`** | Hộp thoại `CTkToplevel`: ảnh nền co vừa khung, **kéo chuột trái** để khoanh (hình chữ nhật xanh realtime), nút **Lưu vùng / Chọn lại / Bỏ**, dòng tọa độ tương đối 4 số hiện realtime, `Esc` = hủy, `grab_set()` + `wait_window()` (modal). Chuyển pixel→tương đối theo kích thước **ảnh gốc** |
+
+### Đã sửa — lỗi thật do coordinator phát hiện khi tự chạy
+
+- **Triệu chứng:** sau khi đăng ký người quen xong, nhật ký GUI hiện
+  `[LỖI] Lỗi khi đăng ký người quen: main thread is not in main loop`
+  và **không** có dòng `> Đã học được: ...` (danh sách người quen không được nạp lại).
+- **Nguyên nhân:** `_chay_dang_ky_nguoi_quen` chạy ở **thread nền** nhưng gọi
+  `_nap_lai_danh_sach_nguoi_quen()`, mà hàm đó đọc `self.v_faces_dir` — một
+  `tkinter.StringVar` → **gọi Tk từ thread không phải thread chính** → Tcl ném
+  `RuntimeError`.
+- **Cách sửa:** thread nền **không** gọi hàm đó nữa mà đẩy
+  `("nap_lai_danh_sach", (faces_dir, threshold))` vào hàng đợi; `_hut_hang_doi()`
+  (UI thread) nhận rồi mới gọi. `faces_dir`/`threshold` đã đọc sẵn ở UI thread nên
+  không còn đọc biến Tk ở thread nền.
+- **Kiểm chứng độ nhạy:** cố tình vô hiệu hóa fix → lỗi **tái hiện đúng** → bật lại fix
+  → PASS. Đồng thời rà toàn bộ code v3.3: không còn chỗ nào khác gọi Tk từ thread nền.
+
+### Bằng chứng — coordinator tự chạy + tự xem ảnh bằng mắt
+
+> Bộ script kiểm chứng **của coordinator** (`_kk_kiem_gui_b3.py`, `_kk_kiem_canvas_vung.py`),
+> không dùng script của agent.
+
+| Bước | Kết quả |
+|---|---|
+| `_kk_kiem_canvas_vung.py` | **PASS** — kéo chuột giả lập (120,90)→(330,210) trên canvas 640×480 → hàm trả `(0.1875, 0.1875, 0.515625, 0.4375)`, **sai số 0.0000** |
+| Ảnh `_kk_out/kiem_canvas/canvas_vung.png` (coordinator **tự mở xem**) | Hộp thoại "Vẽ vùng canh — kéo chuột rồi bấm Lưu", **hình chữ nhật xanh** đúng chỗ kéo, dòng `0.1875 0.1875 0.5156 0.4375`, 3 nút Lưu vùng / Chọn lại / Bỏ, chữ tiếng Việt **có dấu** không bị cắt |
+| `_kk_kiem_gui_b3.py` mục [1] (2 ô xem video) | **PASS** — nhãn đúng, mặc định đúng |
+| `_kk_kiem_gui_b3.py` mục [2] (đăng ký người quen) | **PASS** — tạo thật `known_faces_test/KiemThuV33/01.jpg`; log `> Tìm thấy 1 khuôn mặt`, `> Số ảnh đã lưu: 1`, `> Đã học được: KiemThuV33` |
+| `_kk_kiem_gui_b3.py` mục [3] (đọc biển số thử) | **PASS** — log `Biển số: 30A-12345 \| tin cậy 0.67 \| số hàng: 2`, ảnh crop đã lưu |
+| `_kk_kiem_gui_b3.py` mục [4] (vẽ vùng) | **PASS** — file vùng ghi đúng `0.2000 0.1500 0.8000 0.9500` |
+| Chạy lại sau khi sửa lỗi Tk | **4/4 PASS** và **không còn** dòng `main thread is not in main loop`; có lại dòng `> Đã học được: KiemThuV33` |
+| Ảnh `_kk_out/kiem_gui_b3/b3_full.png` (coordinator **tự mở xem**) | 3 checkbox dưới khung video — **"Xem trực tiếp"**, **"Xem khung hình kết quả"**, **"Nhận diện tên trên ảnh"** — đều hiện đủ chữ, không chồm nhau |
+| Hồi quy `_kk_kiem_gui_batch_preview.py` | **PASS** — khung hình hiện panel **79 lần**, vùng panel **107.129 màu / sáng TB 68,57** → không đen |
+| Hồi quy `_kk_kiem_gui_chay_thuc.py` (e2e) | **7/7 PASS** — thời gian chạy 28,3 s |
+
+### CHƯA ĐẠT ở bản 3.3
+
+- **OCR biển số trên ảnh THẬT** — bản này chỉ rút ngắn đường đi (1 nút, vài giây);
+  vẫn **chưa có ảnh biển số VN thật** để nghiệm thu.
+- **Đăng ký nhiều người cùng lúc** — hiện `cluster(max_people=1)` → 1 người / 1 lần.
+- **Nhiều vùng** trong 1 file — hiện 1 vùng (đúng như CLI cũ).
+- **Mục 7 (kéo cửa sổ)** và **mục 8 (độ nhận diện video thật)** — vẫn chờ **anh** xác nhận.
+
 ## [3.2] — 2026-10-20 (sau 01:30)
 
 `VERSION` trong `cam_ai_core.py` = **3.2**.

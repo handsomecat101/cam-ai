@@ -74,21 +74,35 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       "Tạm dừng" ở chế độ lô. Kiểm chứng: **7/7 PASS**, vùng panel đo được
       **118.735 màu / sáng TB 73,95** (trước là đen), coordinator **tự xem ảnh** thấy
       khung người + nhãn **An**/**Binh**
+- [x] **Bản 3.3 — đẩy 3 tính năng "dùng tay" vào GUI** (anh chốt hướng (A)):
+      tách 2 ô xem video (**"Xem trực tiếp"** + **"Xem khung hình kết quả"**) + nút
+      **"Đăng ký người quen…"** (lưu `known_faces/<Tên>/`) + nút **"Vẽ vùng ngay tại đây"**
+      (kéo chuột trong chính cửa sổ, module mới `ve_vung_gui.py`) + nút **"Đọc biển số
+      thử…"** (đọc 1 ảnh trong vài giây để anh gửi ảnh biển số thật)
+- [x] **Sửa lỗi thật bản 3.3**: đọc `StringVar` từ thread nền → `main thread is not in
+      main loop` (chặn việc nạp lại danh sách người quen sau khi đăng ký). Sửa bằng cách
+      đẩy qua hàng đợi, UI thread xử lý. Kiểm chứng độ nhạy: vô hiệu hóa fix → lỗi tái
+      hiện đúng → bật lại → PASS
+- [x] **Kiểm chứng bản 3.3 (coordinator tự chạy, không tin báo cáo agent)**: canvas vẽ
+      vùng **sai số 0.0000** + tự xem ảnh; GUI **4/4 PASS**; hồi quy batch **PASS**
+      (79 lần hiện khung, 107.129 màu); hồi quy e2e **7/7 PASS** (28,3 s); tiếng Anh
+      dịch đủ **5/5** chuỗi mới (test vòng VI→EN→VI)
 
 ## Đang làm
 
 - [ ] **Chờ anh xác nhận mục 7** — kéo cửa sổ, còn giật hay không (chỉ có số đo)
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh
 - [ ] **Chờ ảnh biển số Việt Nam thật** của anh — mới nghiệm thu được OCR biển số
-      (hiện mới kiểm chứng bằng ảnh giả 10/10)
+      (hiện mới kiểm chứng bằng ảnh giả 10/10). Bản 3.3 đã có nút **"Đọc biển số
+      thử…"** → anh gửi ảnh → bấm 1 nút → có kết quả trong vài giây
 
 ## Kế tiếp
 
 > Chi tiết use case + tầng nền tảng + thứ tự ưu tiên: **`USE_CASE.md`**
 > Trạng thái từng tính năng (đã chạy legit / có code / chưa chạy): `PROJECT_STATE.md` mục 2.1d
 
-- [ ] **N1 — Vẽ vùng / đường ngắm trong GUI, nhiều vùng** (đã có `ve_vung.py` CLI → nhúng vào GUI)
-- [ ] **N2 — Đăng ký người quen trong GUI** (đã có `dang_ky_anh.py` CLI → nhúng vào GUI)
+- [ ] **N1b — Nhiều vùng** trong 1 file (bản 3.3 mới làm 1 vùng, đúng như CLI cũ)
+- [ ] **N2b — Đăng ký NHIỀU người cùng lúc** trong GUI (bản 3.3 làm 1 người / 1 lần)
 - [ ] **N8 — Báo cáo theo ca / ngày** (CSV hiện là theo giây)
 - [ ] **N4 — Rule cảnh báo theo điều kiện + kèm ảnh**
 - [ ] **N9 — Chống đếm trùng 1 người**

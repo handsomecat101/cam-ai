@@ -9,6 +9,56 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Gọi Tk (đọc `StringVar`) từ thread nền → `main thread is not in main loop`
+
+**Triệu chứng:** trong GUI, bấm nút **"Đăng ký người quen…"** → ảnh **được lưu thành
+công** (nhật ký có `> Số ảnh đã lưu: 1`), nhưng ngay sau đó nhật ký hiện:
+
+```
+[LỖI] Lỗi khi đăng ký người quen: main thread is not in main loop
+```
+
+và **không** có dòng `> Đã học được: ...` → danh sách người quen **không được nạp lại**
+trong GUI sau khi đăng ký.
+
+**Nguyên nhân:** `_chay_dang_ky_nguoi_quen()` chạy ở **thread nền** (đúng thiết kế: nạp
+model ArcFace mất vài giây, không được chặn UI) nhưng lại gọi
+`self._nap_lai_danh_sach_nguoi_quen()`. Hàm đó đọc `self.v_faces_dir` — một
+`tkinter.StringVar` → **gọi Tk từ thread KHÔNG phải thread chính** → Tcl ném
+`RuntimeError: main thread is not in main loop`.
+
+> Lưu ý: lỗi này **chỉ lộ ra khi bơm event loop bằng `app.update()`** (như trong script
+> kiểm chứng). Khi app chạy thật với `mainloop()`, thông báo lỗi có thể không hiện —
+> nhưng việc đọc biến Tk từ thread nền vẫn là **vi phạm luật của Tkinter** và có thể
+> treo/crash ngẫu nhiên. **Không được coi là "chỉ lỗi script".**
+
+**Cách sửa (`VERSION` 3.3):**
+
+1. `_chay_dang_ky_nguoi_quen()` (thread nền) — **không** gọi hàm đọc Tk nữa, chỉ đẩy yêu
+   cầu vào hàng đợi: `self.queue.put(("nap_lai_danh_sach", (faces_dir, threshold)))`.
+   `faces_dir` và `threshold` **đã được đọc ở UI thread** và truyền vào từ đầu → thread
+   nền **không chạm** vào biến Tk.
+2. `_nap_lai_danh_sach_nguoi_quen(faces_dir=None, threshold=None)` — nhận 2 giá trị đó;
+   khi có thì dùng thẳng, khi không thì mới đọc `self.v_faces_dir` (chỉ an toàn vì lúc
+   này hàm chạy ở UI thread).
+3. `_hut_hang_doi()` (UI thread) — thêm nhánh xử lý `"nap_lai_danh_sach"`.
+
+**Kiểm chứng:**
+
+| Bước | Kết quả |
+|---|---|
+| Chạy lại `_kk_kiem_gui_b3.py` (script của coordinator) | **4/4 PASS**, **không còn** dòng `main thread is not in main loop`, có lại dòng `> Đã học được: KiemThuV33` |
+| **Kiểm chứng độ nhạy** (vô hiệu hóa fix rồi chạy lại) | Lỗi **tái hiện đúng y như trên** → bật lại fix → PASS. Test này BẮT ĐƯỢC lỗi thật, không phải lỗi script |
+| Rà toàn bộ code v3.3 trong `gui.py` | Không còn chỗ nào khác gọi Tk từ thread nền. `self.dich()` an toàn vì `self.ngon_ngu` là thuộc tính Python thuần |
+
+**Bài học (đã ghi vào mục 6 của `PROJECT_STATE.md`):**
+- Trong Tkinter, **mọi** lời gọi widget/`StringVar` phải nằm ở **UI thread**.
+- Việc nặng → thread nền → **chỉ** giao tiếp qua hàng đợi; giá trị cần đọc từ Tk thì
+  **đọc ở UI thread rồi truyền vào**.
+- `self.dich()` / thuộc tính Python thuần thì an toàn từ thread nền — nhưng đừng lẫn.
+
+---
+
 ## Panel "Xem video" (lớn nhất của GUI) đen khi chạy phân tích theo lô
 
 **Triệu chứng:** mở GUI → bấm **"Chạy"** trên 1 file video → panel lớn nhất bên giữa
