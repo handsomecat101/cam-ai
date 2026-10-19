@@ -2,6 +2,97 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.1] — 2026-10-20 (sau 00:40)
+
+`VERSION` trong `cam_ai_core.py` = **3.1**.
+
+Bản này **không thêm tính năng mới**. Đây là bản **sửa 3 lỗi chết app** mà coordinator
+tìm được khi **rà toàn bộ bản PC** theo đúng yêu cầu của anh: *"chuẩn xem bản PC có
+tính năng nào chạy được là được rồi"*.
+
+### Rà bản PC — coordinator tự chạy, không tin báo cáo agent
+
+| Vòng | Nội dung | Kết quả |
+|---|---|---|
+| Batch A | 14 lệnh lõi & vùng (`--no-face`, `--vung`, `--vung-nhay`, `--lop`, `--tach-o`, `--doc-bien-so`, `--tu-chup`, `--tu-luu-clip`, `--bat-canh-bao`, `--pixelate`, `--thiet-bi cpu`, `--model`, + chạy có nhận diện mặt) | **14/14 EXIT=0** |
+| Batch B | 12 lệnh còn lại (`--nhan-vat-the`, `--lop` nhiều lớp, `--clip-giay`, `--clip-ghi-tat-ca`, `--canh-bao-*`, `--face-every`, `--min-face`, `--vung-bien-so`, `--tu-chup-dir`, `--bien-so-tin-cay`, `--pixelate --vung`) | **12/12 EXIT=0** |
+| Batch OCR | 6 script kiểm chứng OCR | **6/6 PASS** (10/10, 16/16, 0/6 sai, ROI 2,5 vs 7,5 ms/khung) |
+| GUI | Bấm nút "Chạy" thật trên GUI, chụp ảnh, **coordinator tự xem bằng mắt** | `▶ Đang chạy` → `✔ Xong`, `247/250 · 99%`, `2 Người / 2 Mặt / 2 Người quen`, file `.mp4` 16.247.979 B + `.csv` sinh ra |
+
+Mọi video kết quả đều **H.264 960×540** (`ffprobe`), CSV đều **251 dòng × 10 cột**.
+
+### Đã sửa — 3 lỗi chết app
+
+#### 1. Đường dẫn tương đối bị phân giải theo thư mục đang chạy
+
+- **Triệu chứng:** chạy `app.py` từ thư mục khác (double-click từ Explorer, shortcut,
+  service/CI) → **exit 1** với `[loi] khong thay bo model ArcFace`, dù model đã có
+  đủ trên đĩa. `known_faces`, `models/...`, `yolo11n.pt`, `vung.txt` đều bị ảnh hưởng.
+- **Nguyên nhân:** `face_engine.py` có `MODEL_DIRS = ("models/face_core", ...)` và
+  `resolve_model_dir()` kiểm tra bằng `os.path.isdir()` → theo **CWD**.
+- **Cách sửa:** thêm file mới **`duong_dan.py`** làm nguồn sự thật duy nhất:
+  - `APP_DIR` = thư mục gốc dự án (không phụ thuộc CWD).
+  - `chuan_hoa_duong_dan(path)` — đường dẫn **tuyệt đối giữ nguyên**; đường dẫn
+    **tương đối** ưu tiên bản trong CWD → không có thì bản trong `APP_DIR` → không có
+    ở đâu cả thì **giữ nguyên** để lỗi báo đúng chỗ người dùng trỏ tới (không tự bịa).
+  - `duong_dan_app(path)` — luôn nối với `APP_DIR` cho tài nguyên nội bộ.
+  - `face_engine.py`: `MODEL_DIRS` thành đường dẫn tuyệt đối theo `APP_DIR`;
+    `resolve_model_dir()` **in ra các đường dẫn đã thử** khi không tìm thấy.
+  - `app.py`: thêm `_chuan_hoa_input()` / `_chuan_hoa_output()`; `--output` mặc định
+    `None` → `APP_DIR\output.mp4`; chuẩn hoá `--input/--faces/--model/--vung`.
+  - `cam_ai_core.py`: `AnalysisConfig.__post_init__` chuẩn hoá `faces_dir` + `model`.
+  - `dang_ky_anh.py`, `ve_vung.py`, `model_info.py`, `gui.py` dùng chung `APP_DIR`.
+- **Kiểm chứng:** CWD = `C:\Windows` **có nhận diện mặt** → **EXIT=0**,
+  `[model] H:\AI Project\cam-ai\models\face_core | GPU | detection:CUDA | genderage:CUDA
+  | recognition:CUDA`, CSV 250 dòng, cột `nguoi_quen` = **"An | Binh"**.
+
+#### 2. App không tự tạo thư mục output
+
+- **Triệu chứng:** `--output` trỏ vào thư mục chưa tồn tại → `[loi] khong gia duoc
+  file video ket qua: ...` — không nói nguyên nhân là thiếu thư mục.
+- **Nguyên nhân:** `cv2.VideoWriter` **không tự tạo thư mục**.
+- **Cách sửa:** `cam_ai_core.py` thêm `tao_thu_muc_cha()`, gọi **trước** khi mở
+  `VideoWriter` và **trước** khi ghi CSV; lỗi writer/CSV giờ **nêu rõ thư mục cha**
+  và bọc trong `CamAIError` có thông điệp rõ ràng.
+- **Kiểm chứng:** CWD = `C:\Windows` + thư mục output chưa tồn tại → **EXIT=0**,
+  thư mục được tạo, có cả `.mp4` + `.csv`.
+
+#### 3. `--tu-luu-clip` xoá mất video kết quả (nhưng exit 0)
+
+- **Triệu chứng:** `--tu-luu-clip DIR` mà `DIR` **trùng** thư mục ghi video kết quả →
+  log `[clip] da don 1 file .part.mp4 con sot lai` + `[video] ⚠ không ghi được video
+  kết quả`; **exit 0 nhưng file video kết quả biến mất**.
+- **Nguyên nhân:** `don_file_tam_trong_thu_muc()` xoá **mọi** `*.part.mp4` trong thư mục,
+  kể cả file tạm của video kết quả đang được `VideoWriter` giữ.
+- **Cách sửa:**
+  - Tham số mới `giu=(...)` — danh sách đường dẫn tuyệt đối **không được xoá**;
+    so sánh bằng `os.path.abspath` + `os.path.normcase` (Windows không phân biệt
+    hoa/thường).
+  - **Lớp bảo vệ thứ hai:** registry `_FILE_DANG_GHI` — mọi `VideoWriter` đang ghi trong
+    tiến trình đều đăng ký file `.part.mp4` của mình, nên **không cleanup path nào**
+    xoá được file đang được ghi, kể cả khi sau này có chỗ gọi quên truyền `giu`.
+  - Vòng dọn bọc `try/except` từng file (trước đó 1 file xoá lỗi làm hỏng cả vòng dọn).
+- **Kiểm chứng:** chạy lại B3 (CWD = `C:\Windows`) → file rác `rac_gi_20250101.part.mp4`
+  **bị xoá** (`da don 1 file .part.mp4 con sot lai`) **và** `ket_qua_ket_qua.mp4`
+  **16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540`.
+
+### Sửa nhỏ
+
+- `_kk_kiem_bien_so.py`: ép UTF-8 cho stdout/stderr (script chạy xong exit 0).
+  Đây là lỗi **của script kiểm chứng**, không phải của app — `app.py` đã có
+  `_chuan_hoa_console()` từ trước.
+
+### CHƯA ĐẠT / việc còn mở
+
+- **Panel "Xem video" trong GUI đen khi chạy phân tích theo lô.** Tìm ra khi rà bản PC
+  2026-10-20: `run_analysis()` chỉ có `progress_cb` + `log`, **không có callback khung
+  hình**; GUI chỉ đẩy `("frame", ...)` ở chế độ **xem trực tiếp** (`gui.py:3631`).
+  Ngoài ra nút "Tạm dừng" (thuộc chế độ trực tiếp) vẫn hiện ở chế độ lô.
+  → Cần thêm callback khung hình + đẩy vào GUI. **Chưa sửa** (xem `PROJECT_STATE.md`
+  mục 2.1e mục E và mục 8).
+- Mục 7 (kéo cửa sổ) + mục 8 (độ nhận diện video thật) + OCR biển số trên **ảnh thật**
+  vẫn **chờ anh xác nhận / chờ ảnh thật**.
+
 ## [3.0] — 2026-10-19 (sau 18:00)
 
 `VERSION` trong `cam_ai_core.py` = **3.0**.

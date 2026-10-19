@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-19 (sau 20:00 — bản **3.0** đã thêm đọc biển số VN + tự chụp ảnh sự kiện, `VERSION` nay là **3.0**)
+**Ngày cập nhật:** 2026-10-20 (sau 00:40 — bản **3.1** đã sửa 3 lỗi chết app tìm được khi rà bản PC, `VERSION` nay là **3.1**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 **Trạng thái ngắn:** **6 mục nghiệm thu tự đo — CẢ 6 ĐÃ ĐẠT** ở bản 2.8 (đo lại toàn bộ
 sau khi thêm `--tach-o`), mỗi mục có output thật kèm tên file. Mục 7 và 8 **chờ anh tự
@@ -8,11 +8,21 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.0 (đang trong working tree, chưa commit):** thêm **đọc biển số xe Việt Nam**
+**Bản 3.1 (đã commit):** sửa **3 lỗi chết app** tìm được khi rà toàn bộ bản PC —
+(1) đường dẫn tương đối bị phân giải theo thư mục đang chạy nên chạy `app.py` từ
+thư mục khác là **chết ngay** với `[loi] khong thay bo model ArcFace`; (2) app không
+tự tạo thư mục output → lỗi khó hiểu; (3) `--tu-luu-clip` cùng thư mục với video
+kết quả thì **xoá mất video kết quả nhưng vẫn exit 0**. Thêm file `duong_dan.py`
+làm nguồn sự thật duy nhất cho đường dẫn. Xem **mục 2.1e**.
+
+**Bản 3.0:** thêm **đọc biển số xe Việt Nam**
 (module mới `bien_so.py`) + **tự chụp ảnh khi có sự kiện** (module mới `tu_chup.py`),
 mặc định **TẮT**. Sửa 3 lỗi nghiêm trọng pipeline OCR, sửa lỗi **ô gợi ý trong ô nhập
 không hiện**, và chuyển pha tìm vùng biển sang **luồng nền** để không làm khựng video.
 Xem **mục 2.1c**.
+
+> **Hướng hiện tại (anh chốt 2026-10-20):** phần **web/browser TẠM DỪNG**.
+> Chỉ hoàn thiện **bản PC**. "Chuẩn xem bản PC có tính năng nào chạy được là được rồi."
 
 > **Quy tắc cho phiên sau:** đọc mục 2 (bảng ĐẠT/CHƯA ĐẠT) trước. Không tin báo cáo
 > của agent nếu chưa tự mở app và nhìn bằng mắt. Em đã sai một lần vì báo "xong"
@@ -133,6 +143,14 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | **Tự chụp ảnh khi có sự kiện** (`--tu-chup`) | Chạy lại code **hiện tại** → `su_kien_20261019_220301_vao_vung_nguoi1.jpg` (157 KB, 960×540, 33.985 màu) — **coordinator tự xem**: thấy 2 người + overlay tiếng Việt **"An \| Nam 67"**, **"Binh \| Nam 52"**; `_bang_ke_chup.csv` ghi đúng `vao_vung` / "Có người vào vùng canh" / `so_nguoi=1` |
 | **Xuất Excel + HTML xem lại** | Excel `one-by-one-person-detection_tong_ket.xlsx` (12,8 KB) đọc bằng openpyxl → 3 sheet có số thật: `Tong ket` 24×4, `Theo gio` 7×6, `Cu theo giay` 144×8; HTML `_xem_lai.html` (35 KB) **coordinator tự mở bằng browser thật** → render đúng: 1.394 khung hình, 00:06 giây đông nhất, TB 0,74 người, 2 người quen (Bình, An), biểu đồ "Số người theo thời gian" |
 | **Video player trong HTML xem lại** (sau khi sửa codec) | Video kết quả giờ dùng **H.264 (`avc1`)** thay cho `mp4v` (MPEG-4 **Part 2** — Chrome/Edge/Firefox **không phát được**). Đo thật: `ffprobe` → **`codec_name=h264`**, 960×540, 10,0 s; `ffmpeg -f null -` → **exit 0**; **coordinator mở HTML bằng browser thật** → `<video>` **không còn "Unable to play media."**, controls **không còn disabled**, scrubber **"total time: 0:10"**, console **0 lỗi** |
+| **Rà bản PC: 32 cờ CLI** | **26/26 lệnh EXIT=0**, video đều **H.264 960×540**, CSV đều **251 dòng** — xem mục 2.1e |
+| **`--pixelate` (làm mờ mặt)** | B12: **coordinator tự xem ảnh so sánh B8 vs B12** → mặt người trong vùng bị **vỡ hạt (mosaic)**, khung đỏ `VÙNG CẢNH: 1 người` |
+| **`--min-face`** | B8 (`--min-face 40`) **không** bắt mặt ở khung hình mà B12 (mặc định) **bắt** → ngưỡng có tác dụng thật |
+| **`--vung-bien-so` (vùng ROI cho OCR)** | B9: log `vung ROI: 0.1,0.3,0.9,0.8`; video demo không có biển VN nên `Khong doc duoc bien so nao` — **đúng hành vi** |
+| **GUI end-to-end (bấm nút Chạy thật)** | Ảnh `_kk_out/gui_e2e/*.png` — **coordinator tự xem**: `▶ Đang chạy` → `✔ Xong`, `247/250 · 99%`, `2 Người / 2 Mặt / 2 Người quen`, file `.mp4` 16.247.979 B + `.csv` sinh ra |
+| **Chạy app từ thư mục bất kỳ** (BUG #1 đã sửa) | CWD = `C:\Windows` + có nhận diện mặt → **EXIT=0**, `[model] ...models\face_core \| GPU \| detection:CUDA`, CSV cột `nguoi_quen` = **"An \| Binh"** |
+| **App tự tạo thư mục output** (BUG #2 đã sửa) | `--output` vào thư mục **chưa tồn tại** → thư mục được tạo, có cả `.mp4` + `.csv` |
+| **Video kết quả không bị mất khi bật `--tu-luu-clip`** (BUG #3 đã sửa) | Chạy lại B3: file rác `.part.mp4` **bị xoá** (`da don 1 file`) **và** `ket_qua_ket_qua.mp4` **16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540` |
 
 #### MỨC 2 — đã chạy thật, chưa tự xem bằng mắt (nên mở xem 1 lần rồi đánh dấu)
 
@@ -145,7 +163,7 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | Tính năng | Ghi chú |
 |---|---|
 | OCR biển số trên **ảnh thật** | Chưa có ảnh thật của anh → chưa chạy được |
-| `--pixelate` (làm mờ nền) | Có code trong `cam_ai_core.py` (`sv.PixelateAnnotator`), **chưa có ảnh chứng minh** |
+| **Xem video ngay trong lúc chạy phân tích theo lô (GUI)** | Panel lớn nhất của GUI **đen** — `run_analysis()` không có callback khung hình. Tìm ra khi rà bản PC 2026-10-20; **chưa sửa** (xem mục 2.1e mục E) |
 | Webcam live `--input 0` | Chưa thử camera thật |
 | Web trên điện thoại thật | Chưa |
 | Nhiều người dùng đồng thời trên web | Chưa |
@@ -171,6 +189,84 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 > → Đây là **artifact của prototype cũ**, KHÔNG phải bằng chứng của code hiện tại.
 > Bằng chứng hợp lệ của `--tu-chup` là ảnh **960×540, 157 KB, 33.985 màu** tạo
 > ngày 2026-10-19 ở `_kk_out/tu_chup_thuc_te/` (xem dòng MỨC 1 ở trên).
+
+---
+
+### 2.1e RÀ TOÀN BỘ BẢN PC — 2026-10-20, `VERSION` 3.0 → **3.1**
+
+**Phạm vi:** anh chốt "chuẩn xem bản PC có tính năng nào chạy được là được rồi" →
+coordinator **tự chạy thật** toàn bộ **32 cờ CLI** của `app.py` + **6 script kiểm chứng
+OCR** + **GUI end-to-end**. **Không tính báo cáo của agent** — mọi dòng dưới đây là
+output coordinator tự chạy và **tự xem ảnh bằng mắt**.
+
+**Kết quả tổng:** **26/26 lệnh EXIT=0**, video kết quả đều **H.264 960×540**,
+CSV đều **251 dòng**. Rà này phát hiện **3 lỗi chết app** (đã sửa, xem bảng dưới) và
+**1 lỗi hiển thị** (chưa sửa).
+
+#### A) Lõi & vùng (batch A)
+
+| Cờ | Lệnh đã chạy thật | EXIT | Bằng chứng đo thật |
+|---|---|---|---|
+| `--no-face` | A1 | 0 | chạy nhanh, không nạp ArcFace, video vẫn ra |
+| `--vung` | A2 | 0 | vẽ vùng + đếm "Trong vùng" |
+| `--vung-nhay` | A3 | 0 | vùng nhạy hơn, số người trong vùng tăng |
+| `--lop car` | A4 | 0 | `xe o to: 15 khung hinh` |
+| `--lop car,motorcycle` | B2 | 0 | `xe o to : 15 khung hinh, toi da 1` |
+| `--tach-o` | A5 | 0 | nhận người ở xa (dam-dong 3.0→5.4) |
+| `--nhan-vat-the` | B1 | 0 | log `nhan them 9 lop: xe dap, xe o to, xe may, ...` |
+| `--bat-canh-bao` | A10 + B5 | 0 | `[canh bao] 00:21:45 canh bao: dung_lau` + `chuong: co, hop thoai: co` + `hop thoai tu dong dong sau 60s` — **không có token nên KHÔNG gửi ra ngoài** |
+| `--canh-bao-mo-phong` `--canh-bao-gioi-han 2` `--canh-bao-go 5` | B6 | 0 | nhận diện người quen 2 lần, mở phòng khi quá số người |
+| `--pixelate` | A11 + B12 | 0 | **coordinator tự xem ảnh**: mặt người trong vùng bị **vỡ hạt** (mosaic), khung đỏ `VÙNG CẢNH: 1 người` |
+| `--canh-lau` | hồi quy L1 | 0 | đứng lâu 1 lần, dài nhất **10.0 s** |
+| `--face-every 5` | B7 | 0 | ArcFace chạy, video OK |
+| `--min-face 40` | B8 | 0 | **so sánh trực tiếp với B12**: cùng 1 khung hình, B8 **không** bắt mặt, B12 (mặc định) **bắt** → cờ này **có tác dụng thật** |
+| `--thiet-bi cpu` | A12 | 0 | chạy CPU, chậm hơn nhưng ra kết quả |
+| `--model yolo11s.pt` | A13 | 0 | model tải về, chạy được |
+| `--tu-luu-clip DIR` `--clip-giay 6` | B3 | 0 | clip 6.0 s = 3.0 s trước + 3.0 s sau; **sau khi sửa BUG #3 thì video kết quả vẫn còn** |
+| `--tu-luu-clip DIR` `--clip-ghi-tat-ca` | B4 | 0 | clip 10.0 s; video kết quả vẫn còn |
+| `--tu-chup` `--tu-chup-dir DIR` `--tu-chup-nhoan-lai-giay 5` | B10 | 0 | sinh `su_kien_..._nguoi_quen_nguoi4.jpg` + `_bang_ke_chup.csv`; **coordinator tự xem ảnh**: 2 khuôn mặt, khung xanh, nhãn **"An \| Nam 52"** và **"Binh \| Nam 52"** |
+| `--doc-bien-so` | A6 | 0 | bật được, không làm khựng pipeline |
+| `--doc-bien-so` `--vung-bien-so "0.1,0.3,0.9,0.8"` | B9 | 0 | log `vung ROI: 0.1,0.3,0.9,0.8`; video demo **không có biển số VN** nên `Khong doc duoc bien so nao` — **đúng hành vi**, không phải lỗi |
+| `--doc-bien-so` `--bien-so-tin-cay 0.7` `--bien-so-nhoan-lai-giay 10` | B11 | 0 | log cảnh báo rõ: `Model nay KHONG co class 'plate' ... -> doc OCR ca khung hinh` |
+
+#### B) Script kiểm chứng OCR (batch B) — **6/6 PASS**
+
+| Script | Kết quả đo thật |
+|---|---|
+| `_kk_kiem_bien_so_gia.py` | **10/10** đúng chuỗi |
+| `_kk_doi_chieu_bien_so_v3.py` | **16/16** đúng, ngoại sai **0/6**, TB **19,8 ms/crop** |
+| `_kk_agent_a_xac_nhan.py` | **PASS** (không báo biển sai) |
+| `_kk_do_chi_phi_doc_bien_so.py` | ROI **2,5 ms/khung** vs không ROI **7,5 ms/khung** (250 khung) |
+| `_kk_kiem_bien_so.py` | EXIT=0 khi có `PYTHONIOENCODING=utf-8` — lỗi **của script test**, không phải của app (`app.py` đã có `_chuan_hoa_console()`) |
+| `_kk_agent_d_kiem_nen.py` | **PASS**, cả 3 chế độ đọc được `30A-12345` |
+
+#### C) GUI end-to-end — coordinator tự xem ảnh
+
+Ảnh: `_kk_out/gui_e2e/gui_dang_chay.png` + `gui_chay_thuc.png`.
+Kết quả từ 2 ảnh coordinator **tự mở xem bằng mắt**:
+
+| Hạng mục | Nhìn thấy trong ảnh | Kết luận |
+|---|---|---|
+| GUI khởi động | `CamAI v3.1 — Phân tích video giám sát`, 12 nhóm tùy chọn, 10 thẻ video mẫu | **ĐẠT** |
+| Nút chạy thật | `▶ Đang chạy` → `✔ Xong`, thanh tiến trình xanh, `Khung hình 247/250 · 99%` | **ĐẠT** |
+| Số liệu chạy thật | `2 Người · 2 Mặt · 2 Người quen`, nhật ký `frame 200/250 \| Người: 3` | **ĐẠT** |
+| Nhận diện tên | `Nguoi da hoc trong video: ['An', 'Binh']` | **ĐẠT** |
+| File sinh ra | `video_test_ket_qua.mp4` 16.247.979 B + `video_test_bao_cao.csv` | **ĐẠT** |
+| **Khung "Xem video" trong lúc chạy** | **ĐEN, không có hình** | **CHƯA ĐẠT** — xem mục 8 |
+
+#### D) 3 BUG THẬT tìm được khi rà — đã sửa ở bản 3.1
+
+| # | Triệu chứng (coordinator tự tái hiện) | Nguyên nhân | Cách sửa | Bằng chứng sau sửa |
+|---|---|---|---|---|
+| **BUG #1** | Chạy `app.py` với CWD = `C:\Windows` → **exit 1**, `[loi] khong thay bo model ArcFace` (dù model có đủ trên đĩa) | `face_engine.py` dùng `models/face_core` **tương đối theo CWD** | File mới `duong_dan.py` = nguồn sự thật duy nhất; `MODEL_DIRS` tuyệt đối theo `APP_DIR`; `app.py` chuẩn hoá `--input/--faces/--model/--vung/--output` | CWD = `C:\Windows` + **có nhận diện mặt** → **EXIT=0**, log `[model] H:\AI Project\cam-ai\models\face_core \| GPU \| detection:CUDA \| genderage:CUDA \| recognition:CUDA`, CSV 250 dòng, cột `nguoi_quen` = **"An \| Binh"** |
+| **BUG #2** | `--output` trỏ vào **thư mục chưa tồn tại** → `[loi] khong gia duoc file video ket qua` | `cv2.VideoWriter` **không tự tạo thư mục** | `cam_ai_core.py`: thêm `tao_thu_muc_cha()`, gọi trước khi mở writer và trước khi ghi CSV; lỗi giờ **nêu rõ thư mục cha** | CWD = `C:\Windows` + thư mục output chưa có → **EXIT=0**, thư mục được tạo, có cả `.mp4` + `.csv` |
+| **BUG #3** | `--tu-luu-clip` **cùng thư mục** với video kết quả → log `[clip] da don 1 file .part.mp4 con sot lai` + `[video] ⚠ không ghi được video kết quả`, **exit 0 nhưng MẤT video kết quả** | `don_file_tam_trong_thu_muc()` xoá **mọi** `*.part.mp4` trong thư mục, kể cả file tạm của video kết quả đang được writer giữ | Thêm tham số `giu=(out_path_tam,)` + **lớp bảo vệ thứ hai** registry `_FILE_DANG_GHI` (mọi `VideoWriter` đang ghi đều được bảo vệ) | Chạy lại B3: `[clip] da don 1 file .part.mp4 con sot lai` (file rác **bị xoá**) **và** `ket_qua_ket_qua.mp4` **16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540` |
+
+#### E) 1 lỗi hiển thị — CHƯA sửa
+
+| Vấn đề | Chi tiết |
+|---|---|
+| **Khung "Xem video" (panel lớn nhất) đen khi chạy phân tích theo lô** | `run_analysis()` chỉ có `progress_cb` + `log`, **không có callback khung hình**; GUI chỉ đẩy `("frame", ...)` ở chế độ **xem trực tiếp** (`gui.py:3631`). Nên bấm "Chạy" trên 1 file → panel lớn nhất **đen suốt**, dù mọi thứ khác chạy đúng. Ngoài ra nút **"Tạm dừng"** (thuộc chế độ trực tiếp) vẫn hiện ở chế độ lô → bấm không có tác dụng |
 
 ---
 
@@ -611,6 +707,9 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 ## 8. Việc tiếp theo — thứ tự gợi ý
 
+0. **Sửa lỗi panel "Xem video" đen khi chạy theo lô** (tìm ra 2026-10-20, xem mục
+   2.1e mục E). Cần thêm callback khung hình cho `run_analysis()` + đẩy vào GUI,
+   và ẩn nút "Tạm dừng" (nút của chế độ trực tiếp) khi đang chạy theo lô.
 1. **Anh xác nhận mục 7:** mở GUI, kéo cửa sổ, xác nhận còn giật hay không.
    Nếu còn giật → em đo tiếp và báo kèm số liệu, không tự kết luận.
 2. **Anh xác nhận mục 8:** gửi video thật + ảnh người quen (nếu muốn nhận diện
@@ -632,6 +731,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 00:40) | **Bản 3.1 — rà toàn bộ bản PC.** Coordinator tự chạy **32 cờ CLI** (26/26 EXIT=0) + **6 script OCR** (6/6 PASS) + **GUI end-to-end** (tự xem ảnh) → phát hiện và sửa **3 lỗi chết app**: (1) đường dẫn tương đối phân giải theo CWD → app chết khi chạy ngoài thư mục dự án (thêm file mới `duong_dan.py` làm nguồn sự thật); (2) app không tự tạo thư mục output; (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`). Phát hiện thêm **1 lỗi hiển thị chưa sửa**: panel "Xem video" đen khi chạy phân tích theo lô. Bump 3.0 → **3.1**. Xem mục **2.1e**. |
 | 2026-10-19 (sau 22h) | **Sửa lỗi codec video.** Video kết quả/clip tự lưu dùng `mp4v` (MPEG-4 **Part 2**) → trình duyệt **không phát được** ("Unable to play media."). Chuyển sang **H.264 (`avc1`)** bằng probe 1 lần có cache, lùi về `mp4v` nếu máy không có encoder. Đo thật: `ffprobe` → **`codec_name=h264`**, `ffmpeg` decode sạch, mở HTML bằng **browser thật** → player load (`total time: 0:10`), **0 lỗi console**. Nâng "Video player trong HTML xem lại" từ MỨC 2 → **MỨC 1**. |
 | 2026-10-19 (sau 20h) | **Bản 3.0.** Thêm **đọc biển số xe Việt Nam** (`bien_so.py`) + **tự chụp ảnh sự kiện** (`tu_chup.py`), mặc định TẮT; 8 cờ CLI; 2 nhóm GUI mới. Sửa 3 lỗi nghiêm trọng pipeline OCR (dùng nhầm engine, bịa biển số, crash `--help`). Chuyển pha tìm vùng biển sang **luồng nền** → pipeline **680–1916 ms/khung → 5,2–7,5 ms/khung**. Sửa lỗi **ô gợi ý trong ô nhập không hiện** (lớp `GoiYTronO`). Ghi chú tốc độ OCR trên GUI thay bằng **số đo thật** (9–15 ms/lần quét, max 62 ms). Bump 2.8 → **3.0**. Mục 7/8 và mục OCR biển số **chờ anh**. |
 | 2026-10-19 (sau 09:00) | **Nghiệm thu 2.5 — 6/6 mục tự đo ĐẠT.** Sửa `PUMP_MS` 120→30 (live view **14.34 fps** 300s); sửa `_vuot_nhau` (0 cặp nhãn chồm ở khung 15 người); cột sự kiện co theo (bố cục **75.4%–83.2%**, 0 nhãn tràn). 6 video demo mới → 13 thẻ. Bump 2.5 → 2.6 → **2.7**. Mục 7/8 chờ anh. |

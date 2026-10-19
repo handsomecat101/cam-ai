@@ -46,13 +46,13 @@ import numpy as np
 
 from cam_ai_core import (AnalysisConfig, CamAIError, Progress, VERSION,
                          chon_providers, chon_thiet_bi, run_analysis)
+from duong_dan import APP_DIR
 
 # Phan tach rieng: ve overlay + panel "Đối tượng phát hiện".
 # gui.py KHÔNG vẽ bằng tay, chỉ gọi hàm ở đây (xem gui_khung.py đầu file).
 import gui_khung as GK
 from gui_khung import PanelSuKien, cat_anh_moi, ve_khung_hinh
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PYTHON_EXE = sys.executable
 VE_VUNG = os.path.join(APP_DIR, "ve_vung.py")
 BAO_CAO = os.path.join(APP_DIR, "bao_cao_tong_ket.py")

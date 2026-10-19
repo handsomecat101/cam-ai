@@ -1,4 +1,4 @@
-﻿"""
+"""
 Dang ky nguoi quen tu video / anh chup - khong can chup anh rieng.
 
 Vi sao can: anh chup mat qua xa, nho, nhay, hay deo kinh -> phan mem
@@ -20,10 +20,13 @@ import shutil
 import cv2
 import numpy as np
 
+from duong_dan import chuan_hoa_duong_dan
 from face_engine import FaceEngine
 
 MODEL_DIR = None
-OUT_DIR = "known_faces"
+# Thu muc luu anh nguoi quen: mac dinh nam trong thu muc goc du an, khong phu
+# thuoc thu muc dang chay (chay tu thu muc khac van luu dung choi).
+OUT_DIR = chuan_hoa_duong_dan("known_faces")
 MAX_PER_PERSON = 5
 SAME_PERSON_SIM = 0.45  # nho hon = cho phep gop nguong hon vao cung 1 nguoi
 MIN_FACE_PX = 24

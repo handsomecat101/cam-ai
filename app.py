@@ -35,6 +35,7 @@ import sys
 
 from cam_ai_core import (AnalysisConfig, CamAIError, THIET_BI_CHON,
                          THIET_BI_MAC_DINH, VERSION, run_analysis)
+from duong_dan import APP_DIR, chuan_hoa_duong_dan
 
 __all__ = ["VERSION", "parse_args", "main"]
 
@@ -176,10 +177,44 @@ def _kiem_tra_input(duong_dan: str) -> None:
         raise SystemExit(f"[lỗi] không tìm thấy file video: {goc}")
 
 
+def _chuan_hoa_input(input_path: str) -> str:
+    """Chuan hoa --input: '0' (webcam) giu nguyen.
+
+    Duong dan tuong duong -> chuan hoa theo quy tac: ban trong CWD truoc,
+    chua co thi dung ban trong thu muc goc du an (APP_DIR).
+    """
+    goc = str(input_path or "").strip()
+    if not goc or goc == "0":
+        return goc
+    return chuan_hoa_duong_dan(goc)
+
+
+def _chuan_hoa_output(output: str | None) -> str:
+    """Chuan hoa --output (duong dan GHI RA video ket qua + CSV bao cao).
+
+    - Khong truyen --output -> ghi vao thu muc goc du an (APP_DIR), de chay
+      app tu thu muc khac van ghi dung choi.
+    - Truyen duong dan TUYET DOI -> giu nguyen ven.
+    - Truyen duong dan TUONG DOI -> giu theo CWD (y do nguoi dung). Thu muc
+      cha se duoc cam_ai_core tu tao neu chua co (xem run_analysis).
+    """
+    if not output:
+        return os.path.join(APP_DIR, "output.mp4")
+    # Duong dan tuyet doi: giu nguyen ven. Duong dan tuong doi: giu theo CWD
+    # (y do nguoi dung) - xem ghi chu o tren.
+    return output
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="CamAI - phan tich video")
     parser.add_argument("--input", required=True, help="duong dan video, hoac 0 = webcam")
-    parser.add_argument("--output", default="output.mp4", help="video ket qua")
+    # default=None de phan biet "nguoi dung khong truyen --output" voi
+    # "nguoi dung truyen duong dan tuong doi" (xem _chuan_hoa_output).
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="video ket qua (mac dinh: ghi trong thu muc CamAI)",
+    )
     parser.add_argument("--faces", default="known_faces", help="thu muc chua anh nguoi quen")
     parser.add_argument("--model", default="yolo11n.pt", help="model phat hien vat the")
     parser.add_argument(
@@ -357,20 +392,31 @@ def parse_args():
 
 def main() -> None:
     args = parse_args()
-    _kiem_tra_input(args.input)
+
+    # --- duong dan: chuan hoa theo thu muc goc du an (xem duong_dan.py).
+    # Quan trong: app.py chay tu thu muc khac (double-click tu Explorer,
+    # shortcut, service/CI) thi duong dan tuong doi nhu "known_faces",
+    # "models/..." hay "yolo11n.pt" deu phai tro ve thu muc goc du an.
+    input_path = _chuan_hoa_input(args.input)
+    _kiem_tra_input(input_path)
+
+    faces_dir = chuan_hoa_duong_dan(args.faces)
+    model = chuan_hoa_duong_dan(args.model)
+    vung = chuan_hoa_duong_dan(args.vung)
+    output = _chuan_hoa_output(args.output)
 
     cfg = AnalysisConfig(
-        input=args.input,
-        output=args.output,
+        input=input_path,
+        output=output,
         no_face=args.no_face,
-        faces_dir=args.faces,
-        model=args.model,
+        faces_dir=faces_dir,
+        model=model,
         thiet_bi=args.thiet_bi,
         face_every=args.face_every,
         face_threshold=args.face_threshold,
         min_face=args.min_face,
         pixelate=args.pixelate,
-        vung=args.vung,
+        vung=vung,
         vung_nhay=args.vung_nhay,
         vung_max=args.vung_max,
         canh_lau=args.canh_lau,

@@ -58,9 +58,21 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       có cache**, lùi về `mp4v` nếu máy không có encoder H.264. Đo thật sau fix:
       `ffprobe` → **`codec_name=h264`**, `ffmpeg` decode sạch (exit 0), mở HTML bằng
       **browser thật** → player load được (`total time: 0:10`), **0 lỗi console**
+- [x] **Rà toàn bộ bản PC** (2026-10-20, bản 3.1): coordinator tự chạy **32 cờ CLI**
+      (**26/26 EXIT=0**), **6 script OCR** (**6/6 PASS**), **GUI end-to-end** (tự xem
+      ảnh) → mọi video kết quả **H.264 960×540**, mọi CSV **251 dòng**
+- [x] **Sửa 3 lỗi chết app** tìm được khi rà:
+      (1) đường dẫn tương đối phân giải theo CWD → app **chết** khi chạy ngoài thư mục
+      dự án (thêm file mới `duong_dan.py` làm nguồn sự thật duy nhất);
+      (2) app không tự tạo thư mục output;
+      (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả
+      nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`)
 
 ## Đang làm
 
+- [ ] **Sửa panel "Xem video" đen khi chạy phân tích theo lô** (tìm ra 2026-10-20):
+      thêm callback khung hình cho `run_analysis()` + đẩy vào GUI qua hộp thư 1 ô
+      (tránh phình bộ nhớ) + ẩn nút "Tạm dừng" ở chế độ lô
 - [ ] **Chờ anh xác nhận mục 7** — kéo cửa sổ, còn giật hay không (chỉ có số đo)
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh
 - [ ] **Chờ ảnh biển số Việt Nam thật** của anh — mới nghiệm thu được OCR biển số

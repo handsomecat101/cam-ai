@@ -8,6 +8,16 @@ import glob
 GOC = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, GOC)
 
+# Console Windows mac dinh la cp1252 -> in chu co dau se crash
+# (UnicodeEncodeError). Ep UTF-8 truoc khi in bat ky thu gi.
+for _s in ("stdout", "stderr"):
+    _luong = getattr(sys, _s, None)
+    if _luong is not None:
+        try:
+            _luong.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
 from bien_so import BoDocBienSo, chuan_hoa_bien_so, lam_sach
 
 CROP_DIR = os.path.join(GOC, "_kiem_chung", "plate_thu", "crops")

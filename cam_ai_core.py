@@ -38,10 +38,12 @@ import numpy as np
 import supervision as sv
 from ultralytics import YOLO
 
+from duong_dan import chuan_hoa_duong_dan
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PERSON_CLASS_ID = 0
-VERSION = "3.0"
+VERSION = "3.1"
 
 # thiet bi chay model: "auto" = tu chon (giam nhip), "cuda"/"cpu" = ep
 THIET_BI_MAC_DINH = "auto"
@@ -194,6 +196,18 @@ class AnalysisConfig:
     # Tu chup anh su kien (tu_chup.py): MAC DINH TAT (chuoi rong = tat).
     tu_chup_dir: str = ""
     tu_chup_nhoan_lai_giay: float = 10.0
+
+    def __post_init__(self) -> None:
+        """Chuan hoa duong dan tuong doi theo thu muc goc du an (duong_dan.py).
+
+        CWD khac thu muc du an (double-click tu Explorer, chay tu shortcut,
+        chay tu service/CI) thi duong dan tuong doi nhu "known_faces" hay
+        "yolo11n.pt" se khong tim thay. Chuan hoa o day de CLI va GUI cung
+        dung mot quy tac, va de chay app tu thu muc nao cung ra ket qua giong
+        nhau.
+        """
+        self.faces_dir = chuan_hoa_duong_dan(self.faces_dir)
+        self.model = chuan_hoa_duong_dan(self.model)
 
 
 @dataclass
@@ -377,16 +391,64 @@ def don_file_tam(duong_dan_tam: str) -> bool:
     return False
 
 
-def don_file_tam_trong_thu_muc(thu_muc: str) -> list:
-    """Xoa moi file *.part.mp4 trong thu muc (con sot sau khi bi kill cung)."""
+# --- file .part.mp4 DANG DUOC GHI (file tam cu video ket qua, cua clip, ...)
+# Registry la LOP BAO VE THU HAI cho chuc "don file sot": VideoWriter giu
+# file khi dang ghi, xoa file do giua chung se lam MAT video ket qua ma app
+# van exit 0 (bug nghiem trong - xem ISSUE_LOG).
+_FILE_DANG_GHI: set[str] = set()
+
+
+def _khoa_duong_dan(duong_dan: str) -> str:
+    """Chuan hoa duong dan de so sanh (Windows khong phan biet hoa/thuong)."""
+    if not duong_dan:
+        return ""
+    try:
+        return os.path.normcase(os.path.abspath(duong_dan))
+    except (TypeError, ValueError):
+        return os.path.normcase(str(duong_dan))
+
+
+def dang_ghi_file(duong_dan: str) -> None:
+    """Dang ky 1 file .part.mp4 dang duoc VideoWriter ghi (KHONG duoc xoa)."""
+    khoa = _khoa_duong_dan(duong_dan)
+    if khoa:
+        _FILE_DANG_GHI.add(khoa)
+
+
+def ngung_ghi_file(duong_dan: str) -> None:
+    """Bo dang ky file .part.mp4 (sau khi ghi xong / dong lai)."""
+    khoa = _khoa_duong_dan(duong_dan)
+    if khoa:
+        _FILE_DANG_GHI.discard(khoa)
+
+
+def don_file_tam_trong_thu_muc(thu_muc: str, giu=()) -> list:
+    """Xoa moi file *.part.mp4 trong thu muc (con sot sau khi bi kill cung).
+
+    giu: iterable cac duong dan (tuyet doi) KHONG duoc xoa.
+    File dang duoc VideoWriter ghi trong chinh tien trinh nay cung duoc bao ve
+    (registry _FILE_DANG_GHI) - xoa file dang ghi giua chung se lam mat video
+    ket qua ma app van exit 0.
+    """
+    giu_luon = {_khoa_duong_dan(p) for p in giu if p}
     da_xoa = []
     try:
-        for ten in os.listdir(thu_muc):
-            if ten.endswith(".part.mp4"):
-                os.remove(os.path.join(thu_muc, ten))
-                da_xoa.append(ten)
+        ten_files = os.listdir(thu_muc)
     except OSError:
-        pass
+        return da_xoa
+    for ten in ten_files:
+        if not ten.endswith(".part.mp4"):
+            continue
+        duong_dan = os.path.join(thu_muc, ten)
+        khoa = _khoa_duong_dan(duong_dan)
+        if khoa in giu_luon or khoa in _FILE_DANG_GHI:
+            continue
+        try:
+            os.remove(duong_dan)
+            da_xoa.append(ten)
+        except OSError:
+            # 1 file xoa khong duoc (dang mo) -> bo qua no, van don con lai
+            continue
     return da_xoa
 
 
@@ -603,6 +665,9 @@ class ClipRecorder:
             self.ly_do = []
             return
         self.writer = writer
+        # File clip dang ghi -> dang ky vao registry de "don file sot"
+        # khong xoa nho (xem don_file_tam_trong_thu_muc).
+        dang_ghi_file(duong_tam)
         for t0, f0 in self.buffer:                 # ghi phan TRUOC su kien
             if t0 > t - self.pre:
                 self.writer.write(f0)
@@ -623,6 +688,8 @@ class ClipRecorder:
             return
         self.writer.release()
         self.writer = None
+        # Da ghi xong -> bo dang ky file clip tam (xem don_file_tam_trong_thu_muc).
+        ngung_ghi_file(duong_dan_tam(self.duong_dan))
         # Chi doi ten .part.mp4 -> .mp4 sau khi da release (da co moov atom).
         if not chuyen_ten_sau_khi_dong(duong_dan_tam(self.duong_dan), self.duong_dan):
             self.chi_tiet.append(f"BO QUA clip khong ghi duoc: {duong_dan_tam(self.duong_dan)}")
@@ -797,6 +864,27 @@ def output_paths(output: str) -> tuple[str, str]:
     return stem + "_ket_qua.mp4", stem + "_bao_cao.csv"
 
 
+def tao_thu_muc_cha(duong_dan: str) -> str:
+    """Tao thu muc cha cua 1 duong dan file neu chua co. Tra ve thu muc cha.
+
+    VideoWriter KHONG tu tao thu muc -> thieu thu muc thi app chet ngay voi
+    thong bao khong ro nguyen nhan. Day la noi sua do (xem ISSUE_LOG).
+    Da co san -> tra ve luon. Khong tao duoc (khong co quyen ghi) -> tra ve
+    chuoi rong, de loi bao o buoc sau noi ro thu muc cha la gi.
+    """
+    # abspath() bao dam dirname khong bao gio rong (duong dan tuong doi).
+    thu_muc_cha = os.path.dirname(os.path.abspath(duong_dan))
+    if not thu_muc_cha:
+        return ""
+    if os.path.isdir(thu_muc_cha):
+        return thu_muc_cha
+    try:
+        os.makedirs(thu_muc_cha, exist_ok=True)
+    except OSError:
+        return ""
+    return thu_muc_cha
+
+
 def chon_thiet_bi(che: str) -> str:
     """Tra 'cuda' hoac 'cpu'. Che 'auto' se tu do bang torch."""
     if che == "cpu":
@@ -965,6 +1053,10 @@ def run_analysis(
         )
 
     out_path, report_path = output_paths(cfg.output)
+    # Tao thu muc cha TRUOC khi mo VideoWriter va truoc khi ghi CSV.
+    # VideoWriter khong tu tao thu muc: thieu thu muc thi app chet ngay.
+    thu_muc_video = tao_thu_muc_cha(out_path)
+    thu_muc_bao_cao = tao_thu_muc_cha(report_path)
     # GHI TAM (.part.mp4) -> DOI TEN khi dong video. File .mp4 hong (moov atom
     # chua ghi xong) thi KHONG bao gio xuat hien voi ten dung.
     out_path_tam = duong_dan_tam(out_path)
@@ -989,7 +1081,14 @@ def run_analysis(
     if not writer.isOpened():
         cap.release()
         don_file_tam(out_path_tam)
-        raise CamAIError(f"[loi] khong gia duoc file video ket qua: {out_path}")
+        raise CamAIError(
+            f"[loi] khong gia duoc file video ket qua: {out_path}\n"
+            "       Thu muc cha khong tao duoc hoac khong co quyen ghi: "
+            f"{thu_muc_video or os.path.dirname(os.path.abspath(out_path))}"
+        )
+    # File tam dang duoc ghi -> dang ky vao registry de "don file sot" khong
+    # bao gio xoa nho (xem don_file_tam_trong_thu_muc).
+    dang_ghi_file(out_path_tam)
 
     # --- VIEC 2: dung mem tren Windows (taskkill KHONG kem /F).
     tin_hieu_dung = cai_tin_hieu_dung()
@@ -1002,7 +1101,10 @@ def run_analysis(
     # --- tu luu clip: mac dinh TAT, chi bat khi co --tu-luu-clip
     recorder = None
     if cfg.tu_luu_clip:
-        don_con_sot = don_file_tam_trong_thu_muc(cfg.tu_luu_clip)
+        # QUAN TRONG: giu file tam cu video ket qua (out_path_tam). Neu thu muc
+        # clip TRUNG thu muc ghi video ket qua, "don file sot" se xoa dung file
+        # dang duoc VideoWriter ghi -> mat video ket qua ma app van exit 0.
+        don_con_sot = don_file_tam_trong_thu_muc(cfg.tu_luu_clip, giu=(out_path_tam,))
         if don_con_sot:
             log(f"[clip] da don {len(don_con_sot)} file .part.mp4 con sot lai")
         recorder = ClipRecorder(
@@ -1449,11 +1551,28 @@ def run_analysis(
                 f"[video] ⚠ không ghi được video kết quả, xem {out_path_tam}",
                 f"[video] khong gia duoc video ket qua, xem {out_path_tam}",
             )
+        # Da ghi xong -> bo dang ky, tu lan sau moi duoc don file sot.
+        ngung_ghi_file(out_path_tam)
 
-    with open(report_path, "w", newline="", encoding="utf-8-sig") as file:
-        csv_writer = csv.DictWriter(file, fieldnames=csv_fields)
-        csv_writer.writeheader()
-        csv_writer.writerows(report_rows)
+    # Bao cao CSV: cung thu muc cha phai co, va loi phai ra ro rang.
+    if not thu_muc_bao_cao:
+        thu_muc_bao_cao = tao_thu_muc_cha(report_path)
+    if not thu_muc_bao_cao:
+        raise CamAIError(
+            f"[loi] khong tao duoc thu muc cho file bao cao: {report_path}\n"
+            "       Thu muc cha khong tao duoc hoac khong co quyen ghi: "
+            f"{os.path.dirname(os.path.abspath(report_path))}"
+        )
+    try:
+        with open(report_path, "w", newline="", encoding="utf-8-sig") as file:
+            csv_writer = csv.DictWriter(file, fieldnames=csv_fields)
+            csv_writer.writeheader()
+            csv_writer.writerows(report_rows)
+    except OSError as exc:
+        raise CamAIError(
+            f"[loi] khong ghi duoc file bao cao: {report_path}\n"
+            f"       Thu muc cha khong co quyen ghi: {thu_muc_bao_cao} ({exc})"
+        ) from exc
 
     all_males = sum(r["nam"] for r in report_rows)
     all_females = sum(r["nu"] for r in report_rows)

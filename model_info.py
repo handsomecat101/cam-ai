@@ -30,9 +30,12 @@ from dataclasses import dataclass, asdict
 from importlib import metadata
 from pathlib import Path
 
-# Thư mục chứa file model_info.py. Mọi đường dẫn đều resolve từ đây,
-# nên chạy từ thư mục nào cũng ra kết quả giống nhau.
-THU_MUC_GOC = Path(__file__).resolve().parent
+from duong_dan import APP_DIR
+
+# Thư mục gốc dự án. Mọi đường dẫn đều resolve từ đây, nên chạy từ thư mục
+# nào cũng ra kết quả giống nhau. Lấy từ duong_dan.py để chỉ có MỘT nguồn
+# sự thật cho toàn bộ ứng dụng.
+THU_MUC_GOC = Path(APP_DIR)
 
 # 1 MB = 1024 * 1024 byte (đúng cách hiển thị dung lượng file của Windows)
 _BYTE_TRONG_MB = 1024 * 1024

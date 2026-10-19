@@ -3,11 +3,124 @@
 Ghi lại lỗi đã biết để không phát minh lại. Xem `PROJECT_STATE.md` mục 2 (bảng ĐẠT/CHƯA ĐẠT)
 và mục 6 (gotcha) cho việc đang làm.
 
-**Ngày cập nhật:** 2026-10-19
+**Ngày cập nhật:** 2026-10-20
 
 ---
 
 # ĐÃ SỬA
+
+## App chết ngay khi chạy từ thư mục khác thư mục dự án — "không thấy bộ model ArcFace"
+
+**Triệu chứng:** chạy `app.py` với thư mục đang chạy (CWD) khác thư mục gốc dự án →
+**exit 1** ngay khi khởi động:
+
+```
+[loi] khong thay bo model ArcFace.
+```
+
+…dù `models/face_core/` **có đủ** `det_10g.onnx`, `w600k_r50.onnx`, `genderage.onnx` trên đĩa.
+
+**Cách tái hiện (coordinator tự chạy):**
+
+```powershell
+$code = "import os,sys,runpy; sys.path.insert(0, r'H:\AI Project\cam-ai'); os.chdir(r'C:\Windows'); sys.argv=['app.py','--input',r'H:\AI Project\cam-ai\video_test.mp4','--output',r'...']; runpy.run_path(r'H:\AI Project\cam-ai\app.py', run_name='__main__')"
+& 'H:\AI Project\cam-ai\.venv\Scripts\python.exe' -W ignore -c $code
+```
+
+**Nguyên nhân:** `face_engine.py` có
+
+```python
+MODEL_DIRS = ("models/face_core", "models/buffalo_l")
+```
+
+và `resolve_model_dir()` kiểm tra bằng `os.path.isdir(path)` → **theo CWD**.
+Cùng kiểu lỗi với `known_faces`, `yolo11n.pt`, `vung.txt` (trong `dang_ky_anh.py`,
+`ve_vung.py`).
+
+**Đây là lỗi nghiêm trọng về mặt sản phẩm:** người dùng Windows **rất dễ** chạy
+`app.py` bằng cách double-click từ Explorer, bằng shortcut, hoặc từ service/CI —
+lúc đó CWD không phải thư mục dự án và **app chết ngay**, dù cài đặt hoàn toàn đúng.
+
+**Cách sửa (`VERSION` 3.1):** thêm file mới **`duong_dan.py`** làm nguồn sự thật duy nhất
+cho đường dẫn:
+
+- `APP_DIR` = thư mục gốc dự án, **không phụ thuộc CWD**.
+- `chuan_hoa_duong_dan(path)`: tuyệt đối → giữ nguyên; tương đối → ưu tiên bản trong
+  CWD, không có thì bản trong `APP_DIR`, không có ở đâu cả thì **giữ nguyên** (để lỗi
+  báo đúng chỗ người dùng trỏ tới, **không tự bịa đường dẫn**).
+- `face_engine.py`: `MODEL_DIRS` thành tuyệt đối theo `APP_DIR`; `resolve_model_dir()`
+  **in ra các đường dẫn đã thử** khi không tìm thấy.
+- `app.py` / `cam_ai_core.py` / `dang_ky_anh.py` / `ve_vung.py` / `model_info.py` /
+  `gui.py`: dùng chung `APP_DIR`.
+
+**Kiểm chứng:** CWD = `C:\Windows` **có nhận diện mặt** → **EXIT=0**,
+`[model] H:\AI Project\cam-ai\models\face_core | GPU | detection:CUDA | genderage:CUDA |
+recognition:CUDA`, CSV 250 dòng, cột `nguoi_quen` = **"An | Binh"**.
+
+**Bài học:** mọi đường dẫn **mặc định** của ứng dụng phải phân giải theo thư mục gốc
+dự án, không theo CWD. Đường dẫn người dùng gõ tay thì giữ nguyên ý định.
+
+---
+
+## App không tự tạo thư mục output → lỗi "không gia duoc file video ket qua"
+
+**Triệu chứng:** `--output` trỏ vào thư mục **chưa tồn tại** →
+
+```
+[loi] khong gia duoc file video ket qua: ...\A16_encoding\ket_qua_ket_qua.mp4
+```
+
+Thông báo **không nói** rằng nguyên nhân là thiếu thư mục → người dùng tưởng lỗi codec
+hoặc lỗi quyền ghi.
+
+**Nguyên nhân:** `cv2.VideoWriter` **không tự tạo thư mục cha**.
+
+**Cách sửa (`VERSION` 3.1):** `cam_ai_core.py` thêm `tao_thu_muc_cha()`; gọi **trước** khi
+mở `VideoWriter` và **trước** khi ghi CSV; lỗi writer/CSV giờ **nêu rõ thư mục cha**
+và bọc trong `CamAIError` có thông điệp rõ ràng.
+
+**Kiểm chứng:** CWD = `C:\Windows` + thư mục output chưa tồn tại → **EXIT=0**, thư mục
+được tạo, có cả `.mp4` (16.226.963 B) + `.csv`.
+
+---
+
+## `--tu-luu-clip` cùng thư mục với video kết quả → MẤT video kết quả nhưng exit 0
+
+**Triệu chứng:** chạy `--tu-luu-clip DIR` mà `DIR` **trùng** thư mục ghi video kết quả:
+
+```
+[clip] da don 1 file .part.mp4 con sot lai
+...
+[video] ⚠ không ghi được video kết quả, xem ...\k_ket_qua.part.mp4
+```
+
+**Exit code vẫn 0** nhưng **file video kết quả không tồn tại** → người dùng tưởng app
+chạy xong nhưng không có kết quả, không có cảnh báo lỗi.
+
+**Nguyên nhân:** `don_file_tam_trong_thu_muc()` xoá **mọi** `*.part.mp4` trong thư mục,
+kể cả file tạm của video kết quả đang được `VideoWriter` giữ. Vòng dọn này chạy
+**trước** khi pipeline ghi frame đầu tiên.
+
+**Cách sửa (`VERSION` 3.1):**
+
+1. Tham số mới `giu=(...)` trong `don_file_tam_trong_thu_muc()` — danh sách đường dẫn
+   tuyệt đối **không được xoá**; so sánh bằng `os.path.abspath` + `os.path.normcase`
+   (Windows không phân biệt hoa/thường). Call site truyền `giu=(out_path_tam,)`.
+2. **Lớp bảo vệ thứ hai:** registry `_FILE_DANG_GHI` — mọi `VideoWriter` đang ghi trong
+   tiến trình đều đăng ký file `.part.mp4` của mình (`dang_ghi_file()` / `ngung_ghi_file()`),
+   nên **không cleanup path nào** xoá được file đang được ghi, kể cả khi sau này có
+   chỗ gọi mới quên truyền `giu`.
+3. Vòng dọn bọc `try/except` từng file (trước đó **1 file xoá lỗi làm hỏng cả vòng dọn**).
+
+**Kiểm chứng:** chạy lại B3 (CWD = `C:\Windows`) → file rác `rac_gi_20250101.part.mp4`
+**bị xoá** (`[clip] da don 1 file .part.mp4 con sot lai`) **và** `ket_qua_ket_qua.mp4`
+**16.253.729 B vẫn còn**, `ffprobe` → `h264,960,540`.
+
+**Bài học:** mọi thao tác dọn file trong thư mục dùng chung phải **loại trừ** file đang
+được ghi. Và một lỗi làm mất dữ liệu mà **vẫn exit 0** là loại lỗi nguy hiểm nhất —
+người dùng không bao giờ biết mất gì.
+
+---
 
 ## Video kết quả dùng codec MPEG-4 Part 2 → trình duyệt báo "Unable to play media"
 
@@ -483,6 +596,38 @@ riêng, đừng dựa vào `in` với chuỗi phủ định.
 ---
 
 # CHƯA SỬA
+
+## Panel "Xem video" (lớn nhất của GUI) đen khi chạy phân tích theo lô
+
+**Triệu chứng:** mở GUI → bấm **"Chạy"** trên 1 file video → panel lớn nhất bên giữa
+("Xem video") **đen suốt**, không hiện khung hình nào, dù mọi thứ khác chạy đúng
+(thanh tiến trình chạy, số liệu `2 Người / 2 Mặt / 2 Người quen` có giá trị, file
+`.mp4` + `.csv` vẫn sinh ra).
+
+**Nguyên nhân:** `run_analysis()` trong `cam_ai_core.py` chỉ có 2 callback:
+`progress_cb` (tiến trình) và `log` (dòng log) — **không có callback khung hình**.
+GUI chỉ đẩy `self.queue.put(("frame", buf.tobytes()))` ở chế độ **xem trực tiếp**
+(`gui.py:3631`). Vì vậy ở chế độ phân tích theo lô không có gì đẩy vào
+`self.o_hinh` → panel đen.
+
+**Kèm theo:** nút **"Tạm dừng"** (thuộc chế độ xem trực tiếp) vẫn hiện ở chế độ lô →
+bấm vào **không có tác dụng** nhưng trông như có.
+
+**Cách sửa dự kiến:**
+
+1. Thêm tham số tuỳ chọn `frame_cb: Callable[[bytes], None] | None = None` vào
+   `run_analysis()`; sau `writer.write(frame)` thì encode JPEG rồi gọi `frame_cb`.
+   **Khi `frame_cb is None` thì chi phí = 0** (CLI không bị ảnh hưởng).
+2. GUI truyền `frame_cb` vào `run_analysis()`; **đẩy vào hộp thư 1 ô (single-slot)**
+   chứ không đẩy vào `self.queue` — nếu đẩy vào queue thì video dài sẽ **phình bộ nhớ**
+   (mỗi khung ~50–150 KB × hàng chục nghìn khung).
+3. Giới hạn tần suất (~10 fps) để không làm chậm pipeline.
+4. Ẩn / vô hiệu nút "Tạm dừng" khi đang chạy theo lô.
+
+**Trạng thái:** chưa sửa. Phát hiện 2026-10-20 khi rà bản PC (coordinator tự xem ảnh
+`_kk_out/gui_e2e/gui_dang_chay.png` và `gui_chay_thuc.png`).
+
+---
 
 ## Nhãn người chồng lên nhau trên khung — lỗi tái diễn 2 lần
 

@@ -17,7 +17,11 @@ import os
 
 import cv2
 
-DEFAULT_OUT = "vung.txt"
+from duong_dan import chuan_hoa_duong_dan
+
+# File vung mac dinh: nam trong thu muc goc du an, khong phu thuoc thu muc
+# dang chay (chay tu thu muc khac van ghi dung choi).
+DEFAULT_OUT = chuan_hoa_duong_dan("vung.txt")
 
 
 def first_usable_frame(source):

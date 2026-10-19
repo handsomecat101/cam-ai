@@ -22,6 +22,8 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from duong_dan import APP_DIR, chuan_hoa_duong_dan
+
 logging.getLogger("insightface").setLevel(logging.ERROR)
 
 # Cosine similarity cho ArcFace w600k_r50 trong bo buffalo_l.
@@ -30,7 +32,13 @@ DEFAULT_MATCH_THRESHOLD = 0.40
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
-MODEL_DIRS = ("models/face_core", "models/buffalo_l")
+# Thu muc model ArcFace: phan giai theo thu muc goc du an (APP_DIR), KHONG
+# theo thu muc dang chay - tranh loi "khong thay bo model" khi chay app.py
+# tu thu muc khac (double-click tu Explorer, shortcut, service/CI).
+MODEL_DIRS = (
+    os.path.join(APP_DIR, "models", "face_core"),
+    os.path.join(APP_DIR, "models", "buffalo_l"),
+)
 
 
 def _enable_cuda() -> bool:
@@ -68,14 +76,27 @@ DEFAULT_PROVIDERS = (
 
 
 def resolve_model_dir(preferred: str | None = None) -> str:
-    candidates = (preferred,) + MODEL_DIRS if preferred else MODEL_DIRS
+    """Tim thu muc chua model ArcFace.
+
+    Thu tu do uu tien: preferred (duong dan nguoi dung truyen) -> models/face_core
+    -> models/buffalo_l. Duong dan tuong doi cua nguoi dung duoc chuan hoa theo
+    quy tac CWD truoc - APP_DIR sau (xem duong_dan.py).
+    """
+    candidates: list[str] = []
+    if preferred:
+        candidates.append(chuan_hoa_duong_dan(preferred))
+    candidates.extend(MODEL_DIRS)
+
     for path in candidates:
         if path and os.path.isdir(path) and any(
             name.endswith(".onnx") for name in os.listdir(path)
         ):
             return path
+
+    da_thu = "\n".join(f"       - {p}" for p in candidates)
     raise SystemExit(
         "[loi] khong thay bo model ArcFace.\n"
+        f"       Da thu tim o cac duong dan sau:\n{da_thu}\n"
         "       Chay: .venv\\Scripts\\python.exe tai_tao_model.py"
     )
 
@@ -119,6 +140,8 @@ class FaceEngine:
         self.threshold = threshold
         self.det_thresh = det_thresh
         self.providers = providers or list(DEFAULT_PROVIDERS)
+        # Thu muc anh nguoi quen: tuong doi -> chuan hoa theo APP_DIR.
+        self.faces_dir = chuan_hoa_duong_dan(faces_dir)
 
         # Chi nap 3 model can dung, bo qua 2 model toa do 3D (137MB) de tai nhanh.
         # Diem nay QUAN TRONG: insightface 2.1 ep CPU khi prepare(ctx_id=-1),
@@ -137,7 +160,7 @@ class FaceEngine:
         print(f"[model] {self.model_dir} | {self.device} | " +
               " | ".join(f"{k}:{v.split('Execution')[0]}" for k, v in active.items()))
 
-        self.known: list[tuple[str, np.ndarray]] = self._load_known(faces_dir)
+        self.known: list[tuple[str, np.ndarray]] = self._load_known(self.faces_dir)
 
     # ------------------------------------------------------------------ hoc
 
@@ -184,7 +207,8 @@ class FaceEngine:
         return known
 
     def reload_known(self, faces_dir: str = "known_faces") -> None:
-        self.known = self._load_known(faces_dir)
+        self.faces_dir = chuan_hoa_duong_dan(faces_dir)
+        self.known = self._load_known(self.faces_dir)
 
     # ------------------------------------------------------------------ doan
 
