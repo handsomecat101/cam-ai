@@ -173,6 +173,83 @@ yếu vì người quá nhỏ. Đổi lại chậm **khoảng 5.3 lần**, nên 
 
 ---
 
+### 2.5 ĐÃ ĐO — CHỌN CPU/GPU + KẾT HỢP ĐẾM NGƯỜI VÀ NHẬN DIỆN MẶT (2026-10-19)
+
+Đo bằng **chính `run_analysis()` của sản phẩm** (có vẽ khung + ghi file), `yolo11n.pt`, CUDA.
+Coordinator tự chạy, không tin báo cáo agent.
+
+#### a) Chọn CPU/GPU — ĐÃ ĐẠT
+
+| Việc | Kết quả | Bằng chứng | Người xác nhận |
+|---|---|---|---|
+| `cam_ai_core.py` có `thiet_bi` + `THIET_BI_MAC_DINH="auto"` | `THIET_BI_CHON = ("auto","cuda","cpu")`; `detector = YOLO(cfg.model).to(chon_thiet_bi(...))` | đọc mã + `py_compile` exit 0 | Coordinator |
+| `app.py --thiet-bi {auto,cuda,cpu}` | `--help` hiện đúng 3 lựa chọn | `app.py --help` | Coordinator |
+| GUI dropdown "Chạy bằng" | `Tự động`→`auto`, `GPU (CUDA)`→`cuda`, `CPU`→`cpu` — **cả 3 khớp đúng** | `_kiem_chung/kk_37_chay_bang_gi.png` | **Coordinator tự xem ảnh** |
+| Nhóm "Máy này chạy bằng gì" truy cập được | Cột trái là `CTkScrollableFrame`, cuộn xuống là thấy dropdown | ảnh trên (đã cuộn `yview 0.246→1.0`) | **Coordinator tự xem ảnh** |
+| Đã nằm trong Git | commit `1f05591` đã chứa `THIET_BI_MAC_DINH`, `GIA_TRI_CHE_THIET_BI` | `git show HEAD:cam_ai_core.py` | Coordinator |
+
+#### b) Câu hỏi "có kết hợp được không" — ĐÃ ĐO, KẾT LUẬN RÕ
+
+Video `nguoi-dung-cho.mp4` (~10 người/khung), mỗi cấu hình đo 2 lần:
+
+| Cấu hình | fps | người/khung | mặt/khung | % khung có mặt | Nhanh hơn |
+|---|---|---|---|---|---|
+| `face_every=1` (mặc định) | 5.15 | 9.88 | 9.01 | 100% | 1.00× |
+| `face_every=2` | 7.62 | 9.92 | 4.27 | 47.9% | 1.48× |
+| `face_every=5` | 12.45 | 9.93 | 1.80 | 20.0% | 2.42× |
+| `face_every=10` | 23.36 | 10.19 | 0.90 | 9.6% | 4.53× |
+| `no_face` (tắt hẳn) | 26.91 | 10.39 | 0.00 | 0% | 5.22× |
+
+**Kết luận: ĐƯỢC KẾT HỢP, không phải chọn 1 trong 2.**
+- **Đếm người không đổi** ở mọi cấu hình (9.88 → 10.19). YOLO chạy độc lập với engine mặt.
+- `face_every` bỏ qua **toàn bộ** engine mặt ở những khung không khớp
+  (`cam_ai_core.py:945`), nên vẫn nhận diện đúng người ở các khung có quét.
+- `face_every=10` đạt **87% tốc độ khi tắt hẳn** nhưng vẫn còn nhận diện mặt.
+
+**Bằng chứng:** `_kiem_chung/ket_hop_dem_nguoi_va_nhan_dien_mat.txt`,
+script `_kk_ket_hop_dem_va_mat.py`. **Coordinator tự chạy và tự đọc số.**
+
+#### c) Chi phí nhận diện mặt TĂNG THEO MẬT ĐỘ NGƯỜI
+
+| Video | người/khung | `no_face=False` | `no_face=True` | Hệ số |
+|---|---|---|---|---|
+| `nguoi-dung-cho` | ~10 | 4.17 fps (196–271 ms) | 18.31 fps (45–62 ms) | **3.59–4.96×** |
+| `xe-co-giao-thong` | 0.0–0.5 | 12.11 fps (74–93 ms) | 28.85 fps (31–40 ms) | **2.14–2.69×** |
+
+**Cảnh báo cho UI:** không được ghi "tắt nhận diện mặt = nhanh gấp N lần" với N cố định.
+Camera đông người thì N≈4, camera vắng thì N≈2.4. Số đúng phải theo cảnh.
+
+**Bằng chứng:** `_kiem_chung/xac_nhan_no_face.txt`,
+`_kiem_chung/do_on_dinh_no_face_nguoi-dung-cho.mp4.txt`,
+`_kiem_chung/do_on_dinh_no_face_xe-co-giao-thong.mp4.txt`.
+
+#### d) Thông lưu quét video dài
+
+Báo cáo agent: `_kiem_chung/thong_luu_video_dai.txt` (278 dòng, có tự nêu giới hạn).
+Điểm chính đã **kiểm chứng lại**:
+- Giải mã video ~560–674 fps → **không phải nút cài**.
+- Nạp lại model 0.097 s/lần → **không phải nguyên nhân** giật/lag.
+- Nút cài thật là **nhận diện ArcFace mỗi khung** (đo lại ở (b), (c)).
+- Tăng `conf` **không** làm nhanh (30.9→28.4→28.9 fps) và làm mất người → **không dùng**.
+- `imgsz` nhỏ **không** giúp (416 chỉ +19%, 320 mất 14% người) → **không dùng**.
+- Phương án tracker thay YOLO định kỳ (F) **tệ hơn** cả về tốc độ lẫn độ nhận diện → **loại**.
+
+> **Chưa đo qua `run_analysis`:** tham số "YOLO mỗi N khung". Số của agent đo bằng
+> vòng lặp rút gọn, **không** gồm vẽ khung + ghi file. Chưa được đưa vào sản phẩm.
+
+#### e) CHƯA ĐẠT — việc còn mở
+
+| Hạng mục | Vì sao chưa đạt | Việc cần làm |
+|---|---|---|
+| `VERSION` chưa bump cho nhóm CPU/GPU | Code đã vào commit nhưng `VERSION` vẫn là `2.8` | Bump lên `2.9` + cập nhật 4 file tài liệu |
+| Chưa hiện tác động tốc độ trên GUI | Anh yêu cầu mỗi công tắc phải ghi rõ ảnh hưởng tốc độ | Viết số đo thật vào `_ghi_y()`, dùng khoảng 2–5× theo mật độ người |
+| Chưa đo "YOLO mỗi N khung" qua `run_analysis` | Số agent chưa đủ tin | Đo lại qua đường chạy thật rồi mới chốt |
+| Chưa có video thực tế của anh | Bộ video mẫu không đại diện camera an ninh | **Anh gửi video thật** để đo đúng thời gian quét |
+| Chưa biết anh cần đếm người, nhận diện người quen, hay cả hai | Quyết định mặc định GUI | **Anh trả lời** |
+| Agent tìm video CC0 thực tế | Chạy từ trước, chưa trả kết quả | Đang chờ |
+
+---
+
 ## 3. Quyết định đã chốt — KHÔNG mở lại
 
 | Quyết định | Lý do |
