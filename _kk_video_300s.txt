@@ -1,0 +1,4 @@
+file 'video_mau/moi/dam-dong.mp4'
+file 'video_mau/moi/nguoi-di-lai.mp4'
+file 'video_mau/moi/cua-hang.mp4'
+file 'video_mau/moi/nguoi-dung-cho.mp4'

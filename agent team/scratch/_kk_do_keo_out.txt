@@ -1,0 +1,17 @@
+﻿=== SO LUONG ===
+  widget TONG (ke ca an)      : 430
+  widget DANG HIEN THI        : 175
+  so nhom tinh nang           : 8
+  cua so                      : 1180x780
+
+=== KHI THU GON (mac dinh) ===
+  {'n': 40, 'trung_binh_ms': 3.65, 'median_ms': 3.69, 'p90_ms': 4.14, 'max_ms': 4.7}
+
+=== KHI MO HET 8 NHOM ===
+  widget TONG : 430   DANG HIEN THI : 411
+  {'n': 40, 'trung_binh_ms': 5.19, 'median_ms': 5.03, 'p90_ms': 6.48, 'max_ms': 6.9}
+
+=== PUMP ===
+  1 tick _hut_hang_doi khi hang doi RONG : 0.003 ms
+  chu ky PUMP_MS                          : 120 ms
+  => so lan tick/giay khi rong            : 8.3

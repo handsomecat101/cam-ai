@@ -1,0 +1,18 @@
+# CamAI dung LF thuan va UTF-8 khong BOM.
+# KHONG cho phep git tu doi thanh CRLF - se lam hong quy uoc file tieu Viet.
+
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.bat   text eol=lf
+*.csv   text eol=lf
+
+*.pt    binary
+*.onnx  binary
+*.mp4   binary
+*.jpg   binary
+*.png   binary
+*.xlsx  binary

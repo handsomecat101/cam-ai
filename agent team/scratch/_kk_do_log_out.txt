@@ -1,0 +1,19 @@
+﻿=== 1. Tung 1 dong log le (do tung lenh) ===
+  tick 1 (1 dong log)      : 7.611 ms
+  tick 2 (1 dong log)      : 6.774 ms
+  tick 3 (1 dong log)      : 5.619 ms
+
+=== 2. Tung N dong log, do tung tick ===
+     50 dong -> tung tick: [306.96, 317.25, 318.5, 309.18]
+    300 dong -> tung tick: [1938.06, 1984.8, 2106.11, 1994.44]
+   1000 dong -> tung tick: [2017.84, 2020.12, 2002.67, 2050.99]
+
+=== 3. Do tung lenh trong _ghi_log (n = 300 dong) ===
+  tong 300 dong        : 20872.4 ms
+    configure(state)   : 53.7 ms
+    insert             : 0.3 ms
+    delete (dong>200)  : 1691.8 ms
+    see('end')         : 34.9 ms
+
+=== 4. update_idletasks sau khi chen log ===
+  update_idletasks 1 lan : 0.49 ms

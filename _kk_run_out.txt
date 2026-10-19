@@ -1,0 +1,126 @@
+====================================================================================================
+DO OCR tren 6 video moi - bien so ro
+====================================================================================================
+RapidOCR (co tim vung chu): khoi tao...
+RapidOCR (CHI DOC - bo qua khai tim): khoi tao...
+EasyOCR: khoi tao Reader (lan dau co the tai model)...
+YOLO11n: nap model...
+xong khoi tao.
+
+----------------------------------------------------------------------------------------------------
+BUOC 1 - XAC DINH VUNG BIEN
+----------------------------------------------------------------------------------------------------
+video                  cach       crop px     ghi chu
+bien-so-gan            C: OCR-det 74x18       C: nhom 1 khung chu ar=4.20 chu='WESTOLOTTO' | A: xe 957x524px -> A' mo len tren (anh canh canh) | B: cum chu rect 135x21px ar=6.31 tuong_phan=45 (o 1/3 duoi)
+bien-so-ra-cong        C: OCR-det 235x80      C: nhom 1 khung chu ar=2.93 chu='+SZ·62144' | A: xe 957x526px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so
+xe-ra-vao-bai          A: YOLO11n 647x528     A: xe 852x528px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so | C: co khung chu nhung khong ghep duoc khoi bien so
+xe-dap-tuyen-pho       A: YOLO11n 623x530     A: xe 820x530px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so | C: co khung chu nhung khong ghep duoc khoi bien so
+bien-so-trong          C: OCR-det 572x126     C: nhom 2 khung chu ar=4.52 chu='M7318 POLIZIA' | A: xe 960x537px -> A' mo len tren (anh canh canh) | B: cum chu rect 253x99px ar=2.56 tuong_phan=112
+xe-chay-duong-1-lan    C: OCR-det 239x111     C: nhom 1 khung chu ar=2.15 chu='MSoHL345' | A: xe 908x532px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so
+
+----------------------------------------------------------------------------------------------------
+BUOC 2 + BUOC 3 - OCR 4 bien the x 3 che do
+----------------------------------------------------------------------------------------------------
+[bien-so-gan] C: OCR-det  crop=74x18px  (C: nhom 1 khung chu ar=4.20 chu='WESTOLOTTO' | A: xe 957x524px -> A' mo len tren (anh canh canh) | B: cum chu rect 135x21px ar=6.31 tuong_phan=45 (o 1/3 duoi))
+   bien the  | RapidOCR CO TIM                  ms | RapidOCR CHI DOC                 ms | EasyOCR                          ms
+   goc       | (khong doc)                     0.0 | (khong doc)                     0.0 | (khong doc)                     0.0
+   x3_cubic  | (khong doc)                     0.0 | (khong doc)                     0.0 | (khong doc)                     0.0
+   x4_cubic  | WEST|OTTO                     510.9 | WESTOLOTTO                      8.1 | WESICLOTIO                    465.1
+   x4_clahe  | WEST|LOTTO                    710.7 | WESTOLOTTO                     67.8 | WESICIOHO                     569.4
+
+[bien-so-ra-cong] C: OCR-det  crop=235x80px  (C: nhom 1 khung chu ar=2.93 chu='+SZ·62144' | A: xe 957x526px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so)
+   bien the  | RapidOCR CO TIM                  ms | RapidOCR CHI DOC                 ms | EasyOCR                          ms
+   goc       | SZ·62144                      879.9 | SZ·62144                        9.2 | SZ*62144                      616.2
+   x3_cubic  | SZ·62144                      684.3 | SZ·62144                       13.4 | SZ'62144                     3866.8
+   x4_cubic  | SZ·62144                      768.8 | SZ·62144                       10.6 | #|SZ|62144                   6351.3
+   x4_clahe  | SZ·621440                     743.7 | SZ.621440                      79.5 | #|SZ|62144                   6307.9
+
+[xe-ra-vao-bai] A: YOLO11n  crop=647x528px  (A: xe 852x528px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so | C: co khung chu nhung khong ghep duoc khoi bien so)
+   bien the  | RapidOCR CO TIM                  ms | RapidOCR CHI DOC                 ms | EasyOCR                          ms
+   goc       | CAG1165                       664.7 | (khong doc)                    44.7 | 1g4165                       7316.0
+   x3_cubic  | FAG1165                      1525.4 | (khong doc)                    12.6 | 39|(||Vacal6s               62762.2
+   x4_cubic  | AG1165                       2601.5 | (khong doc)                     5.5 | (||6aga1g5                 113082.0
+   x4_clahe  | AG1165                       1573.3 | (khong doc)                     6.7 | (l|Acaos                   113118.1
+
+[xe-dap-tuyen-pho] A: YOLO11n  crop=623x530px  (A: xe 820x530px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so | C: co khung chu nhung khong ghep duoc khoi bien so)
+   bien the  | RapidOCR CO TIM                  ms | RapidOCR CHI DOC                 ms | EasyOCR                          ms
+   goc       | CHZO|129527|TL052-3001218     636.1 | (khong doc)                     7.6 | ZH|{129527|Kellea            7330.2
+   x3_cubic  | HZO|129527|ConDa KELLER sUMA|16l. 052 - 386 12 18   1799.5 | (khong doc)                     6.3 | ZH|KELLEAesw|Zumnw|1295271|"|Conn  67313.1
+   x4_cubic  | HZO|129527|ConDa KELLER wMA|1el. 052 - 308 12 18   2962.7 | (khong doc)                     5.9 | 0|Iona|NC|Jmdw|ZH|429527]|0|KELLEn|Mdit|o 107414.9
+   x4_clahe  | HZO|129527|KELLERAUA|16L.052380131   2862.3 | (khong doc)                     5.5 | cbio|Kodo|ZH|129527|0|KELlEJ|Ro|Tod 108888.8
+
+[bien-so-trong] C: OCR-det  crop=572x126px  (C: nhom 2 khung chu ar=4.52 chu='M7318 POLIZIA' | A: xe 960x537px -> A' mo len tren (anh canh canh) | B: cum chu rect 253x99px ar=2.56 tuong_phan=112)
+   bien the  | RapidOCR CO TIM                  ms | RapidOCR CHI DOC                 ms | EasyOCR                          ms
+   goc       | M7z|POLIZIA                  1427.6 | PoLiZiAM7318                   13.7 | POLIZIA|M7318                1645.4
+   x3_cubic  | 17z|LEFB|POLIZIA             1256.2 | PoLiZiAM7318                   13.3 | |POLIZIA|M7318              13475.5
+   x4_cubic  | 173|LEFB|POLIZIA             1101.3 | PoLiZiAM7318                   15.1 | |POLIZIA|M7318              23669.0
+   x4_clahe  | 731|MEFBT|POLIZIA            1065.5 | PoLIZIAM7318                   13.3 | '{F05|POLIZIA|M7318         24362.6
+
+[xe-chay-duong-1-lan] C: OCR-det  crop=239x111px  (C: nhom 1 khung chu ar=2.15 chu='MSoHL345' | A: xe 908x532px -> A' mo len tren (anh canh canh) | B: khong tim thay cum chu co ti le bien so)
+   bien the  | RapidOCR CO TIM                  ms | RapidOCR CHI DOC                 ms | EasyOCR                          ms
+   goc       | MSHL345                       705.9 | MSML345                        72.4 | MS|HL3I5                      971.7
+   x3_cubic  | MSoHL345                      416.2 | MSML345                        54.9 | MSL|345]                     4566.4
+   x4_cubic  | MSoHL345                      298.6 | MSML345                        26.3 | MSdl|345                     8954.0
+   x4_clahe  | MSeHL345                      398.6 | MSeML345                       41.7 | 0|MSdL|345                   9000.5
+
+GHI CHU: 2 lan goi dau tien cua moi engine bi bo (warm-up).
+
+----------------------------------------------------------------------------------------------------
+BUOC 3 - KET QUA DOI VOI MAU BIEN
+----------------------------------------------------------------------------------------------------
+video                  mau (chuoi doc) Bien VN?  OCR thang
+bien-so-gan            MSWL545        khong     KHONG bien the nao doc KHOP MAU
+                                      chua mau: khong bien the nao doc ra duoc day du chuoi bien
+bien-so-ra-cong        SZ62144        khong     RapidOCR CO TIM/goc, RapidOCR CO TIM/x3_cubic, RapidOCR CO TIM/x4_cubic, RapidOCR CHI DOC/goc, RapidOCR CHI DOC/x3_cubic, RapidOCR CHI DOC/x4_cubic, EasyOCR/goc, EasyOCR/x3_cubic, EasyOCR/x4_cubic, EasyOCR/x4_clahe
+                                      chua mau: RapidOCR CO TIM/goc, RapidOCR CO TIM/x3_cubic, RapidOCR CO TIM/x4_cubic, RapidOCR CO TIM/x4_clahe, RapidOCR CHI DOC/goc, RapidOCR CHI DOC/x3_cubic, RapidOCR CHI DOC/x4_cubic, RapidOCR CHI DOC/x4_clahe, EasyOCR/goc, EasyOCR/x3_cubic, EasyOCR/x4_cubic, EasyOCR/x4_clahe
+xe-ra-vao-bai          AG11655        khong     KHONG bien the nao doc KHOP MAU
+                                      chua mau: khong bien the nao doc ra duoc day du chuoi bien
+xe-dap-tuyen-pho       ZH129527       khong     KHONG bien the nao doc KHOP MAU
+                                      chua mau: khong bien the nao doc ra duoc day du chuoi bien
+bien-so-trong          M7318POLIZIA   khong     KHONG bien the nao doc KHOP MAU
+                                      chua mau: RapidOCR CHI DOC/goc, RapidOCR CHI DOC/x3_cubic, RapidOCR CHI DOC/x4_cubic, RapidOCR CHI DOC/x4_clahe, EasyOCR/goc, EasyOCR/x3_cubic, EasyOCR/x4_cubic
+xe-chay-duong-1-lan    MSWL345        khong     KHONG bien the nao doc KHOP MAU
+                                      chua mau: khong bien the nao doc ra duoc day du chuoi bien
+
+bien the    | RapidOCR CO TIM              | RapidOCR CHI DOC             | EasyOCR
+----------------------------------------------------------------------------------------------------
+goc         | khop 1/6  tb 863 ms          | khop 1/6  tb 30 ms           | khop 1/6  tb 3576 ms
+x3_cubic    | khop 1/6  tb 1136 ms         | khop 1/6  tb 20 ms           | khop 1/6  tb 30397 ms
+x4_cubic    | khop 1/6  tb 1374 ms         | khop 1/6  tb 12 ms           | khop 1/6  tb 43323 ms
+x4_clahe    | khop 0/6  tb 1226 ms         | khop 0/6  tb 36 ms           | khop 1/6  tb 43708 ms
+----------------------------------------------------------------------------------------------------
+Chi goc:  Rapid CO TIM tb 863 ms | Rapid CHI DOC tb 30 ms | EasyOCR tb 3576 ms
+
+----------------------------------------------------------------------------------------------------
+ANH CHUNG
+----------------------------------------------------------------------------------------------------
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\bien-so-gan_crop.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\bien-so-gan_bien_the.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\bien-so-ra-cong_crop.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\bien-so-ra-cong_bien_the.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\xe-ra-vao-bai_crop.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\xe-ra-vao-bai_bien_the.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\xe-dap-tuyen-pho_crop.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\xe-dap-tuyen-pho_bien_the.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\bien-so-trong_crop.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\bien-so-trong_bien_the.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\xe-chay-duong-1-lan_crop.png
+  H:\AI Project\cam-ai\_kiem_chung\plate_thu\crops\xe-chay-duong-1-lan_bien_the.png
+
+====================================================================================================
+KET LUAN
+====================================================================================================
+  bien-so-gan            mau=MSWL545       KHONG doc duoc bien so
+  bien-so-ra-cong        mau=SZ62144       DOC KHOP MAU
+  xe-ra-vao-bai          mau=AG11655       KHONG doc duoc bien so
+  xe-dap-tuyen-pho       mau=ZH129527      KHONG doc duoc bien so
+  bien-so-trong          mau=M7318POLIZIA  doc ra duoc chuoi bien
+  xe-chay-duong-1-lan    mau=MSWL345       KHONG doc duoc bien so
+
+Video co mau bien xac nhan bang mat: 6/6
+Video co >=1 to (bien the x OCR) doc KHOP MAU: 1/6
+Video co >=1 to doc ra DU DAY chuoi bien: 2/6
+Bien khu vuc Viet Nam: KHONG - 6 anh deu la bien EU/chau Au
+Tong so video: 6, tong so lan goi OCR (3 che do x 4 bien the x 6 video): 72
+
+Da luu: H:\AI Project\cam-ai\_kiem_chung\plate_thu\ocr_6_video.txt

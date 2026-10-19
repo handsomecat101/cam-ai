@@ -1,0 +1,7 @@
+torch==2.14.0+cu126
+ultralytics==8.4.177
+supervision==0.30.9
+insightface==2.1
+onnxruntime-gpu==1.23.2
+opencv-python==5.0.0.93
+numpy==2.5.4

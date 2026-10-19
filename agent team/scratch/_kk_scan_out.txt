@@ -1,0 +1,111 @@
+﻿bytes 93748 CR 0 BOM False
+lines 2053
+22    root.after() moi cap nhat widget -> khong bao gio go widget Tkinter tu
+580     Dung grid() + grid_remove() de an hien (KHONG dung pack_forget).
+597         self.thanh.grid(row=0, column=0, columnspan=2, sticky="ew")
+608         self.btn_mo.grid(row=0, column=0, sticky="w", padx=(6, KHOANG_CACH),
+621         self.chk.grid(row=0, column=1, sticky="w", padx=(0, 10))
+627         self.lbl_lenh.grid(row=1, column=0, columnspan=2, sticky="w",
+636         self.khung.grid(row=2, column=0, columnspan=2, sticky="ew",
+641         self.khung.grid_remove()
+642         self.lbl_lenh.grid_remove()
+662             self.lbl_lenh.grid()
+663             self.khung.grid()
+666             self.lbl_lenh.grid_remove()
+667             self.khung.grid_remove()
+688         self.title(self._tieu_de())
+689         self.geometry("1180x780")
+729         self.after(PUMP_MS, self._hut_hang_doi)
+745         KHONG goi grid()/grid_remove() -> trang thai mo/dong giu nguyen.
+794         self.title(self._tieu_de())
+799             self.cua_so_model.title(self.dich("Thông tin mô hình AI đang dùng"))
+923         ).grid(row=0, column=0, sticky="ew", padx=LE_NGOAI, pady=(12, 6))
+934         self.btn_ngon_ngu.grid(row=0, column=1, sticky="e", padx=(0, LE_NGOAI),
+949         self.lbl_loi.grid(row=7, column=0, sticky="ew", padx=LE_NGOAI, pady=(2, 8))
+957         dung trong <Configure> nen khong ton hao gi khi rê chuot.
+1031         f.grid(row=1, column=0, sticky="ew", padx=LE_NGOAI, pady=(0, 2))
+1036                      width=110).grid(row=0, column=0, sticky="w", padx=(0, 10))
+1037         ctk.CTkEntry(f, textvariable=self.v_video).grid(
+1040                       command=self._chon_video).grid(
+1045                       ).grid(row=0, column=3, padx=(KHOANG_CACH, 0), pady=(0, 4))
+1050                      width=110).grid(row=1, column=0, sticky="w", padx=(0, 10))
+1055         self.om_video_mau.grid(row=1, column=1, sticky="w", pady=(0, 4))
+1057                       command=self._dung_video_mau).grid(
+1062                      ).grid(row=1, column=3, padx=(KHOANG_CACH, 0), sticky="w")
+1066                      width=110).grid(row=2, column=0, sticky="w", padx=(0, 10))
+1067         ctk.CTkEntry(f, textvariable=self.v_output).grid(
+1070                       command=self._chon_output).grid(
+1075                      ).grid(row=2, column=3, padx=(KHOANG_CACH, 0), sticky="w")
+1083         b.grid(row=2, column=0, sticky="ew", padx=LE_NGOAI, pady=(KHOANG_CACH, 2))
+1147         nhom.grid(row=dong, column=0, sticky="ew", pady=(0, KHOANG_CACH))
+1172         f.grid(row=self._dong_moi(parent), column=0, sticky="ew",
+1179             ).grid(row=0, column=0, sticky="w", padx=(0, 12))
+1188         ).grid(row=self._dong_moi(parent), column=0, sticky="w",
+1194         f.grid(row=self._dong_moi(parent), column=0, sticky="ew")
+1197                      corner_radius=0).grid(row=0, column=0, sticky="ew")
+1203         ctk.CTkEntry(f, textvariable=self.v_conf, width=90).grid(
+1212         ).grid(row=0, column=1, sticky="w")
+1218                         font=self.font_nho).grid(row=0, column=1, sticky="w")
+1220                         font=self.font_nho).grid(row=0, column=2, sticky="w",
+1224                         ).grid(row=0, column=3, sticky="w", padx=(18, 0))
+1232                         state="disabled").grid(row=0, column=1, sticky="w")
+1237         ctk.CTkEntry(f, textvariable=self.v_face_threshold, width=90).grid(
+1240                      text_color=MAU["chu_phu_the"], anchor="w").grid(
+1246         ctk.CTkEntry(f, textvariable=self.v_min_face, width=90).grid(
+1250                      anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
+1254         ctk.CTkEntry(f, textvariable=self.v_face_every, width=90).grid(
+1257                      text_color=MAU["chu_phu_the"], anchor="w").grid(
+1262         ctk.CTkEntry(f, textvariable=self.v_faces_dir).grid(
+1265                       command=self._chon_faces_dir).grid(
+1274         self.btn_hoc_lai.grid(row=0, column=1, sticky="w")
+1297         ctk.CTkEntry(f, textvariable=self.v_vung_file).grid(
+1300                       command=self._chon_vung_file).grid(row=0, column=2, padx=(6, 0))
+1304                       command=self._mo_ve_vung).grid(row=0, column=1, sticky="w")
+1312         ).grid(row=0, column=1, sticky="w")
+1317         ctk.CTkEntry(f, textvariable=self.v_vung_max, width=90).grid(
+1321                      anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
+1325         ctk.CTkEntry(f, textvariable=self.v_canh_lau, width=90).grid(
+1329                      anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
+1336         ctk.CTkEntry(f, textvariable=self.v_clip_giay, width=90).grid(
+1340                      anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
+1347         ).grid(row=0, column=1, sticky="w")
+1355         ctk.CTkEntry(f, textvariable=self.v_lop).grid(row=0, column=1, sticky="ew")
+1365                         ).grid(row=0, column=1, sticky="w")
+1368                         ).grid(row=0, column=2, sticky="w", padx=(18, 0))
+1371                         ).grid(row=0, column=3, sticky="w", padx=(18, 0))
+1375                       command=self._thu_canh_bao).grid(row=0, column=1, sticky="w")
+1384                       command=self._mo_thong_tin_model).grid(
+1391         f.grid(row=3, column=0, sticky="ew", padx=LE_NGOAI, pady=(KHOANG_CACH, 6))
+1395         g.grid(row=0, column=0, sticky="w")
+1403         self.btn_chay.grid(row=0, column=0, padx=(0, KHOANG_CACH))
+1410         self.btn_dung.grid(row=0, column=1)
+1414         f.grid(row=4, column=0, sticky="ew", padx=LE_NGOAI, pady=(2, KHOANG_CACH))
+1417                      text_color=MAU["chu_phu"], anchor="w", width=100).grid(
+1420         self.bar.grid(row=0, column=1, sticky="ew")
+1424                      ).grid(row=0, column=2, sticky="e", padx=(KHOANG_CACH, 0))
+1428         f.grid(row=5, column=0, sticky="ew", padx=LE_NGOAI, pady=(0, KHOANG_CACH))
+1439             cell.grid(row=0, column=idx, sticky="ew",
+1442                          text_color=MAU["chu_phu_the"]).pack(pady=(6, 0))
+1444                          text_color=MAU["chu"]).pack(pady=(0, 6))
+1449         f.grid(row=6, column=0, sticky="nsew", padx=LE_NGOAI, pady=(0, 2))
+1455                      anchor="w").grid(
+1461         self.btn_mo_ket_qua.grid(row=0, column=1, padx=(0, KHOANG_CACH),
+1467         self.btn_bao_cao.grid(row=0, column=2, padx=(0, 12), pady=(8, 0))
+1471         self.log_box.grid(row=1, column=0, columnspan=3, sticky="nsew",
+1808         self.after(PUMP_MS, self._hut_hang_doi)
+1873         win.title("Thông tin mô hình AI đang dùng")
+1874         win.geometry("1000x620")
+1886         ).grid(row=0, column=0, sticky="ew", padx=LE_NGOAI, pady=(12, 4))
+1890         khung.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 12))
+1921             kh.grid(row=0, column=idx, sticky="ew",
+1926                          wraplength=be[idx] - 16).grid(
+1942                 kh.grid(row=so, column=idx, sticky="ew",
+1952                              justify="left", wraplength=be[idx] - 16, **kw).grid(
+1962             ).grid(row=dong, column=0, columnspan=4, sticky="w", padx=2, pady=(KHOANG_CACH, 0))
+1968             ).grid(row=dong, column=0, columnspan=4, sticky="w", padx=2)
+1984             ).grid(row=dong, column=0, columnspan=4, sticky="w", padx=2, pady=2)
+1993                          text_color=MAU["chu_phu"], justify="left").grid(
+2003         ).grid(row=dong, column=0, columnspan=4, sticky="w", padx=2, pady=(KHOANG_CACH, 0))
+2014         ).grid(row=dong, column=0, columnspan=4, sticky="w", padx=2)
+2018                      text_color=MAU["chu"], anchor="w").grid(
+2027         ).grid(row=1, column=0, columnspan=4, sticky="w", padx=2, pady=8)

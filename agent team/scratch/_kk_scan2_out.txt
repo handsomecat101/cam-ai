@@ -1,0 +1,37 @@
+﻿lines 871
+16     def tien_trinh(p):           # p la doi tuong Progress
+23 from __future__ import annotations
+89 class CamAIError(Exception):
+99 class AnalysisConfig:
+136 class Progress:
+156     def percent(self) -> float:
+161     def __iter__(self) -> Iterator:
+170 class AnalysisResult:
+198 class ClipRecorder:
+210     def __init__(self, thu_muc, tong_giay=CLIP_MAC_DINH_GIAY, fps=25.0, size=(0, 0)):
+238     def feed(self, frame, t, reasons):
+252     def _mo(self, t, reasons):
+276     def _noi_dai(self, t, reasons):
+283     def _ten_ly_do(self) -> str:
+286     def _dong(self):
+308     def ket_thuc(self):
+315 def ten_vat_the(ten_lop: str) -> str:
+322 def load_zone(path):
+343 def person_inside(box, zone):
+350 def person_touches(box, zone, min_ratio=0.05):
+361 def track_id_at(detections, index):
+370 def output_paths(output: str) -> tuple[str, str]:
+378 def run_analysis(
+576                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+578                 cv2.putText(
+589                 pixelated = sv.PixelateAnnotator(pixel_size=24).annotate(
+675                 frame = sv.BoxAnnotator(thickness=2).annotate(
+679                 frame = sv.LabelAnnotator().annotate(
+688                     ).annotate(scene=frame, detections=vat_the)
+690                     frame = sv.LabelAnnotator().annotate(
+697                 frame = sv.LineZoneAnnotator(thickness=4).annotate(
+712                 cv2.rectangle(frame, (zx1, zy1), (zx2, zy2), zcolor, 3)
+713                 cv2.putText(
+718                     cv2.putText(
+729             cv2.rectangle(frame, (0, 0), (width, 34), (0, 0, 0), -1)
+730             cv2.putText(

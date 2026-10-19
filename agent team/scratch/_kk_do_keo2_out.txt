@@ -1,0 +1,13 @@
+﻿widget tong = 430
+
+[A] KEO khi IDLE (hang doi rong)
+    {'TB': 5.01, 'median': 5.03, 'p90': 5.58, 'max': 5.93}
+   1 tick pump rong : {'TB': 0.03, 'max': 0.08}
+
+[B] KEO khi queue day 2000 dong log (chua xu ly)
+    {'TB': 4.89, 'median': 4.72, 'p90': 5.79, 'max': 6.29}
+
+[C] 1 vong _hut_hang_doi xu ly het 2000 dong log
+    {'TB': 0.02, 'max': 0.03}
+
+[D] 1 vong _hut_hang_doi (chi progress rong)

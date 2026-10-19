@@ -1,0 +1,61 @@
+# --- moi truong ao ---
+.venv/
+venv/
+env/
+
+# --- model nang tai lai duoc ---
+*.pt
+*.onnx
+models/
+
+# --- du lieu mau va tam ---
+known_faces/
+_kk_out/
+_web_tmp/
+_thumb_cache/
+*.bak
+*.bak2
+*.pid
+
+# --- video mau va du lieu lon ---
+video_mau/
+_kiem_chung/
+_thumb_cache/
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# --- ket qua chay ---
+output*.mp4
+output_*.csv
+*.log
+
+# --- anh phong nghiep ---
+_kiem_chung/**/*.png
+_kiem_chung/**/*.jpg
+_kiem_chung/**/*.mp4
+plate_thu/**/*.png
+phong_to/**/*.png
+video_moi/**/*.png
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- he dieu hanh ---
+Thumbs.db
+.DS_Store
+desktop.ini
+.vscode/
+.idea/
+
+# --- khoa va bien mat ---
+.env
+*.key
+*.pem
+secrets.json

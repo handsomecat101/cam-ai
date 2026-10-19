@@ -1,0 +1,6 @@
+﻿=== CHI PHI 1 VONG _hut_hang_doi (chu ky PUMP_MS = 120ms) ===
+    300 dong log  -> {'TB': 1969.0, 'max': 2023.72} ms
+   1000 dong log  -> {'TB': 1995.57, 'max': 2083.33} ms
+   3000 dong log  -> {'TB': 1993.52, 'max': 2028.26} ms
+   8000 dong log  -> {'TB': 1947.47, 'max': 1969.54} ms
+  50 su kien progress -> {'TB': 1855.49, 'max': 1957.11} ms
