@@ -45,7 +45,7 @@ import customtkinter as ctk
 import numpy as np
 
 from cam_ai_core import (AnalysisConfig, CamAIError, Progress, VERSION,
-                         chon_thiet_bi, run_analysis)
+                         chon_providers, chon_thiet_bi, run_analysis)
 
 # Phan tach rieng: ve overlay + panel "Đối tượng phát hiện".
 # gui.py KHÔNG vẽ bằng tay, chỉ gọi hàm ở đây (xem gui_khung.py đầu file).
@@ -57,6 +57,10 @@ PYTHON_EXE = sys.executable
 VE_VUNG = os.path.join(APP_DIR, "ve_vung.py")
 BAO_CAO = os.path.join(APP_DIR, "bao_cao_tong_ket.py")
 THU_MUC_CLIP = os.path.join(APP_DIR, "clip_da_luu")
+# v3.0: thu muc luu crop bien so + anh su kien. Dat trong APP_DIR de khong
+# phu thuoc thu muc dang chay cua may.
+THU_MUC_BIEN_SO = os.path.join(APP_DIR, "anh_bien_so")
+THU_MUC_ANH_SU_KIEN = os.path.join(APP_DIR, "anh_su_kien")
 
 VIDEO_FILETYPES = [
     ("Video", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv *.m4v"),
@@ -107,7 +111,6 @@ RESIZE_CHO_MS = 180                # ms - ngung keo bao lau thi ve lai khung hin
 XEM_VIDEO_BE_RONG = 1100
 XEM_VIDEO_CAO = 620
 LABEL_WIDTH = 118                  # be ngan can cua 1 hang cau hinh
-WRAP_WIDTH = 300                  # be ngat dong cua dong ghi chu
 FONT = "Segoe UI"
 FONT_SO = "Consolas"
 
@@ -224,6 +227,20 @@ LE_KHUNG = 60                        # de trong giua man hinh khi cat nho
 # nang (anh crop that) nhung hep hon. Ty le video/(video+su kien) ~ 76%.
 RONG_COT_TRAI = 300                 # cot CAI DAT ben trai
 RONG_COT_SU_KIEN = 320              # cot DANH SACH SU KIEN ben phai
+# --- BE NGAT DONG TRONG COT CAI DAT ---
+# Do that 2026-10-19 bang `_kk_agent_b_do_le.py`: khung noi dung ben trong
+# CTkScrollableFrame chi rong 268px (300 - le ngoai 16 - thanh cuon ~16).
+# Nhieu nhan cu dat `wraplength` 180-300px => Tk xuong dong o be 180-300px
+# NHUNG widget chi rong 104-232px => CHU BI CAT NGANG GIUA DONG.
+# Phai tinh wraplength tu be rong THAT con lai, khong dat so tu nghieng.
+BE_NOI_DUNG_TRONG_NHOM = 268        # be ngang that cua khung 1 nhom
+LE_MO_TA_NHOM = 36                  # le cua dong mo ta (dinh nghia o NhomTinhNang)
+LE_GHI_Y = 10                       # le cua dong ghi chu nho
+WRAP_MO_TA_NHOM = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - 8      # 224
+WRAP_GHI_Y = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - LE_GHI_Y - 8  # 214
+# Chu cua 1 checkbox trong khung cau hinh (tru 24px o check + 6px khe).
+# Be trong cua khung cau hinh = 268 - 36 (le cua nhom) = 232px.
+WRAP_CHECKBOX = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - 24 - 6 - 2  # 200
 TY_LE_COT_VIDEO = 76                # video chiem 76% be ngang vung hien thi
 # Chieu cao o nhhat ky: giu ngan de khoang chay cho khung video (16:9).
 CAO_NHAT_KY = 104
@@ -343,10 +360,31 @@ DICH_VI_EN = {
     "yolo11n = nhẹ nhất, chạy nhanh nhất. Không rành thì để yolo11n.":
         "yolo11n = lightest and fastest. If unsure, keep yolo11n.",
     "Chạy bằng": "Run on",
-    "Máy có GPU thì phần mềm tự điều khiển tốc độ cho cả GPU "
-    "lẫn CPU. Chọn CPU chỉ để ép chạy CPU trên máy không GPU.":
-        "On a PC with a GPU the software balances speed by itself for both "
-        "GPU and CPU. Pick CPU only to force CPU on a PC without a GPU.",
+    "Đo thật trên máy này: card màn hình nhanh hơn CPU "
+    "khoảng 2 lần khi chỉ đếm người, khoảng 2,5 lần khi "
+    "bật nhận diện mặt. Máy không có card thì để "
+    "“Tự động” là chạy được.":
+        "Measured on this PC: the graphics card is about 2x faster than the CPU "
+        "when only counting people, about 2.5x when face recognition is on. "
+        "On a PC with no graphics card, keep “Automatic” and it still runs.",
+    "Tắt ô này thì phần mềm CHỈ đếm người, không nhận "
+    "diện ai. Đo thật: nhanh hơn khoảng 2,5 lần lúc "
+    "camera đông người, khoảng 2 lần lúc camera vắng. "
+    "Đếm người không bị ảnh hưởng.":
+        "Turning this off makes the software only count people, not identify "
+        "them. Measured: about 2.5x faster on a busy camera, about 2x on an "
+        "empty one. People counting is not affected.",
+    "Đo thật trên video đông người (10 người/khung): "
+    "1 → 5,2 khung/giây · 2 → 7,6 · 5 → 12,5 · 10 → 23,4. "
+    "Đếm người KHÔNG đổi, chỉ giảm số lần quét mặt. "
+    "Máy chấm công (người đứng ở cửa) để 5 là đủ. "
+    "Giám sát người đi qua nhanh thì để 1–2. "
+    "Camera vắng người thì nhận được nhiều hơn các số trên.":
+        "Measured on a busy video (10 people per frame): 1 → 5.2 fps · "
+        "2 → 7.6 · 5 → 12.5 · 10 → 23.4. People counting does not change, "
+        "only how often faces are scanned. For an attendance clock (people "
+        "stand at the door) 5 is enough. For watching people pass by fast, "
+        "keep 1–2. An empty camera does better than these numbers.",
     "Hiển thị trên video": "Show on video",
     "Vẽ khung người": "Draw person boxes",
     "Vẽ nhãn tên": "Draw name labels",
@@ -362,11 +400,11 @@ DICH_VI_EN = {
         "It is only an estimate, not exact. "
         "cam_ai_core has no switch to turn this off.",
     "Ngưỡng giống mặt": "Face match threshold",
-    "(mặc định 0,40)": "(default 0.40)",
     "Cao hơn = dễ nhận nhầm người khác. "
-    "Thấp hơn = dễ không nhận ra người quen.":
+    "Thấp hơn = dễ không nhận ra người quen. "
+    "Mặc định 0,40.":
         "Higher = easier to mix up other people. "
-        "Lower = easier to miss people you know.",
+        "Lower = easier to miss people you know. Default 0.40.",
     "Bỏ qua mặt nhỏ hơn": "Skip faces smaller than",
     "px": "px",
     "Mặt nhỏ hơn cỡ này thì bỏ qua, không hỏi ai. Để 0 = không bỏ.":
@@ -412,10 +450,96 @@ DICH_VI_EN = {
 
     # --- nhom 6: vat the ---
     "Danh sách lớp cần nhận": "Classes to detect",
+    "để trống = nhóm mặc định": "empty = default group",
     "Ví dụ: car, motorcycle, dog, cat — cách nhau bằng dấu phẩy. "
     "Để trống = nhóm lớp phổ biến. Gõ all = mọi lớp trừ người.":
         "Example: car, motorcycle, dog, cat — separated by commas. "
         "Leave empty = common classes. Type all = every class except people.",
+    "Tốc độ: gần như không chậm đi. Đo thật ngày 19/10/2026 trên "
+    "video nhiều xe, xem trực tiếp chậm hơn khoảng 3–9%, và "
+    "chậm hơn nhiều hơn khi bật lớp `all`.":
+        "Speed: barely slower. Measured on 19/10/2026 with a car video, "
+        "live view is about 3–9% slower, and slower still with `all`.",
+    "Lý do: YOLO vốn đã nhận sẵn toàn bộ 80 lớp trong 1 lượt, "
+    "nên bật thêm chỉ tốn công vẽ thêm khung, không phải chạy "
+    "model thêm lần nữa.":
+        "Why: YOLO already detects all 80 classes in one pass, so enabling "
+        "this only costs drawing extra boxes, not another model run.",
+    "Lưu ý: khung vật thể vẽ màu cam và KHÔNG tính vào số "
+    "người, số vào/ra, cảnh báo vùng.":
+        "Note: object boxes are drawn in orange and are NOT counted as "
+        "people, in/out counts, or zone alerts.",
+    "Vật thể: {n}": "Objects: {n}",
+    "> [vật thể] Đang nhận {n} lớp: {ds}":
+        "> [objects] Detecting {n} classes: {ds}",
+    "> [vật thể] Không còn lớp nào hợp lệ, tắt nhận vật thể.":
+        "> [objects] No valid class left, object detection is off.",
+
+    # --- v3.0: nhom doc bien so ---
+    "Đọc biển số xe": "Read licence plates",
+    "Đọc chữ trên biển số xe Việt Nam bằng RapidOCR — chạy 100% "
+    "trên máy này, không gửi ảnh ra ngoài.":
+        "Reads Vietnamese licence plates with RapidOCR — runs 100% on this PC, "
+        "no images are sent anywhere.",
+    "Thư mục lưu ảnh": "Photo folder",
+    "Vùng cần quét": "Area to scan",
+    "để trống = tự tìm trong khung": "empty = search the whole frame",
+    "tự tìm": "auto",
+    "mặc định": "default",
+    "Nghỉ giữa 2 lần": "Pause between saves",
+    "Đọc bằng RapidOCR chạy 100% trên máy này, không gửi ảnh ra ngoài.":
+        "RapidOCR runs 100% on this PC, no images are sent anywhere.",
+    "Tốc độ: đọc biển số chạy ở luồng nền nên không làm khựng video. "
+    "Mỗi lần quét tốn 9–15 ms, khung hình chậm nhất 62 ms "
+    "(đo thật trên máy này ngày 19/10/2026). Lúc bật lần đầu máy phải nạp "
+    "model nên khựng khoảng 1–2 giây.":
+        "Speed: plate reading runs on a background thread, so it never freezes "
+        "the video. Each scan takes 9–15 ms; the slowest frame was 62 ms "
+        "(measured on this PC on 19/10/2026). The first time you enable it "
+        "the model has to load, which pauses things for about 1–2 seconds.",
+    "Cùng một biển số chỉ được lưu ảnh 1 lần trong khoảng nghỉ ở trên.":
+        "The same plate is only saved once per pause set above.",
+    "Vùng cần quét: gõ 4 số theo mẫu x1,y1,x2,y2. Gõ 0,1 – 1,0 là tọa độ "
+    "tương đối, số lớn hơn 1 là tọa độ pixel. Để trống = phần mềm tự tìm "
+    "trong khung hình.":
+        "Area to scan: type 4 numbers as x1,y1,x2,y2. Values from 0,1 – 1,0 "
+        "are relative, anything above 1 is in pixels. Leave it empty and the "
+        "software searches the whole frame.",
+    "Chọn thư mục lưu ảnh biển số": "Choose the licence plate photo folder",
+
+    # --- v3.0: nhom tach o + canh bao ---
+    "Máy sẽ dò cả khung hình nguyên vẹn lẫn các ô nhỏ, rồi ghép lại — "
+    "nên người ở gần không bị mất, người ở xa thì dễ nhận hơn.":
+        "The app scans both the full frame and the small boxes, then merges "
+        "them — so close people are not lost and distant ones are easier to "
+        "detect.",
+    "Đổi lại là chậm hơn khoảng 5 lần. Đo thật ngày 19/10/2026: "
+    "video đám đông nhận đúng hơn gấp đôi, nhưng xem sẽ giật hơn.":
+        "The trade-off is about 5x slower. Measured on 19/10/2026: crowd "
+        "videos are detected more than twice as well, but playback is "
+        "choppier.",
+    "Bỏ chọn ô này thì cảnh báo sẽ KÊU CHUÔNG và MỞ HỘP "
+    "THOẠI ngay trên máy này. Telegram cần có token trong "
+    "file canh_bao.ini.":
+        "Uncheck this box and alerts will RING and OPEN A DIALOG on this PC. "
+        "Telegram needs a token in canh_bao.ini.",
+
+    # --- v3.0: nhom tu chup anh ---
+    "Tự chụp ảnh khi có sự kiện": "Take a photo on each event",
+    "Khi có người đông, vượt vùng hoặc thấy người quen thì chụp lại "
+    "khung hình lưu thành ảnh. Mặc định tắt.":
+        "When a crowd, a zone breach or a known person appears, the frame is "
+        "saved as a photo. Off by default.",
+    "Chụp khi có người đông, vượt vùng canh, thấy người quen hoặc có người "
+    "đứng lâu.":
+        "Takes a photo on a crowd, a zone breach, a known person or someone "
+        "loitering.",
+    "Mỗi loại sự kiện chỉ chụp 1 lần trong khoảng nghỉ ở trên.":
+        "Each kind of event is only photographed once per pause set above.",
+    "Ảnh lưu ngay trên máy này, kèm file _bang_ke_chup.csv ghi lại lúc chụp.":
+        "Photos are saved on this PC, with a _bang_ke_chup.csv log of when each "
+        "one was taken.",
+    "Chọn thư mục lưu ảnh sự kiện": "Choose the event photo folder",
 
     # --- nhom 7: canh bao ---
     "Cách báo": "How to alert",
@@ -894,6 +1018,205 @@ def _su_kien(loai: str, ten: str, tin_do: float, gioi: str,
     }
 
 
+class HuongDan:
+    """Tooltip don gian: hien 1 doan chu khi rê chuột vao widget.
+
+    Dung khi o nhap bi CAT CHU (vi du duong dan thu muc dai hon o). Chuot
+    vao -> hien toan bo noi dung; ra -> an.
+
+    Khong dung `tkinter` tooltip co san: CustomTkinter khong kem. Cua so
+    tooltip dung `overrideredirect(True)` + `topmost` de khong chiem focus,
+    nen bam chuot van bam duoc xuong o ben duoi.
+    """
+
+    def __init__(self, widget, noi_dung, font=None, do_rong_max: int = 460):
+        self.widget = widget
+        self.noi_dung = noi_dung
+        self.font = font
+        self.do_rong_max = do_rong_max
+        self.cua_so = None
+        # CTkEntry la 1 Frame chua tkinter.Entry ben trong (`_entry`).
+        # Rê chuot vao vung TEXT thi chi `_entry` nhan <Enter>, nen bind
+        # vao `_entry` (fallback: chinh widget) de khong sot.
+        dich = getattr(widget, "_entry", None)
+        if dich is None:
+            dich = widget
+        self.dich = dich
+        dich.bind("<Enter>", self._vao, add="+")
+        dich.bind("<Leave>", self._ra, add="+")
+        try:
+            dich.bind("<ButtonPress-1>", self._ra, add="+")
+        except Exception:
+            pass
+
+    def _noi_dung_hien_tai(self) -> str:
+        """Lay noi dung hien thi. `noi_dung` co the la callable (doc o bien)."""
+        n = self.noi_dung
+        if callable(n):
+            try:
+                n = n()
+            except Exception:
+                return ""
+        return str(n or "")
+
+    def _vao(self, _event=None) -> None:
+        self._ra()
+        noi_dung = self._noi_dung_hien_tai()
+        if not noi_dung:
+            return
+        try:
+            self.cua_so = tk.Toplevel(self.widget)
+            self.cua_so.overrideredirect(True)
+            self.cua_so.attributes("-topmost", True)
+            lbl = tk.Label(
+                self.cua_so, text=noi_dung, justify="left",
+                background="#1b1f27", foreground="#f2f4f8",
+                font=self.font, padx=8, pady=5, wraplength=self.do_rong_max,
+            )
+            lbl.pack()
+            self.cua_so.update_idletasks()
+            # Toa do man hinh: `winfo_pointerx` cua TOPLEVEL = toa do man hinh.
+            goc = self.dich.winfo_toplevel()
+            x = goc.winfo_pointerx() + 14
+            y = goc.winfo_pointery() + 20
+            chieu_rong = self.cua_so.winfo_width()
+            man_hinh = goc.winfo_screenwidth()
+            if x + chieu_rong > man_hinh - 8:
+                x = max(8, man_hinh - chieu_rong - 8)
+            self.cua_so.geometry(f"+{x}+{y}")
+        except Exception:
+            self.cua_so = None
+
+    def _ra(self, _event=None) -> None:
+        if self.cua_so is not None:
+            try:
+                self.cua_so.destroy()
+            except Exception:
+                pass
+            self.cua_so = None
+
+
+class GoiYTronO:
+    """Goi y (placeholder) ve CHONG LEN o nhap, khong dung co che placeholder
+    co san cua customtkinter.
+
+    Ly do phai tu viet:
+    - customtkinter 5.2.2 chi kich hoat placeholder khi `textvariable is
+      None` hoac `textvariable == ""` (xem `ctk_entry.py`).
+    - `tkinter.StringVar` KHONG dinh nghia `__eq__` nen `bien == ""` LUON
+      False -> moi o nhap co bien deu khong bao gio hien placeholder.
+    - Sua bang cach `insert` chu placeholder vao o thi Tk dong bien 2 chieu:
+      chu placeholder chui thang vao `textvariable`. Do thuc tren may:
+      bien bi nhieu "HUONG DAN GIUONG" ngay sau khi go 2 ky tu, nen doc
+      gia tri sai hoan toan.
+
+    Giai phap nay: 1 nhan `CTkLabel` dat chong len o. Nhan khong bao gio
+    dung vao noi dung cua o nen bien `textvariable` luon sach:
+    - bien rong  -> hien nhan
+    - bien co gia tri -> an nhan
+
+    CHU Y DO RONG: cot cau hinh ben trai hep (~102px cho o "Vung can quet"),
+    nen goi y trong o phai NGAN. Do that bang PIL: "de trong = tu tim trong
+    khung" rong 159px -> tran ra ngoai o. "tu tim" rong 31px -> vua khung.
+    Phan giai day du da co trong ghi chu ben duoi va trong tooltip.
+    """
+
+    def __init__(self, entry, text: str, font=None, text_color=None):
+        self.entry = entry
+        self.text = text
+        self.font = font
+        self.text_color = text_color or MAU["chu_phu"]
+        self.dang_hien = False
+        self.var = None
+        try:
+            self.var = entry.cget("textvariable")
+        except Exception:                             # noqa: BLE001
+            self.var = None
+        # Nen cua nhan TRUNG VOI nen trong o (khong thay vach).
+        #
+        # KHONG doc `entry.cget("fg_color")` luc tao: luc do buoc
+        # `_ap_dung_theme` (chay SAU khi dung form) chua gan mau cho o, nen
+        # `cget` tra ve BANG MAU cua theme mac dinh
+        # (['#F9F9FA', '#343638']) chu khong phai mau that cua o
+        # (#272F42). Do do nhan se khong mau voi o.
+        # Dung thang `MAU["the_phu"]` - dung mau ma `_ap_dung_theme` gan cho
+        # MOI o nhap trong app, nen luon khop va khong phu thuoc thu tu tao.
+        nen = MAU.get("the_phu", "#272F42")
+        # Nhan la con cua CHINH o nhap nen luon nam dung cho o: khong can
+        # tinh toa do (o nhap co the chua duoc layout luc khoi tao).
+        # Cao 24 (o nhap cao 28) + `place(y=2)` de KHONG de len vien 1px
+        # cua o (anh chup truoc day thay vien ben duoi nhan bi che).
+        self.nhan = ctk.CTkLabel(entry, text=text, font=font,
+                                  text_color=self.text_color,
+                                  fg_color=nen, anchor="w", height=24)
+        self.nhan.bind("<Button-1>", self._bam_vao)
+        if self.var is not None:
+            try:
+                self.var.trace_add("write", self._bien_doi)
+            except Exception:                         # noqa: BLE001
+                self.var = None
+        self._cap_nhat()
+
+    def _bam_vao(self, _event=None):
+        """Bam vao nhan goi y -> dua con tro vao dung o nhap."""
+        try:
+            self.entry.focus_set()
+            self.entry._entry.icursor("end")
+        except Exception:                             # noqa: BLE001
+            pass
+        return "break"
+
+    def _bien_doi(self, *_args) -> None:
+        self._cap_nhat()
+
+    def _cap_nhat(self) -> None:
+        gia_tri = ""
+        if self.var is not None:
+            try:
+                gia_tri = self.var.get()
+            except Exception:                         # noqa: BLE001
+                gia_tri = ""
+        if str(gia_tri).strip() == "":
+            self._hien()
+        else:
+            self._an()
+
+    def _hien(self) -> None:
+        if self.dang_hien:
+            return
+        self.dang_hien = True
+        self._dat_vi_tri()
+
+    def _an(self) -> None:
+        if not self.dang_hien:
+            return
+        self.dang_hien = False
+        try:
+            self.nhan.place_forget()
+        except Exception:                             # noqa: BLE001
+            pass
+
+    def _dat_vi_tri(self) -> None:
+        try:
+            # KHONG truyen `width`/`height` vao `place()`: customtkinter 5.2.2
+            # nem ValueError ("'width' and 'height' arguments must be passed
+            # to the constructor"). Do do nhan giu chieu cao 24 dat trong
+            # constructor va duoc `place(y=2)` -> khong de len vien 1px cua o.
+            # `anchor="nw"` de canh theo mep tren (dung "w" se canh giua theo
+            # truc y o y=0 -> nhan lot ra tren tren, bi cat chu).
+            #
+            # Mau nen gan lai luc hien: dung `MAU["the_phu"]` (dung mau ma
+            # `_ap_dung_theme` gan cho moi o nhap) chu khong doc
+            # `entry.cget("fg_color")` - luc nao theme co the chua chot.
+            try:
+                self.nhan.configure(fg_color=MAU.get("the_phu", "#272F42"))
+            except Exception:                         # noqa: BLE001
+                pass
+            self.nhan.place(x=12, y=2, anchor="nw")
+        except Exception:                             # noqa: BLE001
+            pass
+
+
 # ------------------------------------------------------------------ 1 tinh nang
 
 class NhomTinhNang(ctk.CTkFrame):
@@ -946,10 +1269,10 @@ class NhomTinhNang(ctk.CTkFrame):
 
         self.lbl_lenh = ctk.CTkLabel(
             self, text=lenh, font=font_nho, text_color=MAU["chu_phu"],
-            anchor="w", justify="left", wraplength=WRAP_WIDTH,
+            anchor="w", justify="left", wraplength=WRAP_MO_TA_NHOM,
         )
         self.lbl_lenh.grid(row=1, column=0, columnspan=2, sticky="w",
-                           padx=(36, 0), pady=(KHOANG_CACH, 0))
+                           padx=(LE_MO_TA_NHOM, 0), pady=(KHOANG_CACH, 0))
 
         # --- PHAN CAI DAT: nen CHINH #0F172A + vien 1px -> cam giac "long vao"
         self.khung = ctk.CTkFrame(
@@ -958,7 +1281,8 @@ class NhomTinhNang(ctk.CTkFrame):
         )
         self.khung.grid_columnconfigure(0, weight=1)
         self.khung.grid(row=2, column=0, columnspan=2, sticky="ew",
-                        padx=(36, 0), pady=(KHOANG_CACH, KHOANG_CACH))
+                        padx=(LE_MO_TA_NHOM, 0),
+                        pady=(KHOANG_CACH, KHOANG_CACH))
         self.khung._dong = 0
 
         # MAC DINH: thu gon ca chuc nang (ke ca tinh nang dang BAT).
@@ -1377,6 +1701,21 @@ class CamAIGui(ctk.CTk):
         self.v_vat_the = ctk.StringVar(value="0")
         self.v_lop = ctk.StringVar(value="")
 
+        # --- v3.0: doc bien so (RapidOCR, 100% tren may) ---
+        # MAC DINH TAT de hanh vi cu khong doi.
+        self.v_bien_so = ctk.StringVar(value="0")
+        self.v_bien_so_dir = ctk.StringVar(value=THU_MUC_BIEN_SO)
+        # rong = tu tim trong khung hinh (None khi dua xuong AnalysisConfig).
+        self.v_bien_so_vung = ctk.StringVar(value="")
+        self.v_bien_so_giay = ctk.StringVar(value="30")
+
+        # --- v3.0: tu chup anh su kien ---
+        # MAC DINH TAT. Khi TAT -> tu_chup_dir = "" (chuoi rong = tat, dung
+        # quy tac cua cam_ai_core).
+        self.v_tu_chup = ctk.StringVar(value="0")
+        self.v_tu_chup_dir = ctk.StringVar(value=THU_MUC_ANH_SU_KIEN)
+        self.v_tu_chup_giay = ctk.StringVar(value="10")
+
         # MAC DINH TAT: bat tach o se cham hon ~5.3 lan, rut fps live view.
         self.v_tach_o = ctk.StringVar(value="0")
 
@@ -1717,11 +2056,14 @@ class CamAIGui(ctk.CTk):
         f_out.grid(row=3, column=0, columnspan=2, sticky="ew")
         ctk.CTkButton(f_out, text="Chọn…", width=130,
                       command=self._chon_output).grid(row=0, column=0, sticky="w")
+        # Ghi chu phai nam o HANG RIENG ben duoi nut: dat cung hang voi nut
+        # 130px thi con it chua 130px chu -> bi cat ngang giua dong.
         ctk.CTkLabel(f_out,
                      text="Tự thêm đuôi: _ket_qua.mp4 và _bao_cao.csv",
                      font=self.font_nho_xam, text_color=MAU["chu_phu"],
-                     anchor="w", wraplength=200, justify="left"
-                     ).grid(row=0, column=1, sticky="w", padx=(KHOANG_CACH, 0))
+                     anchor="w", wraplength=WRAP_GHI_Y, justify="left"
+                     ).grid(row=1, column=0, columnspan=2, sticky="w",
+                            pady=(2, 0))
 
     # ---------------------------------------------------- khung tinh nang
 
@@ -1774,8 +2116,22 @@ class CamAIGui(ctk.CTk):
             [(self.v_lop, "")])
         self._n_vat_the(self.nhom_vat_the.khung)
 
+        self.nhom_bien_so = self._them_nhom(
+            b, 6, "Đọc biển số xe", self.v_bien_so,
+            "Đọc chữ trên biển số xe Việt Nam bằng RapidOCR — chạy 100% "
+            "trên máy này, không gửi ảnh ra ngoài.",
+            [(self.v_bien_so_vung, ""), (self.v_bien_so_giay, "30")])
+        self._n_bien_so(self.nhom_bien_so.khung)
+
+        self.nhom_tu_chup = self._them_nhom(
+            b, 7, "Tự chụp ảnh khi có sự kiện", self.v_tu_chup,
+            "Khi có người đông, vượt vùng hoặc thấy người quen thì chụp "
+            "lại khung hình lưu thành ảnh. Mặc định tắt.",
+            [(self.v_tu_chup_giay, "10")])
+        self._n_tu_chup(self.nhom_tu_chup.khung)
+
         self.nhom_tach_o = self._them_nhom(
-            b, 6, "Nhận người ở xa (chậm hơn)", self.v_tach_o,
+            b, 8, "Nhận người ở xa (chậm hơn)", self.v_tach_o,
             "Video quay xa, người nhỏ như hạt thì CamAI hay bỏ sót. Bật lên "
             "phần mềm sẽ chia khung hình thành các ô nhỏ để dò kỹ hơn. "
             "CHẬM HƠN KHOẢNG 5 LẦN nên xem chậm hơn — chỉ bật khi thật sự "
@@ -1783,7 +2139,7 @@ class CamAIGui(ctk.CTk):
         self._n_tach_o(self.nhom_tach_o.khung)
 
         self.nhom_canh_bao = self._them_nhom(
-            b, 7, "Cảnh báo (gửi tin ra ngoài)", self.v_canh_bao,
+            b, 9, "Cảnh báo (gửi tin ra ngoài)", self.v_canh_bao,
             "Khi có sự kiện thì báo ra ngoài máy này (chuông / hộp thoại / "
             "Telegram). Mặc định TẮT, và mặc định chỉ thử chứ không gửi thật.",
             [(self.v_cb_mo_phong, "1"), (self.v_cb_go, "60"),
@@ -1791,13 +2147,13 @@ class CamAIGui(ctk.CTk):
         self._n_canh_bao(self.nhom_canh_bao.khung)
 
         self.nhom_model = self._them_nhom(
-            b, 8, "Thông tin mô hình AI", ctk.StringVar(value="1"),
+            b, 10, "Thông tin mô hình AI", ctk.StringVar(value="1"),
             "Xem phần mềm đang dùng model nào, nặng bao nhiêu, chạy trên GPU hay CPU.",
             co_checkbox=False)
         self._n_model(self.nhom_model.khung)
 
         self.nhom_thiet_bi = self._them_nhom(
-            b, 9, "Máy này chạy bằng gì", ctk.StringVar(value="1"),
+            b, 11, "Máy này chạy bằng gì", ctk.StringVar(value="1"),
             "Máy có GPU thì CamAI tự chạy bằng card màn hình cho nhanh. "
             "Máy không có GPU thì chạy bằng CPU, vẫn chạy được nhưng chậm hơn. "
             "Không rành thì cứ để “Tự động”.",
@@ -1821,7 +2177,8 @@ class CamAIGui(ctk.CTk):
         return [
             (getattr(self, ten).chk.cget("text"), getattr(self, ten))
             for ten in ("nhom_phat_hien", "nhom_mat", "nhom_dem", "nhom_vung",
-                        "nhom_clip", "nhom_vat_the", "nhom_tach_o",
+                        "nhom_clip", "nhom_vat_the", "nhom_bien_so",
+                        "nhom_tu_chup", "nhom_tach_o",
                         "nhom_canh_bao", "nhom_model", "nhom_thiet_bi")
         ]
 
@@ -1834,7 +2191,13 @@ class CamAIGui(ctk.CTk):
         return dong
 
     def _hang(self, parent, ten: str = "", do_rong: int = LABEL_WIDTH) -> ctk.CTkFrame:
-        """1 hang trong khung cau hinh: nhan ben trai + o dieu khien ben phai."""
+        """1 hang trong khung cau hinh: nhan ben trai + o dieu khien ben phai.
+
+        `wraplength = do_rong` rat quan trong: CTkLabel tu do rong theo CHU,
+        nen nhan dai ("Danh sách lớp cần nhận") se lon hon cot va TRAN QUA
+        sang o dieu khien ben phai, khong con khoang hở nao. Bat wraplength
+        thi chu xuong dong trong dung be 118px -> khong bao gio cham o nhap.
+        """
         f = ctk.CTkFrame(parent, fg_color="transparent")
         f.grid(row=self._dong_moi(parent), column=0, sticky="ew",
                pady=(KHOANG_CACH, 0))
@@ -1843,17 +2206,40 @@ class CamAIGui(ctk.CTk):
             ctk.CTkLabel(
                 f, text=ten, anchor="w", width=do_rong, justify="left",
                 font=self.font_nho, text_color=MAU["chu_phu_the"],
+                wraplength=do_rong,
             ).grid(row=0, column=0, sticky="w", padx=(0, 12))
         return f
 
+    def _hang_rong(self, parent, ten: str) -> ctk.CTkFrame:
+        """Hang cau hinh DUNG rong: nhan o dong TREN, o dieu khien o dong DUOI.
+
+        Dung khi 1 hang khong du chua nhan + o nhap + nut: be trong cua nhom
+        chi 232px nen 3 thu tren cung 1 hang se lam o nhap bijep (chi con
+        ~6px - khong go duoc). O day nhan doc 1 dong rieng, o nhap + nut
+        duoc hieu rong cua ca khoi cau hinh.
+        """
+        ctk.CTkLabel(
+            parent, text=ten, anchor="w", justify="left",
+            font=self.font_nho, text_color=MAU["chu_phu_the"],
+        ).grid(row=self._dong_moi(parent), column=0, sticky="w")
+        f = ctk.CTkFrame(parent, fg_color="transparent")
+        f.grid(row=self._dong_moi(parent), column=0, sticky="ew")
+        f.grid_columnconfigure(0, weight=1)
+        return f
+
     def _ghi_y(self, parent, text: str) -> None:
-        """1 dong ghi chu nho, thut lui ve dung be nhan."""
+        """1 dong ghi chu nho, thut lui ve dung be nhan.
+
+        Be ngat dong tinh tu be rong THAT con lai (do that 2026-10-19) chu
+        khong dat so tu nghieng - xem `WRAP_GHI_Y`. Nhan nam ngay duoi hang
+        dieu khien, dung le cua khung de doc lai de thay no thuoc ve gi.
+        """
         ctk.CTkLabel(
             parent, text=text, font=self.font_nho_xam,
             text_color=MAU["chu_phu_the"],
-            anchor="w", wraplength=WRAP_WIDTH - 120, justify="left",
+            anchor="w", wraplength=WRAP_GHI_Y, justify="left",
         ).grid(row=self._dong_moi(parent), column=0, sticky="w",
-               padx=(LABEL_WIDTH + 10, 0), pady=(2, 0))
+               padx=(LE_GHI_Y, 0), pady=(2, 0))
 
     def _don_vach(self, parent) -> None:
         """Vach ngang phan tach 2 phan cau hinh trong cung 1 nhom."""
@@ -1862,6 +2248,20 @@ class CamAIGui(ctk.CTk):
         f.grid_columnconfigure(0, weight=1)
         ctk.CTkFrame(f, fg_color=MAU["vien"], height=1,
                      corner_radius=0).grid(row=0, column=0, sticky="ew")
+
+    def _checkbox(self, parent, text: str, variable, **kwargs) -> ctk.CTkCheckBox:
+        """Checkbox co CHU XUONG DONG khi khung cau hinh hep.
+
+        CustomTkinter khong cho dat `wraplength` truc tiep cho checkbox, nen
+        tu dat cho tkinter.Label ben trong (noi dung text cua checkbox).
+        Chu dai vay khong bi cat o mep khung cau hinh (cot trong chi 232px).
+        """
+        chk = ctk.CTkCheckBox(parent, text=text, variable=variable, **kwargs)
+        try:
+            chk._text_label.configure(wraplength=WRAP_CHECKBOX)
+        except Exception:                                     # noqa: BLE001
+            pass
+        return chk
 
     # ------------------------------------------------------ nhom 1: nguoi
 
@@ -1884,38 +2284,45 @@ class CamAIGui(ctk.CTk):
             f, values=list(GIA_TRI_CHE_THIET_BI),
             variable=self.v_thiet_bi, width=170,
         ).grid(row=0, column=1, sticky="w")
-        self._ghi_y(b, "Máy có GPU thì phần mềm tự điều khiển tốc độ cho cả GPU "
-                       "lẫn CPU. Chọn CPU chỉ để ép chạy CPU trên máy không GPU.")
+        self._ghi_y(b, "Đo thật trên máy này: card màn hình nhanh hơn CPU "
+                       "khoảng 2 lần khi chỉ đếm người, khoảng 2,5 lần khi "
+                       "bật nhận diện mặt. Máy không có card thì để "
+                       "“Tự động” là chạy được.")
 
         self._don_vach(b)
         f = self._hang(b, "Hiển thị trên video")
-        ctk.CTkCheckBox(f, text="Vẽ khung người", variable=self.v_khung,
-                        font=self.font_nho, onvalue="1", offvalue="0").grid(row=0, column=1, sticky="w")
-        ctk.CTkCheckBox(f, text="Vẽ nhãn tên", variable=self.v_nhan,
-                        font=self.font_nho, onvalue="1", offvalue="0").grid(row=0, column=2, sticky="w",
-                                                 padx=(18, 0))
-        ctk.CTkCheckBox(f, text="Làm mờ nền, giữ rõ chỗ có người",
-                        variable=self.v_pixelate, font=self.font_nho, onvalue="1", offvalue="0"
-                        ).grid(row=0, column=3, sticky="w", padx=(18, 0))
+        # 3 checkbox, MOI CAI 1 DONG RIENG: truoc day 3 cai cung 1 hang
+        # thi cai 1 bi ep con 1px (khong bam duoc) va cai 2 bi cat chu.
+        for ten, bien in (("Vẽ khung người", self.v_khung),
+                          ("Vẽ nhãn tên", self.v_nhan),
+                          ("Làm mờ nền, giữ rõ chỗ có người",
+                           self.v_pixelate)):
+            f2 = self._hang(b, "")
+            self._checkbox(f2, ten, bien, font=self.font_nho,
+                           onvalue="1", offvalue="0").grid(
+                row=0, column=1, sticky="w")
 
     # --------------------------------------------------------- nhom 2: mat
 
     def _n_mat(self, b):
-        f = self._hang(b, "Ước lượng tuổi và giới tính")
-        ctk.CTkCheckBox(f, text="Bật (luôn bật, phần mềm không cho tắt)",
-                        variable=self.v_uoi_gioi(), font=self.font_nho,
-                        state="disabled").grid(row=0, column=1, sticky="w")
+        self._ghi_y(b, "Tắt ô này thì phần mềm CHỈ đếm người, không nhận "
+                       "diện ai. Đo thật: nhanh hơn khoảng 2,5 lần lúc "
+                       "camera đông người, khoảng 2 lần lúc camera vắng. "
+                       "Đếm người không bị ảnh hưởng.")
+
+        f = self._hang_rong(b, "Ước lượng tuổi và giới tính")
+        self._checkbox(f, "Bật (luôn bật, phần mềm không cho tắt)",
+                       self.v_uoi_gioi(), font=self.font_nho,
+                       state="disabled").grid(row=0, column=0, sticky="w")
         self._ghi_y(b, "Chỉ là ước lượng, không chính xác tuyệt đối. "
                        "cam_ai_core không có tham số tắt tính năng này.")
 
         f = self._hang(b, "Ngưỡng giống mặt")
         ctk.CTkEntry(f, textvariable=self.v_face_threshold, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="(mặc định 0,40)", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"], anchor="w").grid(
-            row=0, column=2, sticky="w", padx=(8, 0))
         self._ghi_y(b, "Cao hơn = dễ nhận nhầm người khác. "
-                       "Thấp hơn = dễ không nhận ra người quen.")
+                       "Thấp hơn = dễ không nhận ra người quen. "
+                       "Mặc định 0,40.")
 
         f = self._hang(b, "Bỏ qua mặt nhỏ hơn")
         ctk.CTkEntry(f, textvariable=self.v_min_face, width=90).grid(
@@ -1931,16 +2338,19 @@ class CamAIGui(ctk.CTk):
         ctk.CTkLabel(f, text="khung hình", font=self.font_nho_xam,
                      text_color=MAU["chu_phu_the"], anchor="w").grid(
             row=0, column=2, sticky="w", padx=(8, 0))
-        self._ghi_y(b, "1 = chính xác nhất nhưng chậm hơn. 3 hoặc 5 = nhanh hơn. "
-                       "Máy yếu thì tăng lên, nhận diện vẫn chạy, chỉ chậm "
-                       "một chút.")
+        self._ghi_y(b, "Đo thật trên video đông người (10 người/khung): "
+                       "1 → 5,2 khung/giây · 2 → 7,6 · 5 → 12,5 · 10 → 23,4. "
+                       "Đếm người KHÔNG đổi, chỉ giảm số lần quét mặt. "
+                       "Máy chấm công (người đứng ở cửa) để 5 là đủ. "
+                       "Giám sát người đi qua nhanh thì để 1–2. "
+                       "Camera vắng người thì nhận được nhiều hơn các số trên.")
 
-        f = self._hang(b, "Thư mục ảnh đã học")
+        f = self._hang_rong(b, "Thư mục ảnh đã học")
         ctk.CTkEntry(f, textvariable=self.v_faces_dir).grid(
-            row=0, column=1, sticky="ew")
-        ctk.CTkButton(f, text="Chọn…", width=90,
+            row=0, column=0, sticky="ew")
+        ctk.CTkButton(f, text="Chọn…", width=70,
                       command=self._chon_faces_dir).grid(
-            row=0, column=2, padx=(6, 0))
+            row=0, column=1, padx=(6, 0))
         self._ghi_y(b, "Cấu trúc: known_faces / <Tên> / *.jpg — mỗi người một thư mục con.")
 
         f = self._hang(b, "")
@@ -1970,11 +2380,12 @@ class CamAIGui(ctk.CTk):
     # --------------------------------------------------------- nhom 4: vung
 
     def _n_vung(self, b):
-        f = self._hang(b, "File vùng (.txt)")
+        f = self._hang_rong(b, "File vùng (.txt)")
         ctk.CTkEntry(f, textvariable=self.v_vung_file).grid(
-            row=0, column=1, sticky="ew")
-        ctk.CTkButton(f, text="Chọn…", width=90,
-                      command=self._chon_vung_file).grid(row=0, column=2, padx=(6, 0))
+            row=0, column=0, sticky="ew")
+        ctk.CTkButton(f, text="Chọn…", width=70,
+                      command=self._chon_vung_file).grid(
+            row=0, column=1, padx=(6, 0))
 
         f = self._hang(b, "")
         ctk.CTkButton(f, text="Vẽ vùng trên video này", width=280,
@@ -1983,10 +2394,9 @@ class CamAIGui(ctk.CTk):
                        "lưu lại thành file .txt.")
 
         f = self._hang(b, "")
-        ctk.CTkCheckBox(
-            f, text="Chỉ cần một phần chân vào vùng là bị báo",
-            font=self.font_nho, variable=self.v_vung_nhay, onvalue="1", offvalue="0"
-        ).grid(row=0, column=1, sticky="w")
+        self._checkbox(f, "Chỉ cần một phần chân vào vùng là bị báo",
+                       self.v_vung_nhay, font=self.font_nho,
+                       onvalue="1", offvalue="0").grid(row=0, column=1, sticky="w")
         self._ghi_y(b, "Tắt = chặt: cả người phải nằm hẳn trong vùng mới báo. "
                        "Bật = nhạy: thân chạm vùng là báo ngay.")
 
@@ -2029,11 +2439,111 @@ class CamAIGui(ctk.CTk):
 
     def _n_vat_the(self, b):
         f = self._hang(b, "Danh sách lớp cần nhận")
-        ctk.CTkEntry(f, textvariable=self.v_lop).grid(row=0, column=1, sticky="ew")
+        o_lop = ctk.CTkEntry(f, textvariable=self.v_lop)
+        o_lop.grid(row=0, column=1, sticky="ew")
+        # Goi y trong o phai NGAN: cot ben trai hep, do that "de trong = nhom
+        # mac dinh" rong 142px -> tran ra ngoai o. Phan giai day du: tooltip.
+        GoiYTronO(o_lop, "mặc định", font=self.font_nho)
+        HuongDan(o_lop, "Để trống = dùng nhóm lớp mặc định. "
+                       "Gõ all = mọi lớp trừ người.",
+                 font=self.font_nho)
         self._ghi_y(b, "Ví dụ: car, motorcycle, dog, cat — cách nhau bằng dấu phẩy. "
                        "Để trống = nhóm lớp phổ biến. Gõ all = mọi lớp trừ người.")
+        self._ghi_y(b, "Tốc độ: gần như không chậm đi. Đo thật ngày 19/10/2026 trên "
+                       "video nhiều xe, xem trực tiếp chậm hơn khoảng 3–9%, và "
+                       "chậm hơn nhiều hơn khi bật lớp `all`.")
+        self._ghi_y(b, "Lý do: YOLO vốn đã nhận sẵn toàn bộ 80 lớp trong 1 lượt, "
+                       "nên bật thêm chỉ tốn công vẽ thêm khung, không phải chạy "
+                       "model thêm lần nữa.")
+        self._ghi_y(b, "Lưu ý: khung vật thể vẽ màu cam và KHÔNG tính vào số "
+                       "người, số vào/ra, cảnh báo vùng.")
 
-    # ---------------------------------------------------- nhom 7: tach o
+    # ------------------------------------------------ nhom 7: doc bien so
+
+    def _n_bien_so(self, b):
+        """Cau hinh doc bien so - KHOA vao 4 co cua `AnalysisConfig`.
+
+        `doc_bien_so`           : checkbox tieu de cua nhom (mac dinh TAT).
+        `bien_so_dir`           : thu muc luu crop bien so.
+        `bien_so_nhoan_lai_giay`: cung 1 bien so chi luu anh 1 lan / N giay.
+        `vung_bien_so`          : ROI "x1,y1,x2,y2" (de trong = tu tim).
+
+        Doc bang RapidOCR (module `bien_so.py`) - CHAY 100% TREN MAY, khong
+        gui anh ra ngoai.
+        """
+        f = self._hang_rong(b, "Thư mục lưu ảnh")
+        o_bien_so = ctk.CTkEntry(f, textvariable=self.v_bien_so_dir)
+        o_bien_so.grid(row=0, column=0, sticky="ew")
+        # Duong dan thu muc hay DAI hon o -> bi cat chu. Rê chuot vao xem day du.
+        HuongDan(o_bien_so, lambda: self.v_bien_so_dir.get(), font=self.font_nho)
+        ctk.CTkButton(f, text="Chọn…", width=70,
+                      command=self._chon_bien_so_dir).grid(
+            row=0, column=1, padx=(6, 0))
+
+        f = self._hang(b, "Vùng cần quét")
+        o_vung_bien_so = ctk.CTkEntry(f, textvariable=self.v_bien_so_vung)
+        o_vung_bien_so.grid(row=0, column=1, sticky="ew")
+        # Goi y trong o phai NGAN: do that "de trong = tu tim trong khung"
+        # rong 159px ma o chi rong ~102px. Phan giai day du: tooltip.
+        GoiYTronO(o_vung_bien_so, "tự tìm", font=self.font_nho)
+        HuongDan(o_vung_bien_so, "Để trống = phần mềm tự tìm biển số trong "
+                                 "cả khung hình. Gõ 4 số theo mẫu x1,y1,x2,y2 "
+                                 "để chỉ quét một vùng.",
+                 font=self.font_nho)
+
+        f = self._hang(b, "Nghỉ giữa 2 lần")
+        ctk.CTkEntry(f, textvariable=self.v_bien_so_giay, width=90).grid(
+            row=0, column=1, sticky="w")
+        ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
+                     text_color=MAU["chu_phu_the"], anchor="w").grid(
+            row=0, column=2, sticky="w", padx=(8, 0))
+
+        self._ghi_y(b, "Đọc bằng RapidOCR chạy 100% trên máy này, không gửi "
+                       "ảnh ra ngoài.")
+        self._ghi_y(b, "Tốc độ: đọc biển số chạy ở luồng nền nên không làm "
+                       "khựng video. Mỗi lần quét tốn 9–15 ms, khung hình chậm "
+                       "nhất 62 ms (đo thật trên máy này ngày 19/10/2026). "
+                       "Lúc bật lần đầu máy phải nạp model nên khựng khoảng "
+                       "1–2 giây.")
+        self._ghi_y(b, "Cùng một biển số chỉ được lưu ảnh 1 lần trong khoảng "
+                       "nghỉ ở trên.")
+        self._ghi_y(b, "Vùng cần quét: gõ 4 số theo mẫu x1,y1,x2,y2. Gõ "
+                       "0,1 – 1,0 là tọa độ tương đối, số lớn hơn 1 là tọa độ "
+                       "pixel. Để trống = phần mềm tự tìm trong khung hình.")
+
+    # --------------------------------------------- nhom 8: tu chup anh
+
+    def _n_tu_chup(self, b):
+        """Cau hinh tu chup anh - KHOA vao 2 co cua `AnalysisConfig`.
+
+        `tu_chup_dir`          : thu muc luu anh. CHUOI RONG = TAT (dung quy
+                                 tac cua `cam_ai_core`).
+        `tu_chup_nhoan_lai_giay`: moi loai su kien chi chup 1 lan / N giay.
+        """
+        f = self._hang_rong(b, "Thư mục lưu ảnh")
+        o_tu_chup = ctk.CTkEntry(f, textvariable=self.v_tu_chup_dir)
+        o_tu_chup.grid(row=0, column=0, sticky="ew")
+        # Duong dan thu muc hay DAI hon o -> bi cat chu. Rê chuot vao xem day du.
+        HuongDan(o_tu_chup, lambda: self.v_tu_chup_dir.get(), font=self.font_nho)
+        ctk.CTkButton(f, text="Chọn…", width=70,
+                      command=self._chon_tu_chup_dir).grid(
+            row=0, column=1, padx=(6, 0))
+
+        f = self._hang(b, "Nghỉ giữa 2 lần")
+        ctk.CTkEntry(f, textvariable=self.v_tu_chup_giay, width=90).grid(
+            row=0, column=1, sticky="w")
+        ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
+                     text_color=MAU["chu_phu_the"], anchor="w").grid(
+            row=0, column=2, sticky="w", padx=(8, 0))
+
+        self._ghi_y(b, "Chụp khi có người đông, vượt vùng canh, thấy người "
+                       "quen hoặc có người đứng lâu.")
+        self._ghi_y(b, "Mỗi loại sự kiện chỉ chụp 1 lần trong khoảng nghỉ ở "
+                       "trên.")
+        self._ghi_y(b, "Ảnh lưu ngay trên máy này, kèm file _bang_ke_chup.csv "
+                       "ghi lại lúc chụp.")
+
+    # ---------------------------------------------------- nhom 9: tach o
 
     def _n_tach_o(self, b):
         self._ghi_y(
@@ -2047,7 +2557,7 @@ class CamAIGui(ctk.CTk):
             "video đám đông nhận đúng hơn gấp đôi, nhưng xem sẽ giật hơn.",
         )
 
-    # ---------------------------------------------------- nhom 8: canh bao
+    # ------------------------------------------------- nhom 10: canh bao
 
     def _n_canh_bao(self, b):
         """Cau hinh canh bao - KHOA vao 4 co `AnalysisConfig` cua cam_ai_core.
@@ -2061,11 +2571,10 @@ class CamAIGui(ctk.CTk):
         CANH BAO DO KHONG chay o GUI: `cam_ai_core.CanhBaoNoi` da noi san
         `canh_bao.py` vao pipeline. Neu GUI tu goi them se bao TRUNG.
         """
-        f = self._hang(b, "Chế độ")
-        ctk.CTkCheckBox(
-            f, text="Chỉ thử (không gửi thật)", variable=self.v_cb_mo_phong,
-            font=self.font_nho, onvalue="1", offvalue="0",
-        ).grid(row=0, column=1, sticky="w")
+        f = self._hang_rong(b, "Chế độ")
+        self._checkbox(f, "Chỉ thử (không gửi thật)", self.v_cb_mo_phong,
+                       font=self.font_nho, onvalue="1", offvalue="0",
+                       ).grid(row=0, column=0, sticky="w")
         self._ghi_y(b, "Bỏ chọn ô này thì cảnh báo sẽ KÊU CHUÔNG và MỞ HỘP "
                        "THOẠI ngay trên máy này. Telegram cần có token trong "
                        "file canh_bao.ini.")
@@ -2088,7 +2597,7 @@ class CamAIGui(ctk.CTk):
         ctk.CTkButton(f, text="Thử gửi 1 cảnh báo", width=220,
                       command=self._thu_canh_bao).grid(row=0, column=1, sticky="w")
 
-    # ------------------------------------------------------- nhom 8: model
+    # ------------------------------------------------------ nhom 11: model
 
     def _n_model(self, b):
         f = self._hang(b, "")
@@ -2096,7 +2605,7 @@ class CamAIGui(ctk.CTk):
                       command=self._mo_thong_tin_model).grid(
             row=0, column=1, sticky="w")
 
-    # ------------------------------------------------ nhom 9: thiet bi chay
+    # ----------------------------------------------- nhom 12: thiet bi chay
 
     def _n_thiet_bi(self, b):
         """Cho biet may nay THUC SU co GPU khong, va hien tai dang chon gi.
@@ -2106,10 +2615,14 @@ class CamAIGui(ctk.CTk):
                 if cuda else
                 "Máy này KHÔNG có GPU: sẽ chạy bằng CPU (chậm hơn nhưng vẫn "
                 "chạy được).")
-        f = self._hang(b, "Máy này")
-        ctk.CTkLabel(f, text=dong, font=self.font_nho, text_color=MAU["chu"],
-                      anchor="w", justify="left", wraplength=WRAP_WIDTH - 120,
-                      ).grid(row=0, column=1, sticky="w")
+        # Dong trang thai phai o HANG RIENG trai nhom, khong nhet vao cot
+        # dieu khien cua `_hang`: cot do chi rong ~102px nen chu bi cat
+        # ngang giua dong.
+        ctk.CTkLabel(
+            b, text=dong, font=self.font_nho_bold, text_color=MAU["chu"],
+            anchor="w", justify="left", wraplength=WRAP_GHI_Y,
+        ).grid(row=self._dong_moi(b), column=0, sticky="w",
+               padx=(LE_GHI_Y, 0), pady=(KHOANG_CACH, 0))
 
         f = self._hang(b, "Đang chọn")
         ctk.CTkLabel(f, textvariable=self.v_thiet_bi, font=self.font_nho,
@@ -2324,6 +2837,22 @@ class CamAIGui(ctk.CTk):
         if path:
             self.v_vung_file.set(path)
 
+    def _chon_bien_so_dir(self):
+        path = filedialog.askdirectory(
+            title=self.dich("Chọn thư mục lưu ảnh biển số"),
+            initialdir=self.v_bien_so_dir.get().strip() or APP_DIR,
+        )
+        if path:
+            self.v_bien_so_dir.set(path)
+
+    def _chon_tu_chup_dir(self):
+        path = filedialog.askdirectory(
+            title=self.dich("Chọn thư mục lưu ảnh sự kiện"),
+            initialdir=self.v_tu_chup_dir.get().strip() or APP_DIR,
+        )
+        if path:
+            self.v_tu_chup_dir.set(path)
+
     def _mo_thu_muc_clip(self):
         try:
             os.makedirs(THU_MUC_CLIP, exist_ok=True)
@@ -2459,6 +2988,10 @@ class CamAIGui(ctk.CTk):
 
         clip = self.v_clip.get() == "1"
         clip_giay = max(2.0, parse_float(self.v_clip_giay, 10.0, "Tổng giây mỗi clip"))
+        # v3.0: 2 tinh nang moi. TAT = khong gui gi xuong core (mac dinh TAT
+        # de hanh vi cu khong doi).
+        doc_bien_so = self.v_bien_so.get() == "1"
+        tu_chup = self.v_tu_chup.get() == "1"
 
         # "Lưu kết quả" la THU MUC. cam_ai_core.output_paths() noi them
         # _ket_qua.mp4 / _bao_cao.csv vao cuoi duong dan, nen o day truyen
@@ -2491,6 +3024,21 @@ class CamAIGui(ctk.CTk):
             clip_ghi_tat_ca=self.v_clip_tat_ca.get() == "1",
             nhan_vat_the=self.v_vat_the.get() == "1",
             lop=self.v_lop.get().strip(),
+            # --- v3.0: doc bien so (RapidOCR, 100% tren may) ---
+            # MAC DINH TAT (v_bien_so = "0") de hanh vi cu khong doi.
+            doc_bien_so=doc_bien_so,
+            bien_so_dir=self.v_bien_so_dir.get().strip() or THU_MUC_BIEN_SO,
+            bien_so_nhoan_lai_giay=max(
+                0.0, parse_float(self.v_bien_so_giay, 30.0, "Nghỉ giữa 2 lần")),
+            # De trong -> None -> bien_so.py tu tim bang class `plate` cua YOLO.
+            # TAT tinh nang -> None (khong dung vung gi khi da tat).
+            vung_bien_so=((self.v_bien_so_vung.get().strip() or None)
+                          if doc_bien_so else None),
+            # --- v3.0: tu chup anh su kien ---
+            # TAT -> chuoi rong (dung quy tac cua cam_ai_core: rong = tat).
+            tu_chup_dir=(self.v_tu_chup_dir.get().strip() if tu_chup else ""),
+            tu_chup_nhoan_lai_giay=max(
+                0.0, parse_float(self.v_tu_chup_giay, 10.0, "Nghỉ giữa 2 lần")),
             # MAC DINH TAT. Bat len se cham hon ~5.3 lan.
             tach_o=self.v_tach_o.get() == "1",
             # --- 4 co canh bao noi bo cua cam_ai_core ---
@@ -2809,11 +3357,32 @@ class CamAIGui(ctk.CTk):
                 chon = [t for t in detector.names.values() if t != "person"]
             else:
                 chon = yeu_cau
+            # Lop go sai khong duoc lam VONG XEM CHET: bo qua + bao nhat ky,
+            # dung lai chay tiep voi cac lop con lai. Truoc day `id_lop[t]`
+            # nem KeyError lam ca khung xem truc tiep tat.
+            sai = [t for t in chon if t not in id_lop]
+            chon = [t for t in chon if t in id_lop]
+            if sai:
+                self.queue.put((
+                    "log",
+                    f"> [vật thể] Bỏ qua l không có: {', '.join(sai)}. "
+                    f"Các lớp đang nhận: "
+                    f"{', '.join(chon) if chon else 'không còn lớp nào'}",
+                ))
             vat_the_ids = np.array(
                 sorted({id_lop[t] for t in chon if id_lop[t] != PERSON_CLASS_ID}),
                 dtype=int,
             )
             ten_lop = {cid: ten_vat_the(ten) for cid, ten in detector.names.items()}
+            if vat_the_ids.size:
+                self.queue.put((
+                    "log",
+                    f"> [vật thể] Đang nhận {len(vat_the_ids)} lớp: "
+                    f"{', '.join(ten_lop[int(i)] for i in vat_the_ids)}",
+                ))
+            else:
+                self.queue.put((
+                    "log", "> [vật thể] Không còn lớp nào hợp lệ, tắt nhận vật thể."))
 
         zone_px = None
         if cfg.vung:
@@ -2829,7 +3398,8 @@ class CamAIGui(ctk.CTk):
             try:
                 from face_engine import FaceEngine
                 engine = FaceEngine(faces_dir=cfg.faces_dir,
-                                    threshold=cfg.face_threshold)
+                                    threshold=cfg.face_threshold,
+                                    providers=chon_providers(cfg.thiet_bi))
                 self.queue.put(
                     ("log", f"> Khung video: đã bật nhận diện tên ({engine.device})"))
             except Exception as exc:                       # noqa: BLE001
@@ -3021,11 +3591,15 @@ class CamAIGui(ctk.CTk):
                 # ----- ve overlay -----
                 so_quen = len({t["ten"] for t in ten_theo_id.values()
                                if t.get("quen") and t.get("ten")})
-                badge = [f"Người: {len(boxes_nguoi)}"]
+                badge = [self.dich(f"Người: {len(boxes_nguoi)}")]
                 if so_quen:
-                    badge.append(f"Người quen: {so_quen}")
+                    badge.append(self.dich(f"Người quen: {so_quen}"))
+                if vat_the_ids.size:
+                    # Chi hien khi bat nhan vat the - de nguoi dung thay
+                    # ngay duoc so khop cam.
+                    badge.append(self.dich(f"Vật thể: {len(boxes_vat)}"))
                 if zone_px is not None:
-                    badge.append(f"Trong vùng: {trong_vung}")
+                    badge.append(self.dich(f"Trong vùng: {trong_vung}"))
                 hien = GK.ve_khung_hinh(
                     frame,
                     boxes_nguoi=boxes_nguoi, nhan_nguoi=nhan_nguoi,

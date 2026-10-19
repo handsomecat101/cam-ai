@@ -2,6 +2,254 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.0] — 2026-10-19 (sau 18:00)
+
+`VERSION` trong `cam_ai_core.py` = **3.0**.
+
+Bản này thêm **2 nhóm tính năng lớn** (đọc biển số xe Việt Nam + tự chụp ảnh sự
+kiện) và **sửa 3 lỗi nghiêm trọng** trong pipeline OCR biển số mà coordinator phát
+hiện bằng **đo thật**, không phải bằng đọc code.
+
+### Đã thêm — đọc biển số xe Việt Nam (mặc định TẮT)
+
+- Module mới `bien_so.py` (~41 KB):
+  - `BoDocBienSo` — nạp 2 engine OCR, tìm vùng biển, đọc, chuẩn hoá, lưu ảnh crop.
+  - `KetQuaBienSo` — `chuoi`, `chuoi_goc`, `tin_cay`, `khung`, `duong_dan`, `so_hang`, `nguon`.
+  - `chuan_hoa_bien_so()` — chuẩn hoá về mẫu VN `2 số + 1 chữ + 4/5 số`.
+  - `ve_khung_bien_so()` — vẽ khung + nhãn bằng **PIL** (KHÔNG `cv2.putText`),
+    chữ tiếng Việt **có dấu**.
+  - `tach_hang()` — gom mảnh chữ OCR về đúng thứ tự đọc (biển 1 hàng / 2 hàng).
+- Lõi `cam_ai_core.py`:
+  - `AnalysisConfig` (đặt **cuối** dataclass để không đổi thứ tự vị trí cũ):
+    `doc_bien_so`, `bien_so_dir`, `bien_so_tin_cay`, `bien_so_nhoan_lai_giay`,
+    `vung_bien_so`, `tu_chup_dir`, `tu_chup_nhoan_lai_giay`.
+  - `AnalysisResult.bien_so` + `AnalysisResult.anh_su_kien`.
+  - `CSV_FIELDS_BIEN_SO = ["bien_so", "so_bien_so"]` — thêm **2 cột ở CUỐI**, chỉ khi bật.
+  - Nối `BoDocBienSo` + `TuChupAnh` trong `try/except` **fail-safe**: `bien_so.py` hỏng
+    thì phân tích vẫn chạy, chỉ mất tính năng đọc biển số.
+  - **Mặc định TẮT** → CSV vẫn đúng **251 dòng × 10 cột** như bản 2.8.
+- Module mới `tu_chup.py` — `TuChupAnh(thu_muc, nhoan_lai_giay=10.0, log=...)`:
+  tự lưu ảnh khi có sự kiện, mỗi loại sự kiện chụp 1 lần, kèm file
+  `_bang_ke_chup.csv` ghi lại lúc chụp.
+- CLI `app.py` — **8 cờ mới**, mặc định TẮT, tiếng Việt có dấu:
+  `--doc-bien-so`, `--bien-so-dir`, `--bien-so-tin-cay`, `--bien-so-nhoan-lai-giay`,
+  `--vung-bien-so`, `--tu-chup`, `--tu-chup-dir`, `--tu-chup-nhoan-lai-giay`.
+- GUI `gui.py` — 2 nhóm mới: **"Đọc biển số xe"** và **"Tự chụp ảnh khi có sự kiện"**,
+  kèm bản dịch Anh trong `DICH_VI_EN`.
+
+### Sửa 3 lỗi nghiêm trọng trong pipeline OCR (đều do coordinator đo thật)
+
+1. **Dùng nhầm engine OCR → chậm ~100 lần.** `nap()` dùng `RapidOCR()` (có tìm
+   chữ) cho crop **đã định vị sẵn**. Đo thật: **1473 ms → 10.5 ms/crop**.
+   RapidOCR 1.2.3 chỉ đọc `use_text_det` **lúc khởi tạo**, lúc gọi thì bỏ qua →
+   phải có **2 engine riêng** (chỉ-đọc + có-tìm-chữ).
+2. **`chuan_hoa_bien_so` BỊA biển số.** Biển Đức `"MS WL 345"` bị trả về
+   `"50W-1345"` — hợp lệ về hình thức biển VN nhưng là bịa. Nay **tuyệt đối không
+   thêm/bớt ký tự**, chỉ sửa `O/I/L` **tại vị trí bắt buộc** và **chỉ khi phần còn
+   lại khớp mẫu**; không khớp mẫu → trả `""`.
+3. **`app.py --help` crash.** Dấu `%` trong help string của argparse phải escape
+   thành `%%` → `ValueError: unsupported format character 't'`. Đã sửa.
+
+### Đo thật — OCR biển số Việt Nam
+
+Chưa có **ảnh biển số VN thật** từ anh, nên coordinator tạo **10 ảnh biển số VN
+giả** (`_kk_lam_bien_so_gia.py`, PIL, font Arial Bold) để kiểm chứng logic:
+
+| Ảnh | Kết quả |
+|---|---|
+| 2 hàng `30A`/`12345` | PASS `30A-12345` (tc 0.67) |
+| 2 hàng `51H`/`98765` | PASS `51H-98765` (tc 0.74) |
+| 2 hàng `30A`/`1234` | PASS `30A-1234` (tc 0.67) |
+| 2 hàng `29B`/`45678` | PASS `29B-45678` (tc 0.72) |
+| 1 hàng `30A 12345` | PASS `30A-12345` (tc 0.80) |
+| 1 hàng `51H 98765` | PASS `51H-98765` (tc 0.83) |
+| có nhiễu | PASS `30A-12345` (tc 0.76) |
+| **xoay 6°** | PASS `30A-12345` (tc 0.68) |
+| nhỏ 218×46 | PASS `30A-12345` (tc 0.72) |
+| phóng 1.6× | PASS `30A-12345` (tc 0.75) |
+
+**Kết quả: 10/10 đúng chuỗi, 0 ảnh nào bị thêm ký tự.**
+Bằng chứng: `_kiem_chung/kiem_bien_so_gia.txt`.
+
+> Ảnh giả **không đại diện** ảnh biển số thật (ánh sáng, nhiễu, góc nghiêng, độ nét
+> của camera). Vẫn **cần ảnh thật từ anh** để chốt.
+
+### Mở rộng: ảnh biển số xoay
+
+- Xoay ≤ ~7° → đọc đúng (đã đo: ±4°, +7° PASS).
+- Xoay ~11° → OCR đọc **sai 1 số** nhưng chuỗi sai **vẫn khớp mẫu VN**
+  (`"30A 12346"` → `"30A-12346"`) → nguy cơ **ghi sai biển số** vào báo cáo.
+  Bằng chứng: `_kiem_chung/plate_gia/ket_qua_xoay_vn_1hang_30A_12345_+11do.png`.
+- Vì vậy đã thêm cơ chế **xác nhận đa khung hình**: chỉ chuỗi xuất hiện ở
+  **≥ 2 khung hình liên tiếp** mới coi là đọc chắc và mới ghi vào CSV.
+
+### Đính chính — con số "9.4 ms/ảnh" từng báo trước đây
+
+Con số đó là của engine **chỉ đọc**. Pipeline cũ dùng engine **có tìm chữ** →
+thực tế **1–5 giây/crop**. Số đo phải đo trên **đúng đường code sản phẩm**.
+
+### Đọc biển số KHÔNG làm khựng pipeline (đo lại thật)
+
+Pha **tìm vùng biển** ban đầu chạy **đồng bộ** ngay trên luồng phân tích → mỗi khung
+hình phải chờ. Đo thật trên `video_test.mp4` (250 khung):
+
+| Chế độ | Trước | Sau (tb/khung) | Sau (khung chậm nhất) |
+|---|---|---|---|
+| Có ROI | **680,9 ms** | **5,2 ms** | **0,9 ms** |
+| Không ROI | **1916,6 ms** | **7,5 ms** | **1,5 ms** |
+
+Cách sửa (chỉ trong `bien_so.py`):
+- Tìm vùng chuyển sang **luồng nền daemon** (ghim `BELOW_NORMAL`, giới hạn 2 core).
+- **Cache vùng** theo toạ độ tương đối, TTL 10 giây → không tìm lại mỗi khung.
+- **Hạn chi phí 50 ms** cho 1 lượt OCR, **tối đa 8 lượt OCR** mỗi lần quét,
+  **giới hạn diện tích vùng 250.000 px** (vùng rộng >60.000 px → tìm nền).
+- `threading.Lock` quanh **từng** engine OCR (RapidOCR không thread-safe).
+
+**Chi phí đọc 1 biển số** (biển `30A-12345` 440×100 trong khung 640×480, cả 3 chế độ
+đều đọc đúng chuỗi):
+
+| Chế độ | median | p95 | max |
+|---|---|---|---|
+| Không ROI | 14,47 ms | 23,34 ms | **62,14 ms** |
+| ROI nhỏ 44.000 px | 10,22 ms | 14,49 ms | **17,69 ms** |
+| ROI rộng 0,05–0,95 | 9,01 ms | 18,75 ms | **46,06 ms** |
+
+**Đánh đổi còn lại (đã ghi trong `ISSUE_LOG.md`):** cache vùng bỏ sót biển mới ~2 s;
+vùng tìm được là khung **CHỮ** nên biển 2 hàng có thể ghép sai thứ tự; hạn chi phí
+50 ms có thể cắt trường hợp biển 2 hàng (đo thật ~54 ms).
+
+### Sửa lỗi ô gợi ý trong ô nhập không hiện
+
+Ô "Vùng cần quét" và ô "Danh sách lớp cần nhận" không hiện dòng gợi ý khi để trống.
+
+**Nguyên nhân:** `customtkinter 5.2.2` chỉ kích hoạt placeholder khi
+`textvariable is None or textvariable == ""`; `tkinter.StringVar` **không định nghĩa
+`__eq__`** → mọi `CTkEntry` có `textvariable` **không bao giờ** hiện placeholder.
+(Cách sửa sai đã thử — chèn chu placeholder bằng `insert()` — làm nhiễu biến thành
+`"HUONG DAN GIUONGab"`.)
+
+**Đã sửa:** lớp mới `GoiYTronO` trong `gui.py` — 1 `CTkLabel` phủ lên ô,
+`textvariable` luôn sạch, tự ẩn/hiện theo biến, kèm tooltip.
+
+Ba lỗi con đã sửa kèm: nền lệch màu (lấy màu từ bảng màu dự án `MAU["the_phu"]`
+thay vì `entry.cget("fg_color")` — theme chốt sau khi dựng form); `place(width=…, height=…)`
+raise `ValueError` (đưa `height=24` vào constructor); chữ bị cắt (`anchor="nw"` +
+`place(x=12, y=2)`).
+
+Gợi ý dùng dạng **ngắn** vì ô chỉ rộng 102 px: "tự tìm" (31 px) và "mặc định"
+(49 px); "để trống = tự tìm trong khung" rộng 159 px → không vừa. Giải thích đầy đủ
+nằm ở ghi chú dưới ô + tooltip.
+
+### Ghi chú tốc độ OCR trên GUI dùng số đo thật
+
+Thay con số mơ hồ "20–430 ms" bằng số đo thật (2 chỗ, kèm bản dịch Anh):
+
+> "Tốc độ: đọc biển số chạy ở luồng nền nên không làm khựng video. Mỗi lần quét tốn
+> 9–15 ms, khung hình chậm nhất 62 ms (đo thật trên máy này ngày 19/10/2026). Lúc bật
+> lần đầu máy phải nạp model nên khựng khoảng 1–2 giây."
+
+Kèm 3 bản dịch Anh còn thiếu của phần tính năng mới. Kiểm chứng tự động bằng
+`_kk_kiem_dich_ghi_y.py` (AST đọc mọi lệnh `self._ghi_y(...)`): **30/30** ghi chú đã
+có bản dịch Anh, **0 thiếu**.
+
+### Hồi quy bản 3.0 — coordinator tự chạy
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `py_compile` 5 file lõi | `cam_ai_core.py`, `gui.py`, `app.py`, `bien_so.py`, `tu_chup.py` → **exit 0** |
+| 4 lệnh hồi quy CLI | Tất cả **exit 0**; `--help` in đủ cả 8 cờ biển số/tự chụp, không crash |
+| `_kiem_tra_gui.py` | **4/4 PASS**; cửa sổ 1610×980; tiêu đề `CamAI v3.0 — Phân tích video giám sát` |
+| Chấn lý `chuan_hoa_bien_so` | Chuẩn hoá **28/28**; biển VN **16/16**; biển nước ngoài đọc sai **0/6** |
+| Xác nhận đa khung hình | **PASS** — ảnh nghiêng 11° bị cơ chế `mau_thuan` chặn |
+| 10 ảnh biển số VN giả | **10/10 PASS**, **0** ảnh bị thêm ký tự |
+| Artifact CSV/MP4 | `git status --short -- '*.csv' '*.mp4'` → **rỗng** (không file nào bị đổi) |
+
+### Tự kiểm chứng bằng mắt — tự chụp ảnh + Excel/HTML xem lại
+
+Coordinator **tự chạy lại code hiện tại** và **tự xem bằng mắt** hai tính năng vốn
+mới chỉ dựa trên báo cáo của subagent:
+
+**1. Tự chụp ảnh khi có sự kiện (`--tu-chup`) → chạy legit**
+
+```powershell
+.venv\Scripts\python.exe -W ignore app.py --input video_test.mp4 --vung vung.txt --tu-chup --tu-chup-dir _kk_out\tu_chup_thuc_te
+```
+
+| Kiểm tra | Kết quả |
+|---|---|
+| File sinh ra | `su_kien_20261019_220301_vao_vung_nguoi1.jpg` — **157.074 B**, 960×540 |
+| Số màu đơn sắc | **33.985** (không phải ảnh đen) |
+| Trung bình BGR | `[114.5, 114.6, 115.2]` |
+| **Coordinator tự xem** | thấy rõ 2 người + overlay tiếng Việt **có dấu**: "An \| Nam 67", "Binh \| Nam 52" |
+| Bảng kế CSV | `loai_su_kien=vao_vung`, `ten_hien_thi=Có người vào vùng canh`, `so_nguoi=1` |
+
+**Phát hiện quan trọng:** 6 ảnh cũ ở `_kk_out/ocr_thu/su_kien/`
+(`su_kien_2026*_vua_toi/vuot_vung.jpg`, 5.427 B) đo ra là **ẢNH ĐEN HOÀN TOÀN**
+(1 màu đơn sắc, max=0, min=0) và tên sự kiện **không tồn tại** trong `LOAI_SU_KIEN`
+hiện tại → là artifact của **prototype cũ**, **không phải bằng chứng**. Đã ghi
+cảnh báo trong `PROJECT_STATE.md` mục 2.1d + `ISSUE_LOG.md`.
+
+**2. Xuất Excel + HTML xem lại → chạy legit**
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Excel | `one-by-one-person-detection_tong_ket.xlsx` (12.802 B) đọc bằng openpyxl → **3 sheet có số thật**: `Tong ket` 24×4, `Theo gio` 7×6, `Cu theo giay` 144×8; tiêu đề "BAO CAO TONG KET - CAM" |
+| HTML | `one-by-one-person-detection_xem_lai.html` (35.389 B) — **coordinator mở bằng browser thật** |
+| **Coordinator tự xem** | render đúng: "1.394 khung hình · 02:19 giây · 0 sự kiện đáng chú ý"; thẻ số liệu KHUNG HÌNH 1.394, GIÂY ĐÔNG NHẤT 00:06, TB 0,74 người, NGƯỜI QUEN 2 (Bình, An); biểu đồ "Số người theo thời gian" |
+| Scroll tới đáy | lần 1 `moved=true, actualDeltaY=486, atEnd=true`; lần 2 `moved=false` → đã tới đáy |
+
+**3. Tạo `USE_CASE.md`** (8.235 B) — bản ghi use case chung + tầng nền tảng để lần
+sau bí thì lôi ra làm:
+- Mục 1: bảng **10 use case chung** đa lĩnh vực (an ninh khu vực, bán lẻ, kho/logistics,
+  giao thông, nhà xưởng, trường học/y tế, nuôi trồng, kiểm tra tuân thủ, giao nhận,
+  bàn giao khách) — cột "đã có sẵn trong app" + "cần thêm".
+- Mục 2: bảng **12 tầng nền tảng N1–N12** + thứ tự ưu tiên
+  `N1 → N2 → N8 → N4 → N9 → N3 → N5 → N7 → N6 → N11 → N12 → N10`.
+- Mục 3: 8 tính năng AI mở rộng (PPE, Re-ID, segmentation, OCR tổng quát, đếm hàng hoá,
+  đếm gia súc, đo khoảng cách, phát hiện hành vi).
+- Mục 4: 6 nguyên tắc khi thêm tính năng mới.
+- Mục 5: cấu trúc bàn giao nhiều khách (**1 lõi + 1 file cấu hình** .json/.ini).
+
+### Sửa lỗi codec video — trình duyệt không phát được video trong báo cáo xem lại
+
+**Lỗi thật, do coordinator phát hiện bằng cách mở báo cáo bằng browser thật** (không
+phải đọc code, không phải tin báo cáo subagent):
+
+| Kiểm tra | Trước khi sửa | Sau khi sửa |
+|---|---|---|
+| `ffprobe` file video kết quả | `codec_name=mpeg4` (MPEG-4 **Part 2**), 768×432 | **`codec_name=h264`**, 960×540, 10,0 s |
+| Thẻ `<video>` trong `*_xem_lai.html` | **"Unable to play media."**, controls `disabled: true`, scrubber **"total time: 0:00"** | **không còn lỗi**, controls bật, scrubber **"total time: 0:10"** |
+| Console trình duyệt (`error` + `warn`) | — | **0 entries** |
+| `ffmpeg -i <file> -f null -` | — | **exit 0** (decode sạch) |
+
+**Nguyên nhân:** `cam_ai_core.py` ghi video bằng fourcc cố định `mp4v` — đó là
+**MPEG-4 Part 2**, Chrome/Edge/Firefox **không có decoder** cho codec này (chỉ
+VLC/QuickTime phát được) → người dùng mở báo cáo là **không xem được video**.
+
+**Cách sửa:**
+- Hàm mới `_fourcc_ket_qua()` trong `cam_ai_core.py` — **probe 1 lần cho cả tiến
+  trình, kết quả cache**: ghi file `.mp4` tạm 2 khung hình 64×64 bằng `avc1`, đọc
+  4096 byte đầu (và 64 KB cuối nếu cần) tìm chuỗi `b"avc1"` trong box `stsd` →
+  có thì dùng **`avc1` (H.264)**, không có thì lùi về `mp4v`. **Mọi lỗi → lùi về
+  `mp4v`** (fail-safe tuyệt đối). File probe luôn được xoá.
+- Hằng `FOURCC_KET_QUA = "mp4v"` **giữ nguyên giá trị** (có chỗ khác đang import nó),
+  nay chỉ là phương án dự phòng.
+- Cả video kết quả lẫn clip tự lưu dùng codec đã chọn; **log rõ codec đang dùng**:
+  `[video] codec: H.264 (avc1) - trình duyệt phát được video`.
+- Chi tiết đầy đủ (bảng đo, bài học) ở `ISSUE_LOG.md` mục "ĐÃ SỬA".
+
+> **Lưu ý khi đọc log:** OpenCV 5.0.0 in đỏ *"Failed to load OpenH264 library"* khi
+> ghi `avc1`, **nhưng file ra vẫn là H.264 hợp lệ** (đã kiểm bằng `ffprobe` + browser).
+> Không được coi dòng log đỏ đó là lỗi.
+
+### Chưa đạt / chờ anh
+
+- **Chưa có ảnh biển số VN thật** → mục OCR biển số **chưa nghiệm thu được**.
+- **Mục 7 (kéo cửa sổ không giật)** và **mục 8 (độ nhận diện video thật)** vẫn
+  **chờ anh tự xác nhận** — không tự đánh dấu đạt.
+
+---
+
 ## [2.8] — 2026-10-19 (sau 14:00)
 
 `VERSION` trong `cam_ai_core.py` = **2.8**.

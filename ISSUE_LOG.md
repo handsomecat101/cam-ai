@@ -9,6 +9,260 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Video kết quả dùng codec MPEG-4 Part 2 → trình duyệt báo "Unable to play media"
+
+**Triệu chứng:** báo cáo HTML xem lại (`*_xem_lai.html`) mở bằng trình duyệt thật thì
+thẻ `<video>` hiện **"Unable to play media."**, **mọi nút điều khiển bị `disabled: true`**,
+thanh tua hiện **"total time: 0:00"** → trình duyệt **không đọc được** file video.
+
+**Đo thật (coordinator tự chạy `ffprobe` trên file cũ):**
+
+| File | `codec_name` | Profile | Kích thước | Thời lượng | Trình duyệt |
+|---|---|---|---|---|---|
+| `one-by-one-person-detection_ket_qua.mp4` | **mpeg4** | Simple Profile | 768×432 | 9,998 s | **không phát được** |
+
+`codec_name=mpeg4` + profile `Simple Profile` = **MPEG-4 Part 2** (MPEG-4 Visual),
+**KHÔNG phải H.264**. Chrome/Edge/Firefox **không có decoder** cho codec này (chỉ
+VLC/QuickTime phát được) → đây là lỗi thật, không phải lỗi đường dẫn hay lỗi trình duyệt.
+
+**Nguyên nhân:** `cam_ai_core.py` ghi video bằng fourcc cố định `mp4v`
+(`FOURCC_KET_QUA = "mp4v"`), mà `mp4v` chính là MPEG-4 Part 2.
+
+**Đã sửa (2026-10-19):**
+- Hàm mới `_fourcc_ket_qua()` trong `cam_ai_core.py` — **probe 1 lần cho cả tiến trình,
+  kết quả được cache**:
+  1. Ghi 1 file `.mp4` tạm (2 khung hình 64×64 màu đen) bằng fourcc `avc1`.
+  2. Đọc **4096 byte đầu** file, tìm chuỗi `b"avc1"` (fourcc thật nằm trong box `stsd`).
+  3. Nếu chưa thấy → đọc **64 KB cuối** file (box `moov` chứa `stsd` có thể nằm cuối).
+  4. Có `avc1` → dùng **`avc1` (H.264)**; không có → lùi về `mp4v`.
+  5. **Mọi lỗi → lùi về `mp4v`** (fail-safe tuyệt đối, không bao giờ làm hỏng pipeline).
+  File probe **luôn được xoá** (thử tối đa 5 lần vì Windows có lúc khoá file tạm).
+- Hằng `FOURCC_KET_QUA = "mp4v"` **giữ nguyên giá trị** để không phá chỗ khác đang
+  import nó; giá trị này giờ chỉ là **phương án dự phòng**.
+- Cả **video kết quả** lẫn **clip tự lưu** đều dùng codec đã chọn, và log ra rõ:
+  `[video] codec: H.264 (avc1) - trình duyệt phát được video`
+  (khi lùi về `mp4v` thì log: `[video] codec: MPEG-4 Part 2 (mp4v) - máy này không có
+  encoder H.264`).
+
+**Đo thật sau khi sửa (coordinator tự chạy, không tin báo cáo subagent):**
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `app.py --input video_test.mp4 --no-face --output ...` | log ra `[video] codec: H.264 (avc1) ...`, **exit 0** |
+| `ffprobe` file mới | **`codec_name=h264`**, 960×540, duration **10,0 s** |
+| `ffmpeg -i <file> -f null -` | **exit 0** (decode sạch, không lỗi) |
+| Mở HTML xem lại bằng **browser thật** | `<video>` **không còn "Unable to play media."**, controls **không còn disabled**, scrubber **"total time: 0:10"** (metadata load thành công) |
+| Console trình duyệt (mức `error` + `warn`) | **0 entries** |
+
+**Bài học (cross-project):**
+- **"File video tồn tại" ≠ "trình duyệt phát được".** Phải kiểm tra `codec_name` bằng
+  `ffprobe`, không suy ra từ dung lượng file.
+- **Mở bằng trình duyệt thật, đừng tin vào phỏng đoán.** Lỗi này chỉ lộ ra khi mở
+  thẻ `<video>` thật; đọc code thì thấy "có ghi video" và tưởng đã xong.
+- **Encoder có thể in log đỏ mà file vẫn hợp lệ.** OpenCV 5.0.0 (FFmpeg prebuilt,
+  avcodec 61.19.100) in đỏ *"Failed to load OpenH264 library"* khi ghi `avc1`, nhưng
+  file ra **vẫn là H.264 hợp lệ** → phải kiểm chứng bằng `ffprobe` + trình duyệt,
+  **không kết luận theo stderr**.
+- **Chọn codec bằng probe runtime có cache, không hardcode.** Máy khác có thể thiếu
+  encoder H.264 → phải có đường lùi an toàn, và phải **log ra codec đang dùng** để
+  lần sau biết ngay mà không cần mở file.
+
+---
+
+## 6 ảnh "tự chụp sự kiện" cũ là ẢNH ĐEN và thuộc prototype cũ — không phải bằng chứng
+
+**Triệu chứng:** khi rà lại bằng chứng tính năng `--tu-chup`, thấy thư mục
+`_kk_out/ocr_thu/su_kien/` có 6 file ảnh tên
+`su_kien_2026*_vua_toi.jpg` / `su_kien_2026*_vuot_vung.jpg` (mỗi file 5.427 B).
+Có nơi đã ghi chúng là "bằng chứng tự chụp ảnh chạy thật" — **SAI**.
+
+**Đo thật (coordinator tự chạy, đọc pixel thật):**
+
+| File | Số màu đơn sắc | max | min | Nhận định |
+|---|---|---|---|---|
+| 6 file `su_kien_2026*_vua_toi/vuot_vung.jpg` | **1** | **0** | **0** | **ẢNH ĐEN HOÀN TOÀN** |
+
+**Nguyên nhân (2 tầng, đều làm cho bằng chứng vô giá trị):**
+1. Ảnh **đen trắng** → không phải ảnh camera thật, không phải khung đã vẽ overlay.
+2. Tên sự kiện `vua_toi` / `vuot_vung` **không tồn tại** trong hằng số `LOAI_SU_KIEN`
+   của `tu_chup.py` hiện tại
+   (`vuot_nguong_dong`, `nguoi_quen`, `vao_vung`, `dung_lau`, `co_nguoi`, `bien_so`).
+   → Đây là artifact từ **prototype cũ** (đã bị thay), không phải output của code đang chạy.
+
+**Đã sửa / xử lý:**
+- Chạy lại **code hiện tại** để tạo bằng chứng thật:
+  ```powershell
+  .venv\Scripts\python.exe -W ignore app.py --input video_test.mp4 --vung vung.txt --tu-chup --tu-chup-dir _kk_out\tu_chup_thuc_te
+  ```
+  → `su_kien_20261019_220301_vao_vung_nguoi1.jpg` (**157.074 B**, 960×540, **33.985 màu**,
+  trung bình BGR `[114.5, 114.6, 115.2]`), kèm `_bang_ke_chup.csv` (209 B) ghi đúng
+  `loai_su_kien=vao_vung`, `ten_hien_thi=Có người vào vùng canh`, `so_nguoi=1`.
+- **Coordinator tự xem ảnh bằng mắt**: thấy rõ 2 người với overlay tiếng Việt có dấu
+  **"An | Nam 67"** và **"Binh | Nam 52"** → tính năng tự chụp ảnh **chạy legit**.
+- Đã ghi cảnh báo vào `PROJECT_STATE.md` mục 2.1d (khối ⚠️) để không ai dùng nhầm 6 ảnh đen.
+
+**Bài học (cross-project):**
+- **File ảnh nhỏ bất thường là dấu hiệu ảnh rỗng.** 5,4 KB với 1 màu đơn sắc → ảnh đen.
+  Mọi lần nhận bằng chứng ảnh phải **đo số màu đơn sắc + max/min pixel**, không chỉ nhìn
+  kích thước file.
+- **Tên sự kiện trong tên file phải khớp hằng số trong code** — không khớp ⇒ artifact của
+  phiên bản cũ ⇒ không được dùng làm bằng chứng.
+- Artifact cũ trong `_kk_out/` **không tự động là bằng chứng**; phải truy nguồn lại từ code
+  hiện tại trước khi kết luận tính năng "đã đạt".
+
+**Ghi chú thêm:** chạy `--tu-chup` **không có vùng canh** thì exit 0 nhưng **không tạo file nào**
+(đúng thiết kế: không có sự kiện thì không chụp). Muốn có ảnh thì phải có `--vung`.
+
+---
+
+## OCR biển số làm khựng toàn bộ pipeline — 1,9 giây mỗi khung hình
+
+**Triệu chứng:** bật đọc biển số thì video quét **tụt fps** từ 26 fps xuống dưới 1 fps.
+Đo thật trên `video_test.mp4` (250 khung): pha **tìm vùng biển** trong cả khung hình tốn
+**1916,6 ms/khung** (không ROI) và **680,9 ms/khung** (có ROI) — tức là **nghìn lần**
+nặng hơn phần đọc crop.
+
+**Nguyên nhân:** `BoDocBienSo.doc()` chạy **đồng bộ** ngay trên luồng phân tích. Bên
+trong nó gọi engine RapidOCR **có tìm chữ** (`det+cls+rec`) để quét cả khung hình
+640×480 tìm mảnh chữ giống biển số. Mỗi lần gọi là **hàng trăm mili giây đến hơn
+1 giây** → mỗi khung hình phải chờ.
+
+**Đã sửa (2026-10-19, agent D sửa `bien_so.py`):**
+- Chuyển pha **tìm vùng** sang **luồng nền daemon** (ghim `BELOW_NORMAL`, giới hạn
+  2 core) → luồng chính không chờ.
+- Thêm **cache vùng** theo toạ độ tương đối, TTL 10 giây → không tìm lại mỗi khung.
+- Thêm **hạn chi phí 50 ms** cho 1 lượt OCR, **giới hạn 8 lượt OCR** mỗi lần quét,
+  **giới hạn diện tích vùng 250.000 px** (vùng rộng >60.000 px → tìm nền).
+- `threading.Lock` quanh **từng** engine OCR (RapidOCR không thread-safe).
+
+**Đo thật lại (coordinator tự chạy, `_kk_do_chi_phi_doc_bien_so.py`, 250 khung):**
+
+| Chế độ | Trước | Sau (tb/khung) | Sau (chậm nhất) |
+|---|---|---|---|
+| Có ROI | 680,9 ms | **5,2 ms** | **0,9 ms** |
+| Không ROI | 1916,6 ms | **7,5 ms** | **1,5 ms** |
+
+**Đánh đổi còn lại (phải biết):**
+- Cache vùng có thể **bỏ sót biển mới** cho tới lượt quét kế tiếp (~2 s).
+- Vùng tìm được là khung **CHỮ** → biển **2 hàng** có thể ghép sai thứ tự.
+- ROI rộng có độ trễ 0,5–1,5 s lúc đầu.
+- Hạn chi phí 50 ms có thể cắt trường hợp biển 2 hàng (đo thật ~54 ms).
+
+---
+
+## Ô gợi ý trong ô nhập không hiện — "để trống = tự tìm trong khung"
+
+**Triệu chứng:** ô "Vùng cần quét" và ô "Danh sách lớp cần nhận" **không hiện** dòng
+gợi ý khi để trống. Người dùng không biết để trống nghĩa là gì.
+
+**Nguyên nhân (không phải lỗi theme):** `customtkinter 5.2.2` chỉ kích hoạt
+placeholder khi `textvariable is None or textvariable == ""`. Mà `tkinter.StringVar`
+**không định nghĩa `__eq__`** → so sánh với `""` luôn False → **mọi** `CTkEntry` có
+`textvariable` **không bao giờ** hiện placeholder. Đây là hành vi của thư viện, không
+phải lỗi code của dự án.
+
+**Cách sửa sai đã thử:** chèn chu placeholder vào ô bằng `insert()` → bị customtkinter
+từ chối, biến `textvariable` bị nhiễu thành `"HUONG DAN GIUONGab"`.
+
+**Đã sửa (2026-10-19):** lớp mới `GoiYTronO` trong `gui.py` — 1 `CTkLabel` phủ lên
+ô, `textvariable` luôn sạch, tự ẩn/hiện theo biến, kèm tooltip `HuongDan`.
+
+**Ba lỗi con phát sinh khi làm nhãn phủ (đều đã sửa):**
+1. **Nền lệch màu.** `entry.cget("fg_color")` lúc tạo nhãn trả bảng màu theme **cũ**
+   `['#F9F9FA','#343638']` vì bước `_ap_dung_theme()` gán `MAU["the_phu"]` cho mọi
+   `CTkEntry` **sau khi** form đã dựng → nền lệch `#343638` vs `#272F42`, thấy rõ
+   bằng mắt. Sửa: lấy màu từ **bảng màu dự án** `MAU["the_phu"]`.
+2. **`place(width=..., height=...)` raise `ValueError`** — `customtkinter 5.2.2` không
+   cho truyền kích thước vào `place()`. Sửa: đưa `height=24` vào constructor.
+3. **Chữ bị cắt ở đáy.** `anchor="w"` canh giữa trục y tại y=0 → lệch −14 px. Sửa:
+   `anchor="nw"` + `place(x=12, y=2)`.
+
+**Gợi ý phải NGẮN** vì ô chỉ rộng 102 px: "để trống = tự tìm trong khung" rộng 159 px
+→ không vừa. Dùng "tự tìm" (31 px) và "mặc định" (49 px); giải thích đầy đủ nằm ở
+ghi chú dưới ô + tooltip.
+
+**Đo thật:** chữ hiện đầy đủ, nền khớp tuyệt đối `#272F42`, viền trắng của ô liền
+mạch, không che viền. Ảnh: `_kk_out/v3_20_goi_y_hien.png`, `v3_30_goi_y_mac_dinh.png`,
+`v3_31_goi_y_tu_tim.png`, `zoom_v3_20_goi_y.png`, `zoom_v3_30_mac_dinh.png`.
+
+---
+
+## OCR biển số: dùng nhầm engine → chậm ~100 lần
+
+**Triệu chứng:** đọc 1 crop biển số mất **320–1473 ms**. Quét video có biển số
+sẽ tự động tụt FPS.
+
+**Nguyên nhân:** `BoDocBienSo.nap()` dùng `RapidOCR()` — bản **có tìm chữ (det+cls+rec)**.
+Nhưng khi crop biển số **đã định vị sẵn** thì không cần tìm chữ, chỉ cần đọc.
+
+**Đã sửa (2026-10-19):** tách làm **2 engine riêng** trong `bien_so.py`:
+- engine **chỉ đọc**: `RapidOCR(use_text_det=False, use_angle_cls=False)` → dùng cho
+  crop đã định vị (nhanh **5–10.5 ms/crop**).
+- engine **có tìm chữ**: dùng để **tìm vùng biển** trong cả khung hình.
+
+**Gotcha API (rất dễ sai):** RapidOCR 1.2.3 **bỏ qua tham số `use_det` lúc gọi**,
+tham số này chỉ có tác dụng **lúc khởi tạo**. Nên phải tạo 2 đối tượng riêng, không
+dùng chung 1 engine rồi đổi cờ.
+
+**Đo thật** (`_kiem_chung/so_2_kieu_ocr.txt`): 1473 ms (có tìm chữ) → **10.5 ms**
+(chỉ đọc). Ngoài ra engine bỏ qua ảnh có `h <= 30` hoặc `w/h > 8`.
+
+**Bài học:** con số "9.4 ms/ảnh" từng được báo trước đó là của engine **chỉ đọc**;
+pipeline cũ dùng engine **có tìm chữ** nên thực tế là **1–5 giây/crop**. Số đo phải
+đo trên **đúng đường code sản phẩm**, không đo trên một biến thể lý tưởng.
+
+---
+
+## `chuan_hoa_bien_so` BỊA biển số nước ngoài thành biển Việt Nam
+
+**Triệu chứng:** biển Đức `"MS WL 345"` bị trả về **`"50W-1345"`** — hợp lệ về
+hình thức biển Việt Nam, nhưng là **bịa**. Lưu xuống sẽ ghi sai biển nước ngoài
+thành biển VN trong báo cáo.
+
+**Nguyên nhân:** `_sua_theo_vi_tri` quá lỏng lẻo — tự chế thêm ký tự để " ép cho
+khớp mẫu" thay vì loại bỏ ký tự lạ.
+
+**Đã sửa (2026-10-19):** quy tắc mới — **tuyệt đối không thêm/bịa ký tự**:
+- chỉ **loại bỏ** ký tự lạ (không phải chữ/số/dấu gạch),
+- viết hoa,
+- thêm dấu gạch giữa 2 hàng,
+- sửa `O/I/L` **chỉ tại vị trí bắt buộc** và **chỉ khi phần còn lại khớp mẫu**,
+- mẫu VN khớp chặt `^\d{2}[A-Z]\d{4}$` và `^\d{2}[A-Z]\d{5}$`.
+
+**Đo thật** (`_kiem_chung/kiem_bien_so_gia.txt`): 10/10 ảnh biển số VN (ảnh giá)
+đọc đúng, **không ảnh nào bị thêm ký tự** (chuỗi chuẩn hoá luôn là tập con của chuỗi
+gốc sau khi bỏ ký tự lạ).
+
+---
+
+## OCR biển số: ảnh xoay nhẹ (~6°) bị bỏ qua hoàn toàn
+
+**Triệu chứng:** biển số xoay ~6° (rất phổ biến với camera gắn lệch) → OCR
+**không trả về gì dù chữ rõ nét**.
+
+**Nguyên nhân:** OCR không tự deskew; chữ xiên vượt ngưỡng nhận dạng của model.
+
+**Đã sửa (2026-10-19):** khi OCR thất bại trên 1 crop → **thử lại với các góc xoay
+±3°, ±6°, ±9°** (`cv2.getRotationMatrix2D` + `warpAffine`, bỏ viền trắng, không cắt
+mất chữ). Chỉ thử khi thất bại — **không xoay luôn** (để không làm hỏng 10/10 ảnh
+đang đúng).
+
+**Đo thật:** ảnh xoay 6° chuyển từ `KHONG DOC DUOC` → `PASS doc='30A-12345'`.
+Kết quả chung: **10/10** ảnh biển số VN giá đọc đúng.
+
+---
+
+## GUI: ô "Thư mục lưu ảnh" cắt mất đường dẫn
+
+**Triệu chứng:** ô nhập thư mục hiển thị `H:\AI Project\cam-ai\anh` — cắt giữa
+chừng, không có dấu `…` và không có tooltip.
+
+**Đã sửa (2026-10-19):** thêm tooltip hiện đường dẫn đầy đủ khi rê chuột vào ô.
+
+**Bằng chứng:** `_kk_out/zoom_thu_muc.png` (trước) và `_kk_out/zoom_thu_muc_fix.png` (sau).
+
+---
+
 ## `canh_bao.py` chưa được dùng
 
 **Triệu chứng:** có nhóm "Cảnh báo" trên GUI nhưng không kêu chuông, không gửi tin.

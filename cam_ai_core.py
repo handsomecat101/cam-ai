@@ -26,6 +26,7 @@ import csv
 import difflib
 import os
 import signal
+import tempfile
 import warnings
 from collections import deque
 from dataclasses import dataclass, field
@@ -40,7 +41,7 @@ from ultralytics import YOLO
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PERSON_CLASS_ID = 0
-VERSION = "2.8"
+VERSION = "3.0"
 
 # thiet bi chay model: "auto" = tu chon (giam nhip), "cuda"/"cpu" = ep
 THIET_BI_MAC_DINH = "auto"
@@ -69,10 +70,22 @@ CSV_FIELDS = [
     "trong_vung", "vi_pham", "canh_lau",
 ]
 
+# --- bien so: cot them vao CUOI, CHI khi bat --doc-bien-so.
+# QUY TAC CU: khi tinh nang tat, CSV van dung 10 cot cu (xem PROJECT_STATE.md
+# muc 3 "CSV giu dung 10 cot"). Khong bao gio ghi 11/12 cot mac dinh.
+CSV_FIELDS_BIEN_SO = ["bien_so", "so_bien_so"]
+
 HEADER = "CamAI v{} - ArcFace (SCRFD + w600k_r50)"
 
 # --- tu luu clip: cung codec voi video ket qua de mo duoc o moi noi
+# GHI CHU (quan trong): mp4v = MPEG-4 Part 2. Chrome/Edge/Firefox KHONG phat
+# duoc MPEG-4 Part 2 -> video trong file bao cao xem lai bao loi
+# "Unable to play media" khach xem khong duoc. H.264 (avc1) thi moi trinh
+# duyet deu phat duoc, nen ham _fourcc_ket_qua() se uu tien avc1.
+# FOURCC_KET_QUA giu nguyen gia tri "mp4v" (co noi khac import no) - chi la
+# phuong an DU PHONG khi may khong co encoder H.264.
 FOURCC_KET_QUA = "mp4v"
+_FOURCC_KET_QUA_CACHE = None      # cache ket qua kiem tra 1 lan cho ca tien trinh
 CLIP_MAC_DINH_GIAY = 10.0
 BO_NHO_VONG_DEM_MB = 300 * 1024 * 1024      # gioi han RAM cho vong dem khung hinh
 BUU_HOI_MAT_DAU = 1.0        # giay - nguoi bi che mat dau, van giu dong bo dem
@@ -169,6 +182,18 @@ class AnalysisConfig:
     show_box: bool = True
     show_label: bool = True
     show_line: bool = True
+    # --- NHOM TINH NANG MOI (v3.0) ---
+    # Dat CUOI dataclass de moi truong doi khong phai doi thu tu vi tri cu.
+    # Doc bien so (bien_so.py): MAC DINH TAT. Bat vao them cot CSV o CUOI
+    # (xem CSV_FIELDS_BIEN_SO) - khi tat van dung 10 cot nhu cu.
+    doc_bien_so: bool = False
+    bien_so_dir: str = "anh_bien_so"        # thu muc luu crop bien so
+    bien_so_tin_cay: float = 0.5
+    bien_so_nhoan_lai_giay: float = 30.0     # cung bien so chi luu 1 lan/30s
+    vung_bien_so: str | None = None          # ROI "x1,y1,x2,y2" neu khong co class plate
+    # Tu chup anh su kien (tu_chup.py): MAC DINH TAT (chuoi rong = tat).
+    tu_chup_dir: str = ""
+    tu_chup_nhoan_lai_giay: float = 10.0
 
 
 @dataclass
@@ -229,10 +254,91 @@ class AnalysisResult:
     longest_loiter: float = 0.0
     used_face: bool = False
     clips: list = field(default_factory=list)     # duong dan cac file clip da luu
+    # --- v3.0: ket qua tinh nang moi (mac dinh rong, khong doi hanh vi cu) ---
+    bien_so: list = field(default_factory=list)   # list[KetQuaBienSo] doc duoc
+    anh_su_kien: list = field(default_factory=list)  # duong dan anh tu chup
     stopped: bool = False          # True = nguoi dung dung giua chung
 
 
 # ------------------------------------------------- ghi video an toan (moov atom)
+
+def _fourcc_ket_qua() -> str:
+    """Tra fourcc de ghi video: 'avc1' (H.264) neu may co encoder, nguoc lai 'mp4v'.
+
+    LY DO: mp4v = MPEG-4 Part 2. Chrome/Edge/Firefox KHONG phat duoc MPEG-4
+    Part 2 -> video trong file bao cao xem lai bao loi "Unable to play media".
+    H.264 (avc1) thi moi trinh duyet deu phat duoc.
+
+    CACH KIEM TRA (chi 1 LAN cho ca tien trinh, ket qua duoc cache):
+      1. Ghi 1 file mp4 tam (2 khung hinh 64x64 mau den) voi fourcc avc1.
+      2. Doc ~4 KB dau file, tim chuoi b'avc1' (fourcc that trong box stsd).
+      3. Co b'avc1' -> dung 'avc1'; khong co -> lui ve 'mp4v'.
+    File probe LUON duoc xoa. Moi loi -> tra 'mp4v' (fail-safe, khong lam
+    hong pipeline).
+    """
+    global _FOURCC_KET_QUA_CACHE
+    if _FOURCC_KET_QUA_CACHE is not None:
+        return _FOURCC_KET_QUA_CACHE
+
+    fourcc = "mp4v"
+    duong_dan_probe = ""
+    try:
+        # tempfile: file probe nam o thu muc tam cua he -> khong de rac
+        # trong thu muc du an.
+        fd, duong_dan_probe = tempfile.mkstemp(prefix="cam_ai_probe_", suffix=".mp4")
+        os.close(fd)
+
+        writer = None
+        mo_duoc = False
+        try:
+            writer = cv2.VideoWriter(
+                duong_dan_probe, cv2.VideoWriter_fourcc(*"avc1"), 10.0, (64, 64)
+            )
+            mo_duoc = bool(writer.isOpened())
+            if mo_duoc:
+                khung_hinh_den = np.zeros((64, 64, 3), np.uint8)
+                writer.write(khung_hinh_den)
+                writer.write(khung_hinh_den)
+        finally:
+            if writer is not None:
+                try:
+                    writer.release()
+                except Exception:                            # noqa: BLE001
+                    pass
+                # Huy tham chu de dong han file that. Windows: file con bi
+                # khoa thi os.remove() that bai -> de lai rac trong TEMP.
+                del writer
+                writer = None
+
+        if mo_duoc and os.path.isfile(duong_dan_probe):
+            kich_thuoc = os.path.getsize(duong_dan_probe)
+            if kich_thuoc > 0:
+                with open(duong_dan_probe, "rb") as f:
+                    dau = f.read(4096)
+                tim_thay = b"avc1" in dau
+                if not tim_thay and kich_thuoc > len(dau):
+                    # moov atom (chua box stsd) co the nam o CUOI file
+                    f.seek(max(0, kich_thuoc - 65536))
+                    tim_thay = b"avc1" in f.read()
+                if tim_thay:
+                    fourcc = "avc1"
+    except Exception:                                        # noqa: BLE001
+        fourcc = "mp4v"        # fail-safe: khong bao gio lam hong pipeline
+    finally:
+        # Xoa file probe (khong de lai rac). Thu them vai lan: Windows co
+        # luc khoa file tam thoi (FFmpeg chua dong het) -> os.remove that bai.
+        if duong_dan_probe:
+            for _lan in range(5):
+                try:
+                    if os.path.isfile(duong_dan_probe):
+                        os.remove(duong_dan_probe)
+                    break
+                except OSError:
+                    continue
+
+    _FOURCC_KET_QUA_CACHE = fourcc
+    return fourcc
+
 
 def duong_dan_tam(duong_dan: str) -> str:
     """'a_ket_qua.mp4' -> 'a_ket_qua.part.mp4' (ghi tam, xong moi doi ten)."""
@@ -487,7 +593,9 @@ class ClipRecorder:
         don_file_tam(duong_tam)
         writer = cv2.VideoWriter(
             duong_tam,
-            cv2.VideoWriter_fourcc(*FOURCC_KET_QUA),
+            # avc1 (H.264) neu may co encoder, nguoc lai mp4v - xem
+            # _fourcc_ket_qua(). mp4v thi trinh duyet khong phat duoc.
+            cv2.VideoWriter_fourcc(*_fourcc_ket_qua()),
             self.fps, self.size,
         )
         if not writer.isOpened():
@@ -702,6 +810,22 @@ def chon_thiet_bi(che: str) -> str:
     return "cpu"
 
 
+def chon_providers(che: str) -> list[str] | None:
+    """Danh sach provider cua onnxruntime cho engine khuon mat.
+
+    FaceEngine (insightface) TU chon CUDA neu may co GPU - no KHONG DOC
+    AnalysisConfig.thiet_bi. Nem khong thi chon "CPU" tren GUI chi chuyen
+    YOLO sang CPU con nhan dien mat van chay GPU.
+
+    Tra None = de FaceEngine tu chon (giu nguyen hanh vi cu khi che='auto').
+    """
+    if che == "cpu":
+        return ["CPUExecutionProvider"]
+    if che == "cuda":
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    return None
+
+
 # --------------------------------------------------------------------- chay
 
 def run_analysis(
@@ -800,7 +924,8 @@ def run_analysis(
             # face_engine tu nap DLL CUDA cua torch truoc khi onnxruntime
             # duoc import. Chuyen import len dau file se lam GPU chay sai.
             engine = FaceEngine(
-                faces_dir=cfg.faces_dir, threshold=cfg.face_threshold
+                faces_dir=cfg.faces_dir, threshold=cfg.face_threshold,
+                providers=chon_providers(cfg.thiet_bi),
             )
         except CamAIError:
             raise
@@ -845,8 +970,21 @@ def run_analysis(
     out_path_tam = duong_dan_tam(out_path)
     if don_file_tam(out_path_tam):
         log(f"[video] da don file tam cu: {out_path_tam}")
+    fourcc_dung = _fourcc_ket_qua()
+    if fourcc_dung == "avc1":
+        _log_an_toan(
+            log,
+            "[video] codec: H.264 (avc1) - trình duyệt phát được video",
+            "[video] codec: H.264 (avc1) - trinh duyet phat duoc video",
+        )
+    else:
+        _log_an_toan(
+            log,
+            "[video] codec: MPEG-4 Part 2 (mp4v) - máy này không có encoder H.264",
+            "[video] codec: MPEG-4 Part 2 (mp4v) - may nay khong co encoder H.264",
+        )
     writer = cv2.VideoWriter(
-        out_path_tam, cv2.VideoWriter_fourcc(*FOURCC_KET_QUA), fps, (width, height)
+        out_path_tam, cv2.VideoWriter_fourcc(*fourcc_dung), fps, (width, height)
     )
     if not writer.isOpened():
         cap.release()
@@ -883,6 +1021,60 @@ def run_analysis(
             )
 
     report_rows: list[dict] = []
+    # --- v3.0 bien so (bien_so.py): MAC DINH TAT, chi bat khi --doc-bien-so.
+    # import LAZY + trong try: bien_so.py hong thi phan tich van chay binh
+    # thuong, chi mat tinh nang doc bien so (fail-safe, giong CanhBaoNoi).
+    bo_doc_bien_so = None
+    csv_fields = CSV_FIELDS[:]          # mac dinh DUNG 10 cot nhu cu
+    if cfg.doc_bien_so:
+        csv_fields = CSV_FIELDS + CSV_FIELDS_BIEN_SO
+        try:
+            from bien_so import BoDocBienSo
+
+            bo_doc_bien_so = BoDocBienSo(
+                nguong_tin_cay=cfg.bien_so_tin_cay,
+                thu_muc_luu=cfg.bien_so_dir or "",
+                nhoan_lai_giay=cfg.bien_so_nhoan_lai_giay,
+                vung=cfg.vung_bien_so,
+                ten_lop=detector.names,
+                log=log,
+            )
+            co_lop_bien_so = bool(bo_doc_bien_so.id_bien_so)
+            log(
+                f"[bien so] DANG BAT: doc bien so Viet Nam bang RapidOCR (100% tren may)"
+                f"{' | class plate co san' if co_lop_bien_so else ''}"
+                f"{' | vung ROI: ' + str(cfg.vung_bien_so) if cfg.vung_bien_so else ''}"
+                f" | luu crop vao: {cfg.bien_so_dir or '(khong luu)'}"
+                f" | cung bien so chi luu 1 lan/{cfg.bien_so_nhoan_lai_giay:.0f}s"
+            )
+        except Exception as exc:                            # noqa: BLE001 - fail-safe
+            bo_doc_bien_so = None
+            csv_fields = CSV_FIELDS[:]         # khong bat duoc -> van 10 cot
+            log(
+                f"[bien so] KHONG bat duoc, chi mat tinh nang doc bien so "
+                f"(khong dung app): {type(exc).__name__}: {exc}"
+            )
+
+    # --- v3.0 tu chup anh (tu_chup.py): MAC DINH TAT (chuoi rong = tat)
+    chup_anh = None
+    if cfg.tu_chup_dir:
+        try:
+            from tu_chup import TuChupAnh
+
+            chup_anh = TuChupAnh(cfg.tu_chup_dir,
+                                 nhoan_lai_giay=cfg.tu_chup_nhoan_lai_giay,
+                                 log=log)
+            log(
+                f"[tu chup] DANG BAT: luu anh su kien vao: {cfg.tu_chup_dir}"
+                f" | moi loai su kien chup 1 lan/{cfg.tu_chup_nhoan_lai_giay:.0f}s"
+            )
+        except Exception as exc:                            # noqa: BLE001 - fail-safe
+            chup_anh = None
+            log(
+                f"[tu chup] KHONG bat duoc, chi mat tu chup anh "
+                f"({type(exc).__name__}: {exc})"
+            )
+
     # --- canh bao ngoai: mac dinh TAT (chi bat khi --bat-canh-bao)
     canh_bao_noi = CanhBaoNoi(cfg, log, ten_video=str(cfg.input))
     seen_names: set[str] = set()
@@ -904,6 +1096,9 @@ def run_analysis(
     last_seen: dict[int, float] = {}
     loiter_reported: set[int] = set()
     dem_vat_the: dict[int, list[int]] = {}      # class_id -> [so khung hinh, toi da]
+    # --- v3.0: bien so + tu chup anh
+    ds_bien_so: dict[str, int] = {}             # bien so -> so khung hinh thay
+    bien_so_da_thay: list[str] = []             # bien so thay trong video (theo thu tu)
 
     try:
         while cap.isOpened():
@@ -961,6 +1156,28 @@ def run_analysis(
                     seen_names.add(face.name)
 
             known_here = sorted({f.name for f in face_results if f.is_known})
+
+            # --- v3.0 bien so: OCR tren KHUNG HINH GOC (truoc khi lam mo nen,
+            # neu lam mo thi OCR khong doc duoc). Dung lai `tat_ca` cua YOLO
+            # san co -> KHONG chay them 1 lan YOLO moi khung hinh.
+            bs_frame: list = []
+            if bo_doc_bien_so is not None:
+                try:
+                    bs_frame = bo_doc_bien_so.doc(
+                        frame, detections=tat_ca, so_mat_rang=face_count,
+                        khuon_mat=[f.box for f in face_results],
+                    )
+                    for r in bs_frame:
+                        if r.duong_dan:
+                            ds_bien_so[r.chuoi] = ds_bien_so.get(r.chuoi, 0) + 1
+                        if r.chuoi not in bien_so_da_thay:
+                            bien_so_da_thay.append(r.chuoi)
+                except Exception as exc:                    # noqa: BLE001 - fail-safe
+                    log(
+                        f"[bien so] loi khi doc 1 khung hinh, tat nhac lai "
+                        f"({type(exc).__name__}: {exc})"
+                    )
+                    bo_doc_bien_so = None
 
             # --- lam mo nen
             if cfg.pixelate and people_count:
@@ -1039,6 +1256,27 @@ def run_analysis(
                 if (cfg.clip_ghi_tat_ca and zone_px is None
                         and people_count > 0 and prev_people_count == 0):
                     su_kien.append(LY_DO_CO_NGUOI)
+            # --- v3.0 tu chup anh su kien: dung CHUNG bo canh su kien voi
+            # tu luu clip, nhung TINH RIENG (khong dung recorder) va chi chay
+            # khi AnalysisConfig.tu_chup_dir co gia tri (mac dinh rong = TAT).
+            if chup_anh is not None:
+                loai_chup = ""
+                if zone_count > 0 and prev_zone_count == 0:
+                    loai_chup = LY_DO_VAO_VUNG
+                elif over_crowd and not prev_over_crowd:
+                    loai_chup = LY_DO_VUOT_DONG
+                elif known_here and known_here != prev_known:
+                    loai_chup = LY_DO_NGUOI_QUEN
+                elif loiter_count:
+                    loai_chup = LY_DO_DUNG_LAU
+                if loai_chup:
+                    so_nguoi_chup = zone_count if zone_px is not None else people_count
+                    duong_anh = chup_anh.chup(
+                        frame, loai_chup, so_nguoi=so_nguoi_chup, giay_trong_video=now
+                    )
+                    if duong_anh:
+                        log(f"[tu chup] {loai_chup}: {duong_anh}")
+
             prev_known = known_here
             prev_people_count = people_count
             prev_zone_count = zone_count
@@ -1132,6 +1370,15 @@ def run_analysis(
                 (255, 255, 255), 2,
             )
 
+            # --- v3.0: ve chu tieng Viet co dau cho bien so (PIL, KHONG cv2.putText)
+            if bo_doc_bien_so is not None and bs_frame:
+                try:
+                    from bien_so import ve_khung_bien_so
+
+                    frame = ve_khung_bien_so(frame, bs_frame)
+                except Exception:                           # noqa: BLE001 - fail-safe
+                    pass    # khong ve overlay van chay tiep, khong dung app
+
             writer.write(frame)
 
             # --- tu luu clip: giu vong dem + ghi khi co su kien
@@ -1142,8 +1389,7 @@ def run_analysis(
             females = sum(1 for f in face_results if f.sex == "Nu")
             ages = [f.age for f in face_results if f.age]
 
-            report_rows.append(
-                {
+            dong_bao_cao = {
                     "giay": round(frame_index / fps, 2),
                     "so_nguoi": people_count,
                     "so_mat": face_count,
@@ -1155,7 +1401,12 @@ def run_analysis(
                     "vi_pham": 1 if zone_count else 0,
                     "canh_lau": loiter_count,
                 }
-            )
+            # Cot bien so them o CUOI, chi khi --doc-bien-so bat.
+            # Tat -> dung 10 cot nhu cu (khong doi bao gio).
+            if bo_doc_bien_so is not None:
+                dong_bao_cao["bien_so"] = " | ".join(r.chuoi for r in bs_frame)
+                dong_bao_cao["so_bien_so"] = len(bs_frame)
+            report_rows.append(dong_bao_cao)
 
             if frame_index % 50 == 0:
                 log(f"  frame {frame_index}/{total_frames or '?'} | {header}")
@@ -1188,6 +1439,8 @@ def run_analysis(
         writer.release()
         if recorder is not None:
             recorder.ket_thuc()      # dong clip dang ghi + xoa vong dem
+        if chup_anh is not None:
+            chup_anh.dong()          # ghi CSV bang ke cac lan chup
         canh_bao_noi.dong()
         # Chi sau khi release() (da ghi xong moov atom) moi doi ten that.
         if not chuyen_ten_sau_khi_dong(out_path_tam, out_path):
@@ -1198,7 +1451,7 @@ def run_analysis(
             )
 
     with open(report_path, "w", newline="", encoding="utf-8-sig") as file:
-        csv_writer = csv.DictWriter(file, fieldnames=CSV_FIELDS)
+        csv_writer = csv.DictWriter(file, fieldnames=csv_fields)
         csv_writer.writeheader()
         csv_writer.writerows(report_rows)
 
@@ -1268,6 +1521,38 @@ def run_analysis(
         else:
             log(f"KHONG bat duoc canh bao: {canh_bao_noi.loi or 'khong ro'}")
             log("Phan tich van chay binh thuong, chi khong co canh bao.")
+    # --- v3.0: ket qua bien so + tu chup anh (chi in khi bat) ---
+    if cfg.doc_bien_so:
+        log("\n--- BIEN SO ---")
+        if bo_doc_bien_so is None:
+            log("KHONG chay duoc doc bien so (xem dong canh bao o tren).")
+        elif not bien_so_da_thay:
+            log(
+                "Khong doc duoc bien so nao trong video nay. "
+                "Thu khoang trong khung hinh, hoac chon model co class 'plate'."
+            )
+        else:
+            for chuoi, so_khung in sorted(ds_bien_so.items(), key=lambda kv: -kv[1]):
+                log(f"  {chuoi:<14}: thay trong {so_khung} khung hinh")
+            log(f"Tong so bien so khac nhau: {len(bien_so_da_thay)}")
+            thong_ke = bo_doc_bien_so.thong_ke()
+            log(
+                f"Anh bien so da luu: {thong_ke['da_luu']} file "
+                f"(bo qua vi co mat: {thong_ke['bo_qua_mat']}) | "
+                f"{thong_ke['so_lan_doc']} lan doc, "
+                f"{thong_ke['ms_trung_binh']:.0f} ms/anh"
+            )
+    if chup_anh is not None:
+        log("\n--- TU CHUP ANH ---")
+        if chup_anh.ket_qua:
+            log(f"Anh da chup: {len(chup_anh.ket_qua)} file vao {chup_anh.thu_muc}")
+            for i, dong in enumerate(chup_anh.ket_qua, 1):
+                log(
+                    f"  {i}. [{dong['thoi_diem']}] {dong['ten_hien_thi']}"
+                    f" ({dong['so_nguoi']} nguoi) - {dong['duong_dan']}"
+                )
+        else:
+            log("Khong co su kien nao duoc chup trong video nay.")
     log("==============================")
 
     return AnalysisResult(
@@ -1291,5 +1576,7 @@ def run_analysis(
         longest_loiter=longest_loiter,
         used_face=engine is not None,
         clips=list(recorder.ket_qua) if recorder is not None else [],
+        bien_so=list(bien_so_da_thay),
+        anh_su_kien=[d["duong_dan"] for d in chup_anh.ket_qua] if chup_anh else [],
         stopped=stopped,
     )

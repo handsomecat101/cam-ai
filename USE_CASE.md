@@ -1,0 +1,101 @@
+# Use case & backlog tính năng — CamAI
+
+**Ngày lập:** 2026-10-19 (sau 21:30)
+**Mục đích:** ghi lại các hướng dùng + những tính năng nên làm tiếp, để lần sau bị bí
+không biết làm gì thì lôi file này ra triển khai, không phải nghĩ lại từ đầu.
+
+> **Nguyên tắc:** CamAI là **một lõi AI dùng chung** cho nhiều lĩnh vực. Mỗi use case
+> khác nhau ở *cấu hình + rule + báo cáo*, không phải ở thuật toán. Nên ưu tiên làm
+> **tầng nền tảng** (mục 2) trước khi thêm model AI mới.
+
+---
+
+## 1. Các hướng dùng (use case)
+
+Mỗi dòng là một hướng. Cột "đã có sẵn" là những gì **đang chạy thật** trong app hiện tại.
+
+| # | Lĩnh vực | Dùng để làm gì | Đã có sẵn trong app | Cần thêm |
+|---|---|---|---|---|
+| 1 | **An ninh khu vực** (cửa hàng, kho, văn phòng, bãi xe) | Phát hiện người lạ, canh vùng, đứng lâu, giám sát ban đêm | Phát hiện người, canh vùng, ngưỡng đông, đứng lâu, cảnh báo, lưu clip/ảnh | Rule theo giờ, cảnh báo kèm ảnh, dashboard |
+| 2 | **Bán lẻ / cửa hàng** | Đếm lưu lượng khách, giờ ca đông, đường đi trong cửa hàng | Đếm người/giây, đếm ra–vào, vùng | Báo cáo theo giờ, heatmap đường đi, chống đếm trùng |
+| 3 | **Kho / logistics** | Đếm xe ra–vào, đọc biển số, đối chiếu đơn hàng | Nhận diện vật thể (xe), đếm ra–vào (người), OCR biển số | Tái dùng đếm ra–vào cho lớp **xe**, báo cáo theo biển số, multi-camera |
+| 4 | **Giao thông / cổng** | Đếm xe theo chiều, phân loại xe, biển số | Nhận diện vật thể, OCR biển số | Đếm xe theo chiều, phân loại xe tải/xe khách/container |
+| 5 | **Nhà xưởng / sản xuất** | An toàn lao động: mũ bảo hiểm, găng tay, khoảng cách | Phát hiện người, vùng | **Train model PPE riêng** (mũ, găng, áo phao) |
+| 6 | **Trường học / cơ sở y tế** | Đếm ra–vào, phát hiện vắng mặt | Đếm ra–vào, nhận diện người quen, lịch sử sự kiện | Báo cáo theo lớp/phòng, theo ca, lịch |
+| 7 | **Nuôi trồng** | Đếm gia súc, phát hiện lạc đàn | Nhận diện vật thể (bò, cừu, ngựa… có trong COCO) | Model riêng cho gia súc Việt Nam, cảnh báo lạc đàn |
+| 8 | **Kiểm tra tuân thủ** | Khẩu trang, mũ bảo hiểm, khoảng cách an toàn | Vùng, đứng lâu | Model riêng + đo khoảng cách giữa 2 người |
+| 9 | **Giao nhận / xe giao hàng** | Đếm hàng, giao đúng người, biển số xe | OCR biển số, nhận diện người quen | Đếm hàng hoá, chụp ảnh bằng chứng giao hàng |
+| 10 | **Bàn giao cho khách** | Khách tự xem báo cáo mà không cần biết AI là gì | GUI 12 nhóm + CSV/Excel/HTML + web local | Dashboard, cấu hình theo khách, chạy 24/7 |
+
+---
+
+## 2. Tầng nền tảng — xây 1 lần, mọi use case đều dùng
+
+Đây là phần **ưu tiên cao nhất**. Vì sao: 80% khó khăn của hệ thống giám sát là
+**vận hành và báo cáo**, không phải thuật toán. Thêm model mới thì tăng độ khó bảo
+trì mà không giải quyết vấn đề "người không rành kỹ thuật vẫn dùng được".
+
+| # | Tầng nền tảng | Hiện trạng | Việc cần làm | Có thể dùng cho use case |
+|---|---|---|---|---|
+| N1 | **Vẽ vùng / đường ngắm trong GUI, nhiều vùng** | Đã có `ve_vung.py` (CLI, bấm chuột, 1 vùng, toạ độ tương đối) | Đưa nút "Vẽ vùng" vào GUI + hỗ trợ **nhiều vùng** | 1, 2, 3, 5, 6, 8 |
+| N2 | **Đăng ký người quen trong GUI** | Đã có `dang_ky_anh.py` (CLI, lấy mặt từ video, tối đa 5 ảnh/người) | Nút "Thêm người quen" trong GUI, chọn tên, xem danh sách | 1, 2, 6, 9, 10 |
+| N3 | **Dashboard tổng quan + lịch sử sự kiện lưu lâu dài** | Chỉ có timeline sự kiện trong 1 phiên | 1 màn hình "hôm nay: N người · M sự kiện · camera nào lỗi" + lưu lâu dài | tất cả |
+| N4 | **Rule cảnh báo theo điều kiện** | Cảnh báo cố định: vượt ngưỡng / đứng lâu | Cấu hình được trong GUI: *"quá 3 người trong vùng sau 22h"*, *"xe vào lúc 3h"*, kèm **ảnh** | 1, 3, 4, 6, 8 |
+| N5 | **Nhiều camera / nhiều nguồn** | `--input` chỉ nhận **1** nguồn | Chạy N nguồn, gộp vào 1 báo cáo | 3, 4, 10 |
+| N6 | **Chạy 24/7 + xoay vòng dữ liệu** | Chưa có | Giữ N ngày, tự xoá cũ, tự khởi động lại | 1, 3, 4, 10 |
+| N7 | **Giám sát sức khoẻ hệ thống** | Chưa có | Cảnh báo: camera rớt khung / mất hình / ổ đầy / model lỗi | tất cả |
+| N8 | **Báo cáo theo ca / ngày / tháng** | CSV là **theo giây**; Excel/HTML có nhưng theo giờ | Bảng theo ca (sáng/chiều/đêm), theo ngày, theo từng người | 2, 3, 6, 10 |
+| N9 | **Chống đếm trùng 1 người** | Chưa có | "1 track ID = 1 lượt", chỉ tính lúc đi qua đường | 1, 2, 6 |
+| N10 | **Chế độ không lưu ảnh** (chỉ giữ số đếm) | Chưa có | Tắt lưu clip/ảnh, chỉ ghi số | 1, 6, 8, 10 |
+| N11 | **Cảnh báo đa kênh + kèm ảnh** | `canh_bao.py` gửi **tin** | Thêm ảnh khung hình, thêm kênh (âm thanh Windows) | 1, 3, 4, 10 |
+| N12 | **Cài như dịch vụ Windows + kiosk** | Chưa có | Tự lên khi bật máy, hẹn giờ bật/tắt, chế độ toàn màn hình | 1, 3, 4, 10 |
+
+**Thứ tự nên làm:** N1 → N2 → N8 → N4 → N9 → N3 → N5 → N7 → N6 → N11 → N12 → N10
+
+> N1 và N2 rẻ nhất (đã có sẵn code CLI, chỉ cần nhúng vào GUI) và giảm rào cản cài đặt
+> nhiều nhất → làm trước.
+
+---
+
+## 3. Tính năng AI mở rộng (cần model riêng — làm SAU tầng nền tảng)
+
+| Tính năng | Cần gì | Ghi chú |
+|---|---|---|
+| **PPE** (mũ bảo hiểm, găng tay, áo phao) | Train YOLO mới | Data tự thu từ camera của khách |
+| **Re-ID xuyên camera** | Model re-ID | 1 người qua 2 camera vẫn giữ 1 ID → cần cho N5 |
+| **Phân vùng (segmentation)** | Model segmentation | Tách người khỏi nền chính xác hơn cho ảnh crop lưu lại |
+| **OCR tổng quát** | Tái dùng RapidOCR | Ngoài biển số: số móc, biển chữ, số container |
+| **Đếm hàng hoá trên kệ** | Train model riêng | Cho bán lẻ / kho |
+| **Đếm gia súc** | Train model riêng | Cho nông nghiệp |
+| **Đo khoảng cách giữa 2 người** | Dùng bbox + toạ độ | Kiểm tra khoảng cách an toàn, không cần model mới |
+| **Phát hiện hành vi** (chạy, ngồi, quay lưng) | Pose / phân loại | Chống trộm cắp, phát hiện lạc đàn |
+
+---
+
+## 4. Nguyên tắc khi thêm tính năng mới
+
+1. **Mặc định TẮT** — không được làm hỏng 6 mục nghiệm thu đã đạt (xem `PROJECT_STATE.md` mục 2.1).
+2. **CSV giữ nguyên 10 cột** khi tính năng tắt; cột mới chỉ thêm **ở CUỐI** khi bật.
+3. **Ghi tác động tốc độ bằng số đo thật**, không dùng nhãn mơ hồ ("nhanh hơn ~5×" phải
+   kèm đo).
+4. **Mọi thao tác sửa file tiếng Việt**: dùng tool `edit`/`write`, **không** dùng
+   `Get-Content | Set-Content` (sẽ hỏng UTF-8 + thêm BOM + đổi CRLF).
+5. **Có bằng chứng ảnh/video thật** cho mỗi tính năng mới — coordinator tự xem bằng mắt.
+6. **Bump `VERSION`** + cập nhật đủ 4 file tài liệu (`PROJECT_STATE.md`, `CHANGELOG.md`,
+   `ISSUE_LOG.md`, `ROADMAP.md`).
+
+---
+
+## 5. Cấu trúc khi bàn giao cho nhiều khách
+
+```
+1 lõi CamAI
+  └── 1 file cấu hình .json / .ini theo khách
+        ├── danh sách camera / nguồn video
+        ├── vùng canh (nhiều vùng)
+        ├── rule cảnh báo + lịch ca
+        ├── ngưỡng + model + thiết bị
+        └── mẫu báo cáo (cột nào, chia ca thế nào)
+```
+
+Cài cho khách = **đổi 1 file**, không đụng code. Đây là hướng đi từ N1+N2+N8+N4.

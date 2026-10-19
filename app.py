@@ -6,6 +6,14 @@ Chay:
     .venv\\Scripts\\python.exe app.py --input 0            (webcam)
     .venv\\Scripts\\python.exe app.py --input a.mp4 --pixelate
 
+Doc bien so Viet Nam (chay 100% tren may, khong gui anh ra ngoai):
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --doc-bien-so
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --doc-bien-so --vung-bien-so 0.1,0.3,0.9,0.8
+
+Tu chup anh su kien:
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --tu-chup
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --tu-chup --tu-chup-dir anh_su_kien
+
 Canh vung (khoanh 1 lan, dung lai cho moi video):
     .venv\\Scripts\\python.exe ve_vung.py --input video.mp4
     .venv\\Scripts\\python.exe app.py --input video.mp4 --vung vung.txt
@@ -21,6 +29,9 @@ cam_ai_core.py (dung chung voi gui.py) - doi logic o do, khong doi o day.
 """
 
 import argparse
+import os
+import re
+import sys
 
 from cam_ai_core import (AnalysisConfig, CamAIError, THIET_BI_CHON,
                          THIET_BI_MAC_DINH, VERSION, run_analysis)
@@ -29,6 +40,141 @@ __all__ = ["VERSION", "parse_args", "main"]
 
 
 # -------------------------------------------------------------------------- CLI
+
+def _chuan_hoa_console() -> None:
+    """Console Windows mac dinh la cp1252 -> ep UTF-8 de in tieng Viet co dau
+    (va de argparse bao loi ma khong vong ra UnicodeEncodeError)."""
+    for luong in (sys.stdout, sys.stderr):
+        try:
+            luong.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+def _parse_tin_cay(gia_tri: str) -> float:
+    """--bien-so-tin-cay: so thuc trong khoang 0..1."""
+    try:
+        x = float(gia_tri)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(
+            f"giá trị không hợp lệ: '{gia_tri}' (cần là số trong khoảng 0..1)"
+        )
+    if not 0.0 <= x <= 1.0:
+        raise argparse.ArgumentTypeError(
+            f"giá trị {x} nằm ngoài khoảng cho phép 0..1"
+        )
+    return x
+
+
+def _parse_giay(gia_tri: str) -> float:
+    """--tu-chup-nhoan-lai-giay: so thuc khong am."""
+    try:
+        x = float(gia_tri)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError(
+            f"giá trị không hợp lệ: '{gia_tri}' (cần là số không âm)"
+        )
+    if x < 0:
+        raise argparse.ArgumentTypeError(
+            f"giá trị {x} phải lớn hơn hoặc bằng 0"
+        )
+    return x
+
+
+def _parse_vung_bien_so(gia_tri: str) -> str | None:
+    """--vung-bien-so: 'x1,y1,x2,y2' (4 so, tach bang khoang trang/dau phay).
+    De trong -> None (de loi tu tim vung bien so)."""
+    goc = str(gia_tri or "").strip()
+    if not goc:
+        return None
+    phan = [p for p in re.split(r"[\s,;]+", goc) if p]
+    if len(phan) != 4:
+        raise argparse.ArgumentTypeError(
+            f"vùng biển số sai định dạng: '{goc}' "
+            "(cần đúng 4 số theo dạng x1,y1,x2,y2)"
+        )
+    so = []
+    for p in phan:
+        try:
+            so.append(float(p))
+        except (TypeError, ValueError):
+            raise argparse.ArgumentTypeError(
+                f"vùng biển số sai định dạng: '{goc}' "
+                "(cần đúng 4 số theo dạng x1,y1,x2,y2)"
+            )
+    # Giu nguyen chuoi goc de log hien thi dung nhu nguoi dung go.
+    # (cam_ai_core.py tu tach va parse lai 4 so nay.)
+    return goc
+
+
+class _LogCLI:
+    """Boc ham log cua cam_ai_core cho phan CLI.
+
+    Loi in dong '[bien so] DANG BAT: ...' / '[tu chup] DANG BAT: ...' khi bat
+    tinh nang moi. Dong do duoc VIET LAI 1 LAN bang tieng Viet co dau, giu
+    nguyen ten mang + noi dung (RapidOCR / 100% tren may / luu o thu muc nao /
+    nhoan lai bao nhieu giay) de khop voi lenh 'CamAI ... | ... | ...'.
+    """
+
+    def __init__(self, cfg: AnalysisConfig):
+        self.cfg = cfg
+
+    def __call__(self, dong: str) -> None:
+        if dong.startswith("[bien so] DANG BAT"):
+            self._in(self._dong_bien_so(dong))
+            return
+        if dong.startswith("[tu chup] DANG BAT"):
+            self._in(self._dong_tu_chup())
+            return
+        self._in(dong)
+
+    @staticmethod
+    def _in(dong: str) -> None:
+        """In ra console. Console cp1252 khong in duoc -> lui ve ban khong dau
+        (khong du con so la du, log khong bao gio lam chet luan phan tich)."""
+        try:
+            print(dong)
+        except UnicodeEncodeError:
+            try:
+                print(dong.encode("ascii", "replace").decode("ascii"))
+            except Exception:                                # noqa: BLE001
+                pass
+        except Exception:                                    # noqa: BLE001
+            pass
+
+    def _dong_bien_so(self, dong_loi: str) -> str:
+        cfg = self.cfg
+        thu_muc = cfg.bien_so_dir or "(không lưu)"
+        co_lop = " | class plate có sẵn" if "class plate co san" in dong_loi else ""
+        vung = f" | vùng ROI: {cfg.vung_bien_so}" if cfg.vung_bien_so else ""
+        return (
+            "[bien so] DANG BAT: đọc biển số Việt Nam bằng RapidOCR "
+            "(100% trên máy, không gửi ảnh ra ngoài)"
+            f"{co_lop}{vung}"
+            f" | lưu crop vào: {thu_muc}"
+            f" | cùng biển số chỉ lưu 1 lần/{cfg.bien_so_nhoan_lai_giay:.0f}s"
+        )
+
+    def _dong_tu_chup(self) -> str:
+        cfg = self.cfg
+        return (
+            "[tu chup] DANG BAT: lưu ảnh sự kiện vào: "
+            f"{cfg.tu_chup_dir or '(không lưu)'}"
+            f" | mỗi loại sự kiện chụp 1 lần/{cfg.tu_chup_nhoan_lai_giay:.0f}s"
+        )
+
+def _kiem_tra_input(duong_dan: str) -> None:
+    """Kiem tra file video co ton tai khong.
+
+    Sai -> bao loi tieng Viet co dau roi thoat ma loi (khong bao gio vong
+    traceback). '0' = webcam nen khong kiem tra.
+    """
+    goc = str(duong_dan or "").strip()
+    if not goc or goc == "0":
+        return
+    if not os.path.isfile(goc):
+        raise SystemExit(f"[lỗi] không tìm thấy file video: {goc}")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="CamAI - phan tich video")
@@ -153,11 +299,65 @@ def parse_args():
         default=60.0,
         help="gop tin canh bao cung loai trong bao nhieu giay (mac dinh: 60)",
     )
+
+    bien_so_group = parser.add_argument_group("doc bien so (bien_so.py)")
+    bien_so_group.add_argument(
+        "--doc-bien-so",
+        action="store_true",
+        help="đọc biển số Việt Nam bằng RapidOCR, chạy 100%% trên máy này, "
+             "không gửi ảnh ra ngoài (mặc định: tắt)",
+    )
+    bien_so_group.add_argument(
+        "--bien-so-dir",
+        default="anh_bien_so",
+        help="thư mục lưu ảnh crop biển số (mặc định: anh_bien_so)",
+    )
+    bien_so_group.add_argument(
+        "--bien-so-tin-cay",
+        type=_parse_tin_cay,
+        default=0.5,
+        help="ngưỡng tin cậy OCR, phải trong khoảng 0..1 (mặc định: 0.5)",
+    )
+    bien_so_group.add_argument(
+        "--bien-so-nhoan-lai-giay",
+        type=_parse_giay,
+        default=30.0,
+        help="cùng một biển số chỉ lưu 1 lần trong N giây (mặc định: 30)",
+    )
+    bien_so_group.add_argument(
+        "--vung-bien-so",
+        type=_parse_vung_bien_so,
+        default=None,
+        help="vùng ROI đọc biển số theo dạng \"x1,y1,x2,y2\" "
+             "(4 số ≤ 1 = tọa độ tương đối, > 1 = pixel; "
+             "để trống = tự tìm theo class plate)",
+    )
+
+    tu_chup_group = parser.add_argument_group("tu chup anh (tu_chup.py)")
+    tu_chup_group.add_argument(
+        "--tu-chup",
+        action="store_true",
+        help="tự lưu ảnh khi có sự kiện, 100%% trên máy này, "
+             "không gửi ảnh ra ngoài (mặc định: tắt)",
+    )
+    tu_chup_group.add_argument(
+        "--tu-chup-dir",
+        default="anh_su_kien",
+        help="thư mục lưu ảnh sự kiện, chỉ dùng khi bật --tu-chup "
+             "(mặc định: anh_su_kien)",
+    )
+    tu_chup_group.add_argument(
+        "--tu-chup-nhoan-lai-giay",
+        type=_parse_giay,
+        default=10.0,
+        help="mỗi loại sự kiện chỉ chụp 1 lần trong N giây (mặc định: 10)",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    _kiem_tra_input(args.input)
 
     cfg = AnalysisConfig(
         input=args.input,
@@ -184,10 +384,19 @@ def main() -> None:
         canh_bao_mo_phong=args.canh_bao_mo_phong,
         canh_bao_go=max(0.0, args.canh_bao_go),
         canh_bao_gioi_han=max(1, args.canh_bao_gioi_han),
+        # --- nhom tinh nang moi (v3.0) ---
+        doc_bien_so=args.doc_bien_so,
+        bien_so_dir=args.bien_so_dir,
+        bien_so_tin_cay=args.bien_so_tin_cay,
+        bien_so_nhoan_lai_giay=args.bien_so_nhoan_lai_giay,
+        vung_bien_so=args.vung_bien_so,
+        # Chuoi rong = TAT (dung quy uoc cua cam_ai_core.py).
+        tu_chup_dir=args.tu_chup_dir if args.tu_chup else "",
+        tu_chup_nhoan_lai_giay=args.tu_chup_nhoan_lai_giay,
     )
 
     try:
-        run_analysis(cfg, log=print)
+        run_analysis(cfg, log=_LogCLI(cfg))
     except CamAIError as exc:
         # Giu nguyen hanh vi cu: loi ra stderr roi dung chay.
         raise SystemExit(str(exc))

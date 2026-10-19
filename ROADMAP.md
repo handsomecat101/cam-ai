@@ -38,14 +38,45 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       `xe-co-giao-thong` 1.0 → 4.6, video gần không đổi; chậm 5.3×
 - [x] Hồi quy bản 2.8 tự chạy: 4 lệnh `app.py` exit 0, `--help` 70 dòng, CSV 251×10,
       `_kiem_tra_gui.py` 4/4, bố cục 75.4% nhỏ nhất, encoding `BOM=False CR=0`
+- [x] **Bản 3.0 — đọc biển số xe Việt Nam** (mặc định TẮT): module mới `bien_so.py`,
+      2 engine OCR riêng (chỉ-đọc / có-tìm-chữ), regex biển VN, chuẩn hoá **không bịa
+      ký tự**, xác nhận đa khung hình + cơ chế `mau_thuan`, lưu ảnh crop
+- [x] **Bản 3.0 — tự chụp ảnh khi có sự kiện** (mặc định TẮT): module mới
+      `tu_chup.py`, kèm `_bang_ke_chup.csv`
+- [x] **Bản 3.0 — 8 cờ CLI** + 2 nhóm GUI mới ("Đọc biển số xe", "Tự chụp ảnh khi có
+      sự kiện"), bản dịch Anh đủ **30/30** ghi chú
+- [x] **Đọc biển số không làm khựng pipeline**: pha tìm vùng chuyển sang luồng nền
+      + cache vùng + hạn chi phí 50 ms → **680,9 ms → 5,2 ms/khung** (có ROI),
+      **1916,6 ms → 7,5 ms/khung** (không ROI)
+- [x] **Sửa lỗi ô gợi ý trong ô nhập không hiện** (lớp `GoiYTronO`): "tự tìm" /
+      "mặc định" hiện đúng, nền khớp tuyệt đối, không che viền
+- [x] **Ghi chú tốc độ OCR trên GUI dùng số đo thật**: 9–15 ms/lần quét, max 62 ms
+      (thay con số mơ hồ "20–430 ms")
+- [x] **Sửa lỗi codec video — trình duyệt không phát được video trong báo cáo xem lại**:
+      video kết quả + clip tự lưu chuyển từ `mp4v` (MPEG-4 Part 2, **không có decoder
+      trong Chrome/Edge/Firefox**) sang **H.264 (`avc1`)**. Chọn codec bằng **probe 1 lần
+      có cache**, lùi về `mp4v` nếu máy không có encoder H.264. Đo thật sau fix:
+      `ffprobe` → **`codec_name=h264`**, `ffmpeg` decode sạch (exit 0), mở HTML bằng
+      **browser thật** → player load được (`total time: 0:10`), **0 lỗi console**
 
 ## Đang làm
 
 - [ ] **Chờ anh xác nhận mục 7** — kéo cửa sổ, còn giật hay không (chỉ có số đo)
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh
+- [ ] **Chờ ảnh biển số Việt Nam thật** của anh — mới nghiệm thu được OCR biển số
+      (hiện mới kiểm chứng bằng ảnh giả 10/10)
 
 ## Kế tiếp
 
+> Chi tiết use case + tầng nền tảng + thứ tự ưu tiên: **`USE_CASE.md`**
+> Trạng thái từng tính năng (đã chạy legit / có code / chưa chạy): `PROJECT_STATE.md` mục 2.1d
+
+- [ ] **N1 — Vẽ vùng / đường ngắm trong GUI, nhiều vùng** (đã có `ve_vung.py` CLI → nhúng vào GUI)
+- [ ] **N2 — Đăng ký người quen trong GUI** (đã có `dang_ky_anh.py` CLI → nhúng vào GUI)
+- [ ] **N8 — Báo cáo theo ca / ngày** (CSV hiện là theo giây)
+- [ ] **N4 — Rule cảnh báo theo điều kiện + kèm ảnh**
+- [ ] **N9 — Chống đếm trùng 1 người**
+- [ ] **N3 — Dashboard tổng quan + lịch sử sự kiện lưu lâu dài**
 - [ ] Khôi phục lưới "Đối tượng phát hiện" bị bỏ (chờ anh chọn) + cho chọn kênh cảnh báo
 - [x] Web: cập nhật lại sau khi GUI đổi — kiểm lại HTTP 200 + 401 (2026-10-19: trang chủ 200, API 401)
 - [ ] Thử web trên điện thoại thật
@@ -55,9 +86,13 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 
 ## Chờ anh quyết
 
+- [ ] **Camera máy chấm công**: đặt ở cửa hay trên xe? khoảng cách người đứng bao xa?
+      cùng lúc bao nhiêu người? cần **nhận diện theo tên** hay chỉ **đếm lượt**?
+      (quyết định mặc định `face_every` và có bật nhận diện mặt mặc định hay không)
 - [ ] Có thêm ô chọn webcam (camera live) trong GUI không?
 - [ ] Có cần model nhận diện khẩu trang không? (hiện cột `Mask:` luôn "Chưa rõ")
 - [ ] Giữ lưới "Đối tượng phát hiện" hay chỉ giữ timeline sự kiện?
+- [ ] Có nới hạn chi phí OCR 50 ms không? (biển 2 hàng đo ~54 ms → có thể bị cắt)
 
 ## Tương lai — chỉ khi app ổn định
 
