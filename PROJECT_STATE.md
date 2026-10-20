@@ -1,7 +1,28 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 09:50 — bản **3.5** sửa giật kéo cửa sổ (lần kéo đầu: 984 ms → **19,4 ms**) + thêm **launcher 1-click** để anh tự mở app, `VERSION` nay là **3.5**)
+**Ngày cập nhật:** 2026-10-20 (sau 14:20 — **định hướng sản phẩm đã chốt** (CamAI = app detect đa thể loại; app chấm công tách riêng; đổi nền tảng để sau) + bản **3.5** sửa giật kéo cửa sổ (lần kéo đầu: 984 ms → **19,4 ms**) + **launcher 1-click**, `VERSION` nay là **3.5**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
+
+> # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
+>
+> **1. CamAI là app "detect đa thể loại"** — phải chạy được trên **3 loại nguồn**:
+> **file video** (đã có ✅) · **ảnh tĩnh** (đang làm) · **quay video / camera** — webcam `0`
+> và camera IP `rtsp://` (đang làm). Mục tiêu: **detect được càng nhiều thể loại càng tốt**,
+> trả về ảnh đã vẽ khung + báo cáo.
+> **2. Ứng dụng chấm công → TÁCH RA APP RIÊNG.** Việc chấm công cần **CSDL khuôn mặt riêng**
+> (nhân sự, ca làm, đối soát) → **KHÔNG ôm vào CamAI**. App đó dùng **chung** module
+> `face_engine.py` + thư mục `known_faces/` với CamAI.
+> Nguyên tắc: **CamAI lo DETECT; app kia lo NGHIỆP VỤ + DỮ LIỆU.**
+> **3. Đổi nền tảng (PySide6/Qt) → LÀM SAU.** Khi đã chốt phạm vi tính năng thì mới quyết
+> định, để **một lần viết lại cho đủ** thay vì viết lại nhiều lần.
+> Chi tiết đầy đủ + bảng "thể loại detect" (P0→P4): **`USE_CASE.md` mục 0 và mục 3.1**.
+>
+> **Bài học quy trình (đừng lặp lại):** khi chọn nền tảng giao diện cho sản phẩm dành cho
+> người dùng cuối, phải **nói thẳng giới hạn thẩm mỹ** + **HỎI anh "đẹp hay nhẹ"** TRƯỚC
+> khi viết hàng nghìn dòng. Lần này em chọn Tkinter **đánh đổi im lặng** → giờ phải viết
+> lại giao diện. Và **luôn phải có launcher 1-click + hướng dẫn mở app** cho người không
+> rành kỹ thuật (anh đã phải nói thẳng là em chưa chỉ cách mở app).
+
 **Trạng thái ngắn:** **6 mục nghiệm thu tự đo — CẢ 6 ĐÃ ĐẠT** ở bản 2.8 (đo lại toàn bộ
 sau khi thêm `--tach-o`), mỗi mục có output thật kèm tên file. Mục 7 và 8 **chờ anh tự
 xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên tục 300 giây.
@@ -765,6 +786,10 @@ Báo cáo agent: `_kiem_chung/thong_luu_video_dai.txt` (278 dòng, có tự nêu
 
 | Quyết định | Lý do |
 |---|---|
+| **CamAI = app "detect đa thể loại"**, chạy trên **file video + ảnh + camera** (2026-10-20) | Anh chốt: mục tiêu là detect được càng nhiều thể loại càng tốt, từ 3 loại nguồn. Chi tiết: `USE_CASE.md` mục 0 |
+| **Ứng dụng chấm công tách ra app riêng, KHÔNG ôm vào CamAI** (2026-10-20) | Chấm công cần CSDL khuôn mặt + nhân sự + ca làm riêng. Dùng **chung** `face_engine.py` + `known_faces/`. CamAI lo detect, app kia lo nghiệp vụ + dữ liệu |
+| **Đổi nền tảng GUI (PySide6/Qt) → để SAU** (2026-10-20) | Chốt phạm vi tính năng trước, rồi mới đổi **một lần cho đủ**. Tkinter giữ nguyên trong lúc đó |
+| **Chọn lớp vật thể bằng tiếng Việt** (P1) | YOLO11 đã có sẵn 80 lớp COCO; chỉ làm lớp vỏ, **không cần model mới** |
 | Không làm tunnel Cloudflare | Anh yêu cầu dừng. Pipeline cần GPU/OpenCV/ONNX, chạy local là bắt buộc. |
 | GUI là CustomTkinter, không chuyển sang web | Anh muốn app desktop dễ dùng. Web là bản thứ hai. |
 | CSV giữ đúng 10 cột | Đã dùng nhiều nơi, đổi là vỡ tương thích. |
@@ -931,6 +956,20 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 9f. **Kiểm tra icon/checkbox phải chụp ảnh phóng to 3×.** Ở kích thước thật, dấu ✓ màu
    tối trên ô xanh và icon hình vuông đặc đều trông như lỗi/tofu. Không tin nhìn bằng mắt
    ở kích thước nhỏ.
+9g. **Chọn nền tảng giao diện: phải NÓI GIỚI HẠN + HỎI ƯU TIÊN, không đánh đổi im lặng.**
+   Với sản phẩm cho người dùng cuối, hãy hỏi *"anh ưu tiên giao diện đẹp hay app nhẹ
+   chạy ngay?"* **trước khi viết hàng nghìn dòng**. Lần này em chọn Python+Tkinter để
+   "không cần cài gì" mà **không nói với anh** → giao diện "chán" và tốn công viết lại.
+   Khi buộc phải đổi: **dựng cái mới SONG SONG** (file mới) + giữ bản cũ làm dự phòng +
+   launcher chỉ trỏ sang bản mới khi nào anh thấy ổn. Chi phí viết lại chỉ là phần
+   *code dựng widget*, phần *logic* giữ nguyên → **không mất tính năng nào**.
+9h. **Luôn phải có launcher 1-click + hướng dẫn mở app** cho người không rành kỹ thuật.
+   Anh đã phải nói thẳng *"bạn làm mà chả bao giờ chỉ tôi cách mở app"*. App không có
+   đường vào rõ ràng thì **mọi số đo của kỹ sư đều vô nghĩa với họ** — họ không mở được
+   app thì không kiểm chứng được gì cả.
+9i. **Phép đo A/B phải đo lần ĐẦU và các lần SAU, không so sánh 2 lần đo liên tiếp.**
+   Lần đo đầu luôn dính "phí khởi tạo hiển thị" → em đã ra kết luận sai một lần (bảo
+   tooltip là thủ phạm, trong khi thực ra con trỏ khi kéo không nằm trên app).
 10. **`cv2.putText` không hiển thị tiếng Việt có dấu.** Mọi overlay vẽ bằng PIL/Pillow.
 11. **Log `nhan_dien` của pipeline chính không tự đẩy tên xuống overlay live-view.**
     Live-view chạy YOLO + ArcFace riêng; phải tự quét tên theo track ID.
@@ -1043,6 +1082,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 14:20) | **ĐỊNH HƯỚNG SẢN PHẨM — anh chốt.** (1) **CamAI = app "detect đa thể loại"**, chạy trên **3 nguồn: file video ✅ · ảnh tĩnh (đang làm) · quay video/camera (webcam `0`, camera IP `rtsp://`, đang làm)**; mục tiêu **detect càng nhiều thể loại càng tốt**. (2) **Ứng dụng chấm công → TÁCH RA APP RIÊNG** (cần CSDL khuôn mặt riêng), dùng **chung** `face_engine.py` + `known_faces/`; nguyên tắc **CamAI lo detect, app kia lo nghiệp vụ + dữ liệu**. (3) **Đổi nền tảng (PySide6/Qt) → LÀM SAU**, khi đã chốt phạm vi tính năng để một lần viết lại cho đủ. Đã ghi đầy đủ vào `USE_CASE.md` mục 0 (định hướng) + mục 3.1 (bảng thể loại detect P0→P4), `PROJECT_STATE.md` mục 0 (đầu file) + mục 6 (gotcha 9g/9h/9i) + `ROADMAP.md`. Bài học: chọn nền tảng phải **nói giới hạn + hỏi ưu tiên "đẹp hay nhẹ"** trước, và **luôn có launcher 1-click + hướng dẫn mở app**. |
 | 2026-10-20 (sau 09:50) | **Bản 3.5 — sửa giật kéo cửa sổ + launcher 1-click.** Anh báo thật: *"kéo cửa sổ bị giật lắm"* + *"chả bao giờ chỉ tôi cách mở app"*. **Chẩn đoán bằng số đo** (loại 3 giả thuyết sai: tooltip, vẽ lại, app chạy nền): giật **chỉ ở lần kéo ĐẦU TIÊN** (859–984 ms; lần 2 = 20 ms; cửa sổ rỗng không bị; bỏ scrollbar → còn 144 ms) → thủ phạm là `CTkScrollbar._draw()` gọi **`update_idletasks()`** = xả hết hàng đợi idle **của toàn bộ app** → vẽ lại 851 widget. **Đã sửa + khởi động ấm + tooltip dùng 1 cửa sổ duy nhất, trì hoãn 450 ms** → lần kéo đầu còn **19,4 ms, 0 lần tre**, mở app **không chậm hơn** (13,3 s → 12,5 s). Thêm **`Mo CamAI.vbs`** (launcher 1-click, đã test thật) + **`Mo CamAI.bat`** + **`HUONG-DAN-MO-APP.md`**. 5 bộ kiểm chứng của coordinator PASS hết (e2e 7/7, 3.3 4/4, preview, ngôn ngữ 5/5, thiết kế 7/7). Bump 3.4 → **3.5**. Xem mục **2.1i**. |
 | 2026-10-20 (sau 06:45) | **Bản 3.4 — thiết kế lại toàn bộ giao diện + icon app do AI vẽ.** Anh: *"cái app này nhìn cứ phèn phèn"* → dùng skill **`ui-ux-pro-max`** sinh `design-system/camai/MASTER.md` làm nguồn sự thật; file mới **`giao_dien.py`** chứa hằng số thiết kế (màu + bổ sung **màu cảnh báo `#F59E0B`**, font, khoảng cách, bo góc, biểu tượng); **thanh đầu mới 64px** có icon app; **bỏ hết emoji làm icon** → font biểu tượng Windows `Segoe MDL2 Assets`; typography **Segoe UI + Cascadia Mono** (chỉ font có sẵn — app offline); component + lưới khoảng cách 4/8/12/16/24/32 thống nhất. **Icon app vẽ bằng Nano Banana Pro (Gemini 3 Pro Image)**: 4 biến thể → chọn "đầu người + ống kính + khung nhận dạng" → `assets/camai.png` 512 + `assets/camai.ico` 7 kích thước. Coordinator **tự mở ảnh** và phát hiện **2 lỗi thị giác thật**: (1) dấu ✓ trong ô checkbox **biến mất** vì CustomTkinter vẽ ô bằng `fg_color` còn tick bằng `checkmark_color` — đặt cùng màu; (2) icon nút DỪNG trông như **tofu** vì dùng Stop (hình vuông đặc) → đổi sang Pause (2 thanh). Bump 3.3 → **3.4**. Xem mục **2.1h**. |
 | 2026-10-20 (sau 04:50) | **Bản 3.3 — đẩy 3 tính năng "dùng tay" vào GUI + sửa 1 lỗi thật.** Anh chốt: tách 2 ô xem video (**"Xem trực tiếp"** + **"Xem khung hình kết quả"**) và đi theo hướng **(A) bộ công cụ AI dùng tay**. Thêm trong `gui.py`: nút **"Đăng ký người quen…"** (lưu `known_faces/<Tên>/`, dùng lại `dang_ky_anh.py`), nút **"Đọc biển số thử…"** (đọc 1 ảnh bằng `tim_vung`+`doc_vung`, **không** dùng `doc()` vì cần ≥2 khung hình), nút **"Vẽ vùng ngay tại đây"**; thêm module mới **`ve_vung_gui.py`** (canvas kéo chuột trong chính cửa sổ → tọa độ tương đối 0..1). Coordinator tự chạy và **phát hiện lỗi thật**: đọc `StringVar` từ thread nền → `main thread is not in main loop` → **đã sửa** (đẩy qua hàng đợi, UI thread xử lý) + kiểm chứng độ nhạy (vô hiệu hóa fix → lỗi tái hiện → bật lại → PASS). Kiểm chứng của coordinator: canvas **sai số 0.0000**, GUI **4/4 PASS**, hồi quy batch **PASS** (79 lần hiện khung, 107.129 màu), e2e **7/7 PASS** (28,3 s). Bump 3.2 → **3.3**. Xem mục **2.1g**. |

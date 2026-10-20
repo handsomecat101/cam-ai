@@ -6,6 +6,25 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 
 ---
 
+## ⚠ ĐỊNH HƯỚNG ĐÃ CHỐT — 2026-10-20 (sau 14:20)
+
+Đọc `USE_CASE.md` mục 0 và `PROJECT_STATE.md` mục 0 (đầu file) trước khi làm tiếp.
+
+1. **CamAI = app "detect đa thể loại"** — chạy trên **3 loại nguồn**:
+   **file video** ✅ · **ảnh tĩnh** (đang làm) · **quay video / camera** — webcam `0` và camera IP
+   `rtsp://` (đang làm). Mục tiêu: **detect càng nhiều thể loại càng tốt**
+   (bảng P0→P4 ở `USE_CASE.md` mục 3.1).
+2. **Ứng dụng chấm công = 1 APP RIÊNG** (cần CSDL khuôn mặt riêng: nhân sự, ca làm, đối soát),
+   dùng **chung** `face_engine.py` + `known_faces/` với CamAI. Nguyên tắc: **CamAI lo detect,
+   app kia lo nghiệp vụ + dữ liệu. KHÔNG ôm chấm công vào CamAI.**
+3. **Đổi nền tảng (PySide6/Qt) → LÀM SAU** — khi đã chốt phạm vi tính năng thì mới quyết định,
+   để **một lần viết lại cho đủ** thay vì viết lại nhiều lần.
+4. **Bài học quy trình**: chọn nền tảng phải **nói thẳng giới hạn thẩm mỹ + hỏi anh "đẹp hay
+   nhẹ"** trước khi viết nhiều dòng (lần này em đánh đổi im lặng → giao diện "chán"); và
+   **luôn có launcher 1-click + hướng dẫn mở app** cho người không rành kỹ thuật.
+
+---
+
 ## Đã xong
 
 - [x] Lõi AI: phát hiện/đếm người, nhận diện mặt, người quen, tuổi/giới
@@ -108,6 +127,16 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       hàng đợi idle của cả app) → đã sửa + khởi động ấm → **lần kéo đầu: 984 ms → 19,4 ms,
       0 lần tre**; mở app không chậm hơn. Thêm `Mo CamAI.vbs` + `Mo CamAI.bat` +
       `HUONG-DAN-MO-APP.md`
+- [ ] **P0 — nguồn ảnh tĩnh**: chế độ phân tích 1 ảnh, xuất **ảnh đã vẽ khung** + CSV
+      (đang làm ở tầng lõi/CLI; nối vào GUI sau)
+- [ ] **P0 — nguồn camera**: chọn thiết bị (`--list-camera`), webcam `0`, camera IP `rtsp://`,
+      dừng bằng phím, thanh tiến trình kiểu không xác định (đang làm ở tầng lõi/CLI)
+- [ ] **Gom 12 nhóm cấu hình → 4 mục lớn** (NGUỒN / PHÂN TÍCH / BIỂN SỐ & ẢNH / CẢNH BÁO &
+      MÔ HÌNH), 1 mục mở tại một lúc, mỗi mục có 1 dòng mô tả (đang làm)
+- [ ] **P1 — chọn lớp vật thể bằng TIẾNG VIỆT**: YOLO11 đã có sẵn 80 lớp COCO nhưng anh
+      phải gõ tên lớp tiếng Anh. Cần map sang nhóm tiếng Việt (Phương tiện / An toàn lao
+      động / Giao thông / Động vật / Đồ vật…) + ô tick chọn. **Không cần model mới**
+- [ ] **P1 — đếm phương tiện**: dùng lớp `car/motorcycle/bus/truck` + đếm ra–vào sẵn có
 - [ ] **Chờ anh xác nhận lại mục 7** — mở app (double-click `Mo CamAI.vbs`) rồi kéo cửa sổ xem
       còn giật không. Số đo đã sạch nhưng **cần cảm nhận của người dùng**
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh

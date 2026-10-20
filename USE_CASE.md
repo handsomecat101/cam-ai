@@ -1,12 +1,27 @@
 # Use case & backlog tính năng — CamAI
 
-**Ngày lập:** 2026-10-19 (sau 21:30)
+**Ngày lập:** 2026-10-19 (sau 21:30) — **cập nhật 2026-10-20 (sau 14:20) theo quyết định của anh**
 **Mục đích:** ghi lại các hướng dùng + những tính năng nên làm tiếp, để lần sau bị bí
 không biết làm gì thì lôi file này ra triển khai, không phải nghĩ lại từ đầu.
 
 > **Nguyên tắc:** CamAI là **một lõi AI dùng chung** cho nhiều lĩnh vực. Mỗi use case
 > khác nhau ở *cấu hình + rule + báo cáo*, không phải ở thuật toán. Nên ưu tiên làm
 > **tầng nền tảng** (mục 2) trước khi thêm model AI mới.
+
+---
+
+## 0. ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20)
+
+| Quyết định | Nội dung |
+|---|---|
+| **CamAI là app "detect đa thể loại"** | Một app, chạy được trên **3 loại nguồn**: **file video** (đã có ✅) · **ảnh tĩnh** (đang làm) · **quay video / camera** — webcam `0` và camera IP `rtsp://` (đang làm) |
+| **Ứng dụng chấm công → tách ra app riêng** | Việc chấm công cần **cơ sở dữ liệu khuôn mặt riêng** (dữ liệu nhân sự, ca làm, đối soát) → **KHÔNG ôm vào CamAI**. Nó sẽ là **1 app khác**, dùng **chung** module `face_engine.py` + thư mục `known_faces/` với CamAI. Nguyên tắc: **CamAI = detect; app kia = nghiệp vụ + dữ liệu** |
+| **Đổi nền tảng → làm SAU** | Tạm dừng việc cân nhắc PySide6/Qt. Khi đã chốt phạm vi tính năng thì mới quyết định đổi lớp giao diện, để **một lần viết lại cho đủ** thay vì viết lại nhiều lần |
+
+**Điểm cốt lõi để nhớ:** CamAI **không** phải app chấm công. CamAI là **máy detect** —
+nhận vào một nguồn hình ảnh, trả về **mọi thứ nó nhận ra được** (người, mặt, tên, biển số,
+vật thể, sự kiện ra/vào) + ảnh đã vẽ khung + báo cáo. Ứng dụng nào dùng nó thì tự đặt
+rule và dữ liệu riêng.
 
 ---
 
@@ -59,6 +74,39 @@ trì mà không giải quyết vấn đề "người không rành kỹ thuật v
 ---
 
 ## 3. Tính năng AI mở rộng (cần model riêng — làm SAU tầng nền tảng)
+
+### 3.1 Bảng "thể loại detect" — mục tiêu: **phủ càng nhiều càng tốt**
+
+Hiện CamAI đã detect được (đều **đã chạy thật**, xem `PROJECT_STATE.md` mục 2.1d):
+
+| # | Thể loại | Cơ chế hiện tại | Trạng thái |
+|---|---|---|---|
+| 1 | **Người** | YOLO11 `person` | ✅ có |
+| 2 | **Khuôn mặt** | ArcFace (scrfd + w600k) | ✅ có |
+| 3 | **Tên người quen** | ArcFace embedding + `known_faces/` | ✅ có |
+| 4 | **Tuổi / giới** | `genderage.onnx` | ✅ có |
+| 5 | **Biển số xe** | RapidOCR (2 engine) + regex VN | ✅ có (chưa có ảnh thật để nghiệm thu) |
+| 6 | **Vật thể 80 lớp COCO** | YOLO11 (`--lop`) | ⚠️ có, nhưng anh phải **gõ tên lớp tiếng Anh** → chưa dùng được với người không rành kỹ thuật |
+| 7 | **Ra / vào theo vùng** | bbox + vùng canh | ✅ có |
+| 8 | **Đứng lâu / quá ngưỡng đông** | quy tắc theo thời gian | ✅ có |
+
+**Cần làm tiếp (xếp theo giá trị / công):**
+
+| Ưu tiên | Thể loại | Cần gì | Ghi chú |
+|---|---|---|---|
+| **P0** | **Nguồn ảnh tĩnh** | chế độ phân tích 1 ảnh, xuất ảnh đã vẽ khung | Đang làm |
+| **P0** | **Nguồn camera** (webcam `0`, camera IP `rtsp://`) | chọn thiết bị, chạy live, dừng bằng phím | Đang làm |
+| **P1** | **Chọn lớp vật thể bằng TIẾNG VIỆT** | map 80 lớp COCO → nhóm tiếng Việt (Phương tiện / An toàn lao động / Giao thông / Động vật / Đồ vật / …) + ô chọn có tick | YOLO11 **đã có sẵn** trong 1 lần gọi → chỉ là lớp vỏ, **không cần model mới** |
+| **P1** | **Đếm phương tiện** | dùng lớp `car/motorcycle/bus/truck` + đếm ra–vào | Dùng lại pipeline đếm sẵn có |
+| **P2** | **Mũ bảo hiểm / PPE** | YOLO11 có class `helmet` → dùng được ngay, sau đó mới train model PPE đầy đủ | Không cần model mới ở bước đầu |
+| **P2** | **Biển chữ / số móc / số container** | RapidOCR (đã có) chạy trên vùng chữ | Chỉ cần thêm quy tắc vùng |
+| **P2** | **Đo khoảng cách giữa 2 người** | bbox + toạ độ mặt đất | Không cần model mới |
+| **P3** | **Đếm theo chiều (vào/ra riêng theo làn)** | vùng + hướng chuyển động | Nâng cấp của đếm ra–vào |
+| **P3** | **Re-ID xuyên camera** | model re-ID | Cần cho multi-camera |
+| **P4** | **Phân vùng (segmentation)** | model segmentation | Ảnh crop đẹp hơn |
+| **P4** | **OCR tổng quát / đếm hàng hoá / gia súc / hành vi** | train model riêng | Chỉ khi khách cụ thể cần |
+
+### 3.2 Tính năng cần model riêng (làm SAU tầng nền tảng)
 
 | Tính năng | Cần gì | Ghi chú |
 |---|---|---|
