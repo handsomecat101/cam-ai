@@ -46,6 +46,18 @@ import numpy as np
 
 from cam_ai_core import (AnalysisConfig, CamAIError, Progress, VERSION,
                          chon_providers, chon_thiet_bi, run_analysis)
+# v3.6: nguon vao co 4 kieu (video / anh / camera may / camera IP).
+# DOC cam_ai_core, KHONG sua. Dung `import ... as CORE` de 1 ham bi doi
+# trong cam_ai_core khong lam GUI chet ngay luc import.
+import cam_ai_core as CORE
+# v3.6: bang tra cuu lop TIENG VIET <-> TIENG ANH (lop_viet.py). File nay tach
+# rieng (khong import ultralytics/torch) nen khoi dong app van nhanh.
+# Import co FALLBACK: app van chay duoc neu file chua co / bi loi - chi la
+# khong tra cuu duoc ten lop tieng Viet.
+try:
+    import lop_viet
+except Exception:                                     # noqa: BLE001
+    lop_viet = None
 from duong_dan import APP_DIR
 
 # Phan tach rieng: ve overlay + panel "Đối tượng phát hiện".
@@ -75,6 +87,113 @@ VIDEO_FILETYPES = [
     ("Tat ca file", "*.*"),
 ]
 ZONE_FILETYPES = [("File vung", "*.txt"), ("Tat ca file", "*.*")]
+
+# v3.6: bo loc file ANH cho hop thoai chon anh.
+# DUOI_ANH lay tu cam_ai_core (1 noi duy nhat) - fallback neu core doi ten.
+DUOI_ANH_MAC_DINH = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff")
+ANH_FILETYPES = [
+    ("Anh", " ".join("*" + d for d in DUOI_ANH_MAC_DINH)),
+    ("Tat ca file", "*.*"),
+]
+
+# Loai nguon (xem `cam_ai_core.loai_nguon`).
+LOAI_ANH = "anh"
+LOAI_CAMERA = "camera"
+LOAI_MANG = "mang"
+LOAI_VIDEO = "video"
+
+# Tien to dia chi camera IP ( dung de kiem tra nhanh o GUI).
+TIEN_DO_MANG = ("rtsp://", "rtmp://", "http://", "https://")
+
+
+def loai_nguon(input_str) -> str:
+    """Loai nguon vao: 'anh' | 'camera' | 'mang' | 'video'.
+
+    Uu tien ham cua `cam_ai_core` (1 noi duy nhat quyet dinh). Neu core chua
+    co ham nay (dang sua) -> tu suy ra cho app van chay duoc.
+    """
+    ham = getattr(CORE, "loai_nguon", None)
+    if ham is not None:
+        return ham(input_str)
+    goc = str(input_str or "").strip()
+    if not goc:
+        return LOAI_VIDEO
+    if goc == "0":
+        return LOAI_CAMERA
+    if goc.lower().startswith(TIEN_DO_MANG):
+        return LOAI_MANG
+    duoi = getattr(CORE, "DUOI_ANH", DUOI_ANH_MAC_DINH)
+    if os.path.splitext(goc.lower())[1] in duoi:
+        return LOAI_ANH
+    return LOAI_VIDEO
+
+
+def la_live(input_str) -> bool:
+    """True neu nguon la camera (may hoac IP) -> chay lien tuc, tong frame = 0."""
+    return loai_nguon(input_str) in (LOAI_CAMERA, LOAI_MANG)
+
+
+def duoi_anh() -> tuple:
+    """Cac duoi file duoc coi la ANH TINH (doc tu cam_ai_core)."""
+    return tuple(getattr(CORE, "DUOI_ANH", DUOI_ANH_MAC_DINH))
+
+
+def _la_tat_ca_lop(chuoi: str) -> bool:
+    """'all' / 'tat ca' -> True (dung chung quy uoc voi `lop_viet`).
+
+    Fallback khi `lop_viet` khong co: chi nhan dung chu "all".
+    """
+    if lop_viet is not None:
+        ham = getattr(lop_viet, "LA_TAT_CA", None)
+        if ham is not None:
+            try:
+                return bool(ham(chuoi))
+            except Exception:                             # noqa: BLE001
+                pass
+    return str(chuoi or "").strip().lower() == "all"
+
+
+def _chon_lop_cho_xem(chuoi: str, id_lop: dict) -> tuple[list[str], list[str]]:
+    """Chon lop vatu thu tu chuoi nguoi dung nhap (dung cho KHUNG XEM TRUC TIEP).
+
+    DUNG CHUNG ham `_chon_lop` cua `cam_ai_core` -> GUI va CLI cho ra cung
+    ket qua: nhan duoc ca ten lop tieng Anh va tieng Viet ("o to, xe may").
+
+    - `cam_ai_core` chua co ham nay (ban cu) -> fallback tu tra cuu.
+    - `lop_viet` cung khong co -> fallback chi nhan ten lop tieng Anh.
+
+    Tra (danh sach lop hop le, danh sach token khong nhan ra).
+    """
+    ham = getattr(CORE, "_chon_lop", None)
+    if ham is not None:
+        try:
+            return ham(chuoi, id_lop)
+        except Exception:                                 # noqa: BLE001
+            pass
+    # Fallback: core chua co `_chon_lop` -> tu lam theo cung quy tac.
+    ra: list[str] = []
+    sai: list[str] = []
+    tach = getattr(lop_viet, "TACH_LOP_VIET", None) if lop_viet else None
+    tra = getattr(lop_viet, "TRA_CUU_LOP_VIET", None) if lop_viet else None
+    if tach is None or tra is None:
+        for phan in [x.strip() for x in str(chuoi).split(",") if x.strip()]:
+            if phan in id_lop:
+                ra.append(phan)
+            else:
+                sai.append(phan)
+        return ra, sai
+    for phan in tach(chuoi):
+        if phan in id_lop:
+            if phan not in ra:
+                ra.append(phan)
+            continue
+        ten = tra(phan)
+        if ten and ten[0] in id_lop:
+            if ten[0] not in ra:
+                ra.append(ten[0])
+        else:
+            sai.append(phan)
+    return ra, sai
 
 MAX_LOG_LINES = 200
 # Chu kỳ bơm hàng đợi. ĐÂY LÀ TRẦN SỐ KHUNG HÌNH NGƯỜI DÙNG THẤY.
@@ -336,6 +455,59 @@ DICH_VI_EN = {
     "Chọn…": "Choose…",
     "Tự thêm đuôi: _ket_qua.mp4 và _bao_cao.csv":
         "Suffix added automatically: _ket_qua.mp4 and _bao_cao.csv",
+
+    # --- v3.6: chon nguon (video / anh / camera may / camera IP) ---
+    "Nguồn": "Source",
+    "Chọn ảnh…": "Choose image…",
+    "Chọn camera…": "Choose camera…",
+    "Danh sách camera": "Camera list",
+    "Chọn ảnh": "Choose image",
+    "Chọn camera": "Choose camera",
+    "Quét camera": "Scan cameras",
+    "Đang quét…": "Scanning…",
+    "Huỷ": "Cancel",
+    "Đóng": "Close",
+    "Địa chỉ camera IP": "IP camera address",
+    "Dùng địa chỉ này": "Use this address",
+    "Loại nguồn: ": "Source type: ",
+    "Ảnh tĩnh": "Still image",
+    "Camera máy": "Built-in camera",
+    "Camera IP": "IP camera",
+    "Chưa chọn": "Not selected",
+    "Chọn camera máy trong danh sách bên dưới, hoặc nhập địa chỉ camera IP "
+    "phía trên.":
+        "Pick a built-in camera from the list below, or type an IP camera "
+        "address above.",
+    "Chưa quét camera. Bấm nút 'Quét camera' để tìm camera trên máy này.":
+        "Not scanned yet. Press 'Scan cameras' to look for cameras on this "
+        "machine.",
+    "Máy này không có camera nào. Bạn vẫn có thể nhập địa chỉ camera IP "
+    "phía trên.":
+        "This machine has no camera. You can still type an IP camera address "
+        "above.",
+    "Địa chỉ camera IP phải bắt đầu bằng rtsp://, rtmp://, http:// hoặc "
+    "https://.":
+        "IP camera address must start with rtsp://, rtmp://, http:// or "
+        "https://.",
+    "Đã hủy quét camera.": "Camera scan cancelled.",
+    "Camera": "Camera",
+    "Số camera tìm thấy: ": "Cameras found: ",
+    "Thiếu địa chỉ camera IP": "Missing IP camera address",
+    "Hãy nhập địa chỉ camera IP trước khi bấm 'Dùng địa chỉ này'.":
+        "Type the IP camera address before pressing 'Use this address'.",
+    "Địa chỉ camera IP sai": "Wrong IP camera address",
+    "Đã chọn camera máy: ": "Selected built-in camera: ",
+    "Đã chọn camera IP: ": "Selected IP camera: ",
+    "Nguồn: ": "Source: ",
+    "Chỉ vẽ vùng được với nguồn video.":
+        "Zones can only be drawn on a video source.",
+    "Nguồn camera: dùng luôn khung hình của pipeline để xem, không mở thêm "
+    "kết nối camera thứ hai.":
+        "Camera source: the pipeline frames are used for preview, no second "
+        "camera connection is opened.",
+    "Nguồn ảnh tĩnh: hiển thị luôn khung hình đã vẽ khung.":
+        "Still image source: the annotated frame is shown directly.",
+    "Lỗi phân tích": "Analysis error",
     "Video mẫu dùng thử": "Sample video to try",
     "Dùng video mẫu này": "Use this sample video",
     "Bấm nút để điền đường dẫn, rồi bấm BẮT ĐẦU":
@@ -510,9 +682,18 @@ DICH_VI_EN = {
     # --- nhom 6: vat the ---
     "Danh sách lớp cần nhận": "Classes to detect",
     "để trống = nhóm mặc định": "empty = default group",
-    "Ví dụ: car, motorcycle, dog, cat — cách nhau bằng dấu phẩy. "
+    "Gõ lớp cần nhận, cách nhau bằng dấu phẩy. "
+    "Nhận được cả tiếng Việt: ô tô, xe máy, chó, mèo… "
+    "(để trống = dùng nhóm lớp mặc định, gõ all = mọi lớp trừ người).":
+        "Type the classes to detect, separated by commas. "
+        "Vietnamese works too: car, motorcycle, dog, cat… "
+        "(leave empty = use the default class group, type all = every class "
+        "except people).",
+    "Ví dụ: ô tô, xe máy, chó, mèo hoặc "
+    "car, motorcycle, dog, cat — cách nhau bằng dấu phẩy. "
     "Để trống = nhóm lớp phổ biến. Gõ all = mọi lớp trừ người.":
-        "Example: car, motorcycle, dog, cat — separated by commas. "
+        "Example: car, motorcycle, dog, cat or "
+        "ô tô, xe máy, chó, mèo — separated by commas. "
         "Leave empty = common classes. Type all = every class except people.",
     "Tốc độ: gần như không chậm đi. Đo thật ngày 19/10/2026 trên "
     "video nhiều xe, xem trực tiếp chậm hơn khoảng 3–9%, và "
@@ -531,6 +712,8 @@ DICH_VI_EN = {
     "Vật thể: {n}": "Objects: {n}",
     "> [vật thể] Đang nhận {n} lớp: {ds}":
         "> [objects] Detecting {n} classes: {ds}",
+    "> [vật thể] Bỏ qua lớp không có: ": "> [objects] Skipped unknown classes: ",
+    "> [vật thể] Các lớp đang nhận: ": "> [objects] Classes being detected: ",
     "> [vật thể] Không còn lớp nào hợp lệ, tắt nhận vật thể.":
         "> [objects] No valid class left, object detection is off.",
 
@@ -817,7 +1000,7 @@ DICH_VI_EN = {
         "Suffix added automatically: _ket_qua.mp4 and _bao_cao.csv",
     "Đang chạy · khung hình {frame}/{tong} · {phan_tram}%":
         "Running · frame {frame}/{tong} · {phan_tram}%",
-    "Mở video kết quả": "Open result video",
+    "Mở kết quả": "Open result",
     "Xem báo cáo": "Open report",
     "Nhận diện tên trên ảnh": "Read names on the crops",
     "Tên lấy từ bộ nhận diện mặt đang chạy song song. Tắt đi thì nhẹ máy hơn.":
@@ -1555,6 +1738,8 @@ class NhomTinhNang(ctk.CTkFrame):
         )
         # nut mui ten giu nguyen mau trong suot - khong cho vong mau chung doi.
         self.btn_mo._bo_toc_style = True
+        # Nut mui ten TU QUAN LY CHU: doi ngon nung KHONG duoc ve lai glyph.
+        self.btn_mo._bo_ngon_ngu = True
         self.btn_mo.grid(row=0, column=0, sticky="w", padx=(4, KHOANG_CACH),
                          pady=4)
 
@@ -1676,14 +1861,21 @@ class NhomLon(ctk.CTkFrame):
         self.thanh.grid_columnconfigure(1, weight=1)
 
         # Nut chevron: MUOI TEN XOAY khi mo / dong (2 glyph khac nhau).
+        # Muc lon MO SAN -> muon XUONG (E70D) ngay tu dau, nguoi dung moi
+        # phan biet duoc muc nao dang mo. KHONG goi `dat_mo()` o day (no dong
+        # cac muc lon khac -> sai logic "chi 1 muc lon mo").
         self.btn_mo = ctk.CTkButton(
-            self.thanh, text=bieu_tượng("mui_phai"), width=32, height=32,
+            self.thanh, text=bieu_tượng("mui_xuong" if mo_san else "mui_phai"),
+            width=32, height=32,
             fg_color="transparent", hover_color=MAU["nut_phu"],
             text_color=MAU["chu"], font=font_bieu_tuong,
             corner_radius=BO_GOC_NUT, command=self._doi_trang_thai,
         )
         # nut mui ten giu nguyen mau trong suot - khong cho vong mau chung doi.
         self.btn_mo._bo_toc_style = True
+        # Nut mui ten TU QUAN LY CHU: doi ngon nung KHONG duoc ve lai glyph
+        # (neu ve lai, muc dang mo bi quay ve mui phai -> sai trang thai).
+        self.btn_mo._bo_ngon_ngu = True
         self.btn_mo.grid(row=0, column=0, sticky="w", padx=(4, 8), pady=4)
 
         # Tieu de muc lon: HOA, 15px bold, chu `chu` - noi bat nhat cot trai.
@@ -1807,6 +1999,11 @@ class CamAIGui(ctk.CTk):
         self.last_canh_lau = 0
         self._cb = None                 # doi tuong CanhBao (tao lazy)
         self.cua_so_model = None
+        # v3.6: nguon vao + hop thoai chon camera.
+        self._cua_so_camera = None
+        self._huy_quet_camera = False
+        self._nguon_live = False       # nguon camera (may/IP) -> bar indeterminate
+        self._bar_indeterminate = False
         self._mau_trang_thai = "chua_chay"
         self._du_lieu_trang_thai = {}
         self._anh_icon = None           # anh icon app (neu co file .ico)
@@ -2829,12 +3026,30 @@ class CamAIGui(ctk.CTk):
 
     # ---------------------------------------------------------- hang video
 
+    def _be_nut_chu(self, chuoi: str, min_be: int = 90) -> int:
+        """Be ngang (px) cua nut vua du cho `chuoi` - tranh chu bi cat.
+
+        Do bang font thuc te (`font_nut`) chu khong do dai chu co dinh ->
+        nut luon vua khong cat chu khi cua so / font doi.
+        """
+        try:
+            do = int(self.font_nut.measure(chuoi))
+        except Exception:                             # noqa: BLE001
+            do = len(chuoi) * 8
+        return max(min_be, do + 22)
+
     def _hang_video(self, parent):
-        """Khoi CHON NGUON: duong dan video + thu muc luu ket qua.
+        """Khoi CHON NGUON: video / anh / camera + thu muc luu ket qua.
 
         Nhan o DONG TREN, o nhap o DONG DUOI (dung rong 288px) - duong dan
         video thuong dai hon 250px, xep cung hang voi nhan thi bi CAT CHU.
         Tooltip (`HuongDan`) hien TOAN BO duong dan khi re chuot vao o.
+
+        O "Nguon" (truoc day la "Video") chua 4 kieu vao:
+          * duong dan video (mp4/avi/...)
+          * duong dan ANH TINH (jpg/png/...)
+          * index camera may ("0")
+          * dia chi camera IP (rtsp://... hoac http://...)
 
         Video mau KHONG nam o day: no la MOT DAI THE ANH XEM TRUOC chay
         ngang o duoi cua so (`_bang_video_mau`).
@@ -2844,8 +3059,8 @@ class CamAIGui(ctk.CTk):
                pady=(0, GD.KHOANG_CACH["lon"]))
         f.grid_columnconfigure(0, weight=1)
 
-        # --- 1. VIDEO ---
-        ctk.CTkLabel(f, text="Video", font=self.font_nho,
+        # --- 1. NGUON ---
+        ctk.CTkLabel(f, text="Nguồn", font=self.font_nho,
                      text_color=MAU["chu"], anchor="w").grid(
             row=0, column=0, sticky="w")
         o_video = ctk.CTkEntry(f, textvariable=self.v_video)
@@ -2853,29 +3068,60 @@ class CamAIGui(ctk.CTk):
         # Duong dan dai hon o -> tooltip hien day du.
         HuongDan(o_video, lambda: self.v_video.get(), font=self.font_nho_xam)
 
+        # Dong nhan trang thai: loai nguon hien tai. Tu cap nhat moi khi o
+        # nguon doi (ke ca khi nguoi dung go tay) - xem `_cap_nhat_nhan_nguon`.
+        self.lbl_nguon = ctk.CTkLabel(f, text="", font=self.font_nho_xam,
+                                      text_color=MAU["chu_phu"], anchor="w")
+        self.lbl_nguon.grid(row=2, column=0, sticky="w", pady=(3, 0))
+
         f_nut = ctk.CTkFrame(f, fg_color="transparent")
-        f_nut.grid(row=2, column=0, sticky="ew",
+        f_nut.grid(row=3, column=0, sticky="ew",
                    pady=(GD.KHOANG_CACH["nho"], 0))
+        f_nut.grid_columnconfigure(0, weight=0)
         f_nut.grid_columnconfigure(1, weight=1)
-        ctk.CTkButton(f_nut, text="Chọn video…", width=120,
+        # Be ngang nut TINH THEO CHU (do font ra) - tranh chu bi cat khi
+        # cua so hep (cot cau hinh chi ~288px).
+        ctk.CTkButton(f_nut, text="Chọn video…",
+                      width=self._be_nut_chu("Chọn video…"),
                       command=self._chon_video, anchor="w").grid(
             row=0, column=0, sticky="w")
-        ctk.CTkButton(f_nut, text="Mở thư mục clip", width=160,
+        ctk.CTkButton(f_nut, text="Chọn ảnh…",
+                      width=self._be_nut_chu("Chọn ảnh…"),
+                      command=self._chon_anh, anchor="w").grid(
+            row=0, column=1, sticky="w",
+            padx=(GD.KHOANG_CACH["nho"], 0))
+        ctk.CTkButton(f_nut, text="Chọn camera…",
+                      width=self._be_nut_chu("Chọn camera…"),
+                      command=self._chon_camera, anchor="w").grid(
+            row=1, column=0, sticky="w",
+            pady=(GD.KHOANG_CACH["nho"], 0))
+        ctk.CTkButton(f_nut, text="Danh sách camera",
+                      width=self._be_nut_chu("Danh sách camera"),
+                      command=self._xem_danh_sach_camera, anchor="w").grid(
+            row=1, column=1, sticky="w",
+            padx=(GD.KHOANG_CACH["nho"], 0),
+            pady=(GD.KHOANG_CACH["nho"], 0))
+        ctk.CTkButton(f_nut, text="Mở thư mục clip",
+                      width=self._be_nut_chu("Mở thư mục clip"),
                       fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
                       command=self._mo_thu_muc_clip
-                      ).grid(row=0, column=1, sticky="w",
-                            padx=(GD.KHOANG_CACH["nho"], 0))
+                      ).grid(row=2, column=0, columnspan=2, sticky="w",
+                             pady=(GD.KHOANG_CACH["nho"], 0))
+
+        # O nguon doi -> dong nhan loai nguon doi theo.
+        self.v_video.trace_add("write", self._cap_nhat_nhan_nguon)
+        self._cap_nhat_nhan_nguon()
 
         # --- 2. LUU KET QUA ---
         ctk.CTkLabel(f, text="Lưu kết quả", font=self.font_nho,
                      text_color=MAU["chu"], anchor="w").grid(
-            row=3, column=0, sticky="w", pady=(GD.KHOANG_CACH["vua"], 0))
+            row=4, column=0, sticky="w", pady=(GD.KHOANG_CACH["vua"], 0))
         o_output = ctk.CTkEntry(f, textvariable=self.v_output)
-        o_output.grid(row=4, column=0, sticky="ew", pady=(4, 0))
+        o_output.grid(row=5, column=0, sticky="ew", pady=(4, 0))
         HuongDan(o_output, lambda: self.v_output.get(), font=self.font_nho_xam)
 
         f_out = ctk.CTkFrame(f, fg_color="transparent")
-        f_out.grid(row=5, column=0, sticky="ew",
+        f_out.grid(row=6, column=0, sticky="ew",
                    pady=(GD.KHOANG_CACH["nho"], 0))
         ctk.CTkButton(f_out, text="Chọn…", width=140,
                       command=self._chon_output, anchor="w").grid(
@@ -3369,10 +3615,15 @@ class CamAIGui(ctk.CTk):
         # Goi y trong o phai NGAN: cot ben trai hep, do that "de trong = nhom
         # mac dinh" rong 142px -> tran ra ngoai o. Phan giai day du: tooltip.
         GoiYTronO(o_lop, "mặc định", font=self.font_nho)
-        HuongDan(o_lop, "Để trống = dùng nhóm lớp mặc định. "
-                       "Gõ all = mọi lớp trừ người.",
+        # Tooltip dung LAMBDA -> noi dung lay lai luc mo (doi ngon nung thi
+        # tooltip hien tieng Anh, khong phai chu Viet cu).
+        HuongDan(o_lop, lambda: self.dich(
+            "Gõ lớp cần nhận, cách nhau bằng dấu phẩy. "
+            "Nhận được cả tiếng Việt: ô tô, xe máy, chó, mèo… "
+            "(để trống = dùng nhóm lớp mặc định, gõ all = mọi lớp trừ người)."),
                  font=self.font_nho)
-        self._ghi_y(b, "Ví dụ: car, motorcycle, dog, cat — cách nhau bằng dấu phẩy. "
+        self._ghi_y(b, "Ví dụ: ô tô, xe máy, chó, mèo hoặc "
+                       "car, motorcycle, dog, cat — cách nhau bằng dấu phẩy. "
                        "Để trống = nhóm lớp phổ biến. Gõ all = mọi lớp trừ người.")
         self._ghi_y(b, "Tốc độ: gần như không chậm đi. Đo thật ngày 19/10/2026 trên "
                        "video nhiều xe, xem trực tiếp chậm hơn khoảng 3–9%, và "
@@ -3736,7 +3987,7 @@ class CamAIGui(ctk.CTk):
                      anchor="w").grid(
             row=0, column=0, sticky="w", padx=12, pady=(8, 0))
         self.btn_mo_ket_qua = ctk.CTkButton(
-            f, text="Mở video kết quả", width=175, height=KICH_THUOC["cao_nut"],
+            f, text="Mở kết quả", width=175, height=KICH_THUOC["cao_nut"],
             command=self._mo_video_ket_qua, state="disabled",
         )
         self.btn_mo_ket_qua.grid(row=0, column=1, padx=(0, KHOANG_CACH),
@@ -3779,6 +4030,296 @@ class CamAIGui(ctk.CTk):
                                           filetypes=VIDEO_FILETYPES)
         if path:
             self.v_video.set(path)
+
+    def _chon_anh(self):
+        """Chon 1 ANH TINH (jpg/png/...) - phan tich dung 1 khung hinh."""
+        path = filedialog.askopenfilename(
+            title=self.dich("Chọn ảnh"),
+            filetypes=[("Anh", " ".join("*" + d for d in duoi_anh())),
+                       ("Tat ca file", "*.*")],
+        )
+        if path:
+            self.v_video.set(path)
+
+    # --------------------------------------------- v3.6: CHON CAMERA
+    #
+    # Hop thoai con (CTkToplevel) cho phep:
+    #   * quet camera tren may (chay TRONG THREAD - quet mat vai giay),
+    #   * chon 1 camera trong danh sach -> gan "0"/"1"/... vao o nguon,
+    #   * nhap dia chi camera IP (rtsp://... ) -> gan vao o nguon.
+    # Ket qua quet ve bang HANG DOI cua app (`self.queue`) -> khong bao gio
+    # doc bien Tk tu thread.
+
+    def _cap_nhat_nhan_nguon(self, *_args) -> None:
+        """Dong nhan 'Loai nguon' - tu doi moi khi o nguon doi.
+
+        `trace_add` cua StringVar goi ham nay khi nguoi dung go tay vao o,
+        nen nhan luon khop voi noi dung hien tai.
+        """
+        lbl = getattr(self, "lbl_nguon", None)
+        if lbl is None:
+            return
+        goc = str(self.v_video.get() or "").strip()
+        chu = self.dich("Loại nguồn: ") + self._mo_ta_nguon(goc)
+        try:
+            lbl.configure(text=chu)
+        except Exception:                             # noqa: BLE001
+            pass
+
+    def _mo_ta_nguon(self, source: str) -> str:
+        """Ten loai nguon (tieng Viet co dau, co ban dich EN) de hien thi."""
+        goc = str(source or "").strip()
+        loai = loai_nguon(goc)
+        if loai == LOAI_ANH:
+            return self.dich("Ảnh tĩnh")
+        if loai == LOAI_CAMERA:
+            return self.dich("Camera máy") + f" ({goc})"
+        if loai == LOAI_MANG:
+            return self.dich("Camera IP")
+        if not goc:
+            return self.dich("Chưa chọn")
+        return self.dich("Video")
+
+    def _chon_camera(self):
+        """Mo hop thoai chon camera (may hoac camera IP)."""
+        self._mo_hop_thoai_camera(quet_ngay=False)
+
+    def _xem_danh_sach_camera(self):
+        """Mo hop thoai chon camera + quet ngay danh sach camera may."""
+        self._mo_hop_thoai_camera(quet_ngay=True)
+
+    def _mo_hop_thoai_camera(self, quet_ngay: bool = False):
+        """Dung hop thoai chon camera (1 cua so duy nhat, co the mo lai)."""
+        win = getattr(self, "_cua_so_camera", None)
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.lift()
+                    win.focus_force()
+                    if quet_ngay:
+                        self._bat_dau_quet_camera()
+                    return
+            except Exception:                         # noqa: BLE001
+                pass
+
+        win = ctk.CTkToplevel(self)
+        win.title(self.dich("Chọn camera"))
+        win.geometry("640x540")
+        win.minsize(560, 420)
+        win.transient(self)
+        win.configure(fg_color=MAU["nen"])
+        win.grid_columnconfigure(0, weight=1)
+        win.grid_rowconfigure(2, weight=1)
+        self._cua_so_camera = win
+        self._huy_quet_camera = False
+
+        # --- 1. dia chi camera IP ---
+        ctk.CTkLabel(
+            win,
+            text="Chọn camera máy trong danh sách bên dưới, hoặc nhập địa "
+                 "chỉ camera IP phía trên.",
+            font=self.font_nho, text_color=MAU["chu"], anchor="w",
+            wraplength=580, justify="left",
+        ).grid(row=0, column=0, sticky="ew", padx=14, pady=(12, 4))
+
+        f_ip = ctk.CTkFrame(win, fg_color="transparent")
+        f_ip.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 6))
+        f_ip.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(f_ip, text="Địa chỉ camera IP", font=self.font_nho_xam,
+                     text_color=MAU["chu_phu"], anchor="w").grid(
+            row=0, column=0, sticky="w")
+        self.v_camera_ip = ctk.StringVar(value="")
+        o_ip = ctk.CTkEntry(f_ip, textvariable=self.v_camera_ip)
+        o_ip.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        GoiYTronO(o_ip, "rtsp://192.168.1.10:554/stream",
+                  font=self.font_nho_xam)
+        ctk.CTkButton(f_ip, text="Dùng địa chỉ này", width=160,
+                      command=self._dung_dia_chi_camera_ip
+                      ).grid(row=1, column=1, sticky="e", padx=(8, 0))
+
+        # --- 2. danh sach camera (scroll) ---
+        self.khung_danh_sach_camera = ctk.CTkScrollableFrame(
+            win, fg_color=MAU["the"], corner_radius=BO_GOC_THE)
+        self.khung_danh_sach_camera.grid(row=2, column=0, sticky="nsew",
+                                         padx=14, pady=(0, 6))
+        self.khung_danh_sach_camera.grid_columnconfigure(0, weight=1)
+        self.lbl_trang_thai_camera = ctk.CTkLabel(
+            win, text="", font=self.font_nho_xam, text_color=MAU["chu_phu"],
+            anchor="w",
+        )
+        self.lbl_trang_thai_camera.grid(row=3, column=0, sticky="ew",
+                                        padx=14, pady=(0, 6))
+
+        # --- 3. nut ---
+        f_nut = ctk.CTkFrame(win, fg_color="transparent")
+        f_nut.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 12))
+        f_nut.grid_columnconfigure(3, weight=1)
+        self.btn_quet_camera = ctk.CTkButton(
+            f_nut, text="Quét camera", width=140,
+            command=self._bat_dau_quet_camera)
+        self.btn_quet_camera.grid(row=0, column=0, sticky="w")
+        self.btn_huy_quet_camera = ctk.CTkButton(
+            f_nut, text="Huỷ", width=90, command=self._huy_quet_camera_now,
+            state="disabled")
+        self.btn_huy_quet_camera.grid(row=0, column=1, sticky="w", padx=(8, 0))
+        ctk.CTkButton(f_nut, text="Đóng", width=90,
+                      command=self._dong_hop_thoai_camera
+                      ).grid(row=0, column=4, sticky="e")
+
+        self._ap_dung_theme(win)
+        self._ghi_nhan_chu(win)
+        self._lam_moi_chu(win)
+        self._lam_moi_trang_thai_camera([], quet_xong=False)
+        if quet_ngay:
+            self._bat_dau_quet_camera()
+
+    def _dong_hop_thoai_camera(self):
+        """Dong hop thoai chon camera (giu lai danh sach da quet)."""
+        win = getattr(self, "_cua_so_camera", None)
+        if win is None:
+            return
+        try:
+            if win.winfo_exists():
+                win.destroy()
+        except Exception:                             # noqa: BLE001
+            pass
+        self._cua_so_camera = None
+
+    def _bat_dau_quet_camera(self):
+        """Quet camera tren may - CHAY TRONG THREAD (quet mat vai giay)."""
+        win = getattr(self, "_cua_so_camera", None)
+        if win is None:
+            return
+        self._huy_quet_camera = False
+        try:
+            self.btn_quet_camera.configure(state="disabled")
+            self.btn_huy_quet_camera.configure(state="normal")
+            self.lbl_trang_thai_camera.configure(
+                text=self.dich("Đang quét…"))
+        except Exception:                             # noqa: BLE001
+            pass
+        threading.Thread(target=self._quet_camera_nen, daemon=True).start()
+
+    def _huy_quet_camera_now(self):
+        """Bam 'Huy' khi dang quet: bo ket qua cua lan quet (thread van chay
+        het roi tra ve hang doi - nhung ket qua bi bo qua)."""
+        self._huy_quet_camera = True
+        try:
+            self.btn_quet_camera.configure(state="normal")
+            self.btn_huy_quet_camera.configure(state="disabled")
+            self.lbl_trang_thai_camera.configure(
+                text=self.dich("Đã hủy quét camera."))
+        except Exception:                             # noqa: BLE001
+            pass
+
+    def _quet_camera_nen(self):
+        """CHAY TREN THREAD NEN: quet camera -> day ket qua vao hang doi."""
+        try:
+            ds = CORE.quet_camera()
+        except Exception as exc:                      # noqa: BLE001
+            self.queue.put(("quet_camera_loi", str(exc)))
+            return
+        self.queue.put(("quet_camera", ds))
+
+    def _ket_thuc_quet_camera(self, ds: list) -> None:
+        """CHAY TREN LUONG UI: ket qua quet camera -> ve danh sach."""
+        # Tra lai nut cho dung trang thai (ke ca khi nguoi dung da bam Huy).
+        try:
+            self.btn_quet_camera.configure(state="normal")
+            self.btn_huy_quet_camera.configure(state="disabled")
+        except Exception:                             # noqa: BLE001
+            pass
+        if getattr(self, "_huy_quet_camera", False):
+            return                      # nguoi dung da Huy -> bo qua ket qua
+        self._lam_moi_trang_thai_camera(ds, quet_xong=True)
+
+    def _quet_camera_loi(self, loi: str) -> None:
+        """CHAY TREN LUONG UI: quet camera loi -> bao trong hop thoai."""
+        try:
+            self.btn_quet_camera.configure(state="normal")
+            self.btn_huy_quet_camera.configure(state="disabled")
+            self.lbl_trang_thai_camera.configure(text=str(loi))
+        except Exception:                             # noqa: BLE001
+            pass
+        self._bao_canh_bao("Lỗi quét camera", str(loi))
+
+    def _lam_moi_trang_thai_camera(self, ds: list, quet_xong: bool = False) -> None:
+        """CHAY TREN LUONG UI: ve lai danh sach camera trong hop thoai."""
+        win = getattr(self, "_cua_so_camera", None)
+        if win is None:
+            return
+        try:
+            if not win.winfo_exists():
+                return
+        except Exception:                             # noqa: BLE001
+            return
+
+        # Xoa dong cu trong khung danh sach.
+        for con in self.khung_danh_sach_camera.winfo_children():
+            try:
+                con.destroy()
+            except Exception:                         # noqa: BLE001
+                pass
+
+        mo_duoc = [c for c in ds if c.get("mo_duoc")]
+        if not ds:
+            if quet_xong:
+                self.lbl_trang_thai_camera.configure(
+                    text=self.dich("Máy này không có camera nào. Bạn vẫn có thể "
+                                    "nhập địa chỉ camera IP phía trên."))
+            else:
+                self.lbl_trang_thai_camera.configure(
+                    text=self.dich("Chưa quét camera. Bấm nút 'Quét camera' "
+                                    "để tìm camera trên máy này."))
+            return
+        if not mo_duoc:
+            self.lbl_trang_thai_camera.configure(
+                text=self.dich("Máy này không có camera nào. Bạn vẫn có thể "
+                                "nhập địa chỉ camera IP phía trên."))
+            return
+
+        self.lbl_trang_thai_camera.configure(
+            text=self.dich("Số camera tìm thấy: ") + str(len(mo_duoc)))
+        for hang, cam in enumerate(mo_duoc):
+            idx = cam.get("index", 0)
+            ten = str(cam.get("ten") or "").strip()
+            w = int(cam.get("width") or 0)
+            h = int(cam.get("height") or 0)
+            mo_ta = self.dich("Camera") + f" {idx}"
+            if ten:
+                mo_ta += f" — {ten}"
+            if w and h:
+                mo_ta += f" ({w}x{h})"
+            nut = ctk.CTkButton(self.khung_danh_sach_camera, text=mo_ta,
+                                anchor="w", height=34,
+                                command=lambda i=idx: self._dung_camera(i))
+            nut.grid(row=hang, column=0, sticky="ew", pady=2, padx=6)
+
+    def _dung_camera(self, index: int):
+        """Chon 1 camera may -> gan index vao o nguon."""
+        self.v_video.set(str(index))
+        self._ghi_log(self.dich("Đã chọn camera máy: ") + f"index {index}")
+        self._dong_hop_thoai_camera()
+
+    def _dung_dia_chi_camera_ip(self):
+        """Dung dia chi camera IP vua nhap -> gan vao o nguon."""
+        dia_chi = str(self.v_camera_ip.get() or "").strip()
+        if not dia_chi:
+            self._bao_canh_bao(
+                "Thiếu địa chỉ camera IP",
+                "Hãy nhập địa chỉ camera IP trước khi bấm 'Dùng địa chỉ này'.",
+            )
+            return
+        if not dia_chi.lower().startswith(TIEN_DO_MANG):
+            self._bao_canh_bao(
+                "Địa chỉ camera IP sai",
+                "Địa chỉ camera IP phải bắt đầu bằng rtsp://, rtmp://, "
+                "http:// hoặc https://.",
+            )
+            return
+        self.v_video.set(dia_chi)
+        self._ghi_log(self.dich("Đã chọn camera IP: ") + dia_chi)
+        self._dong_hop_thoai_camera()
 
     def _chon_output(self):
         # "Luu ket qua" la THU MUC -> phai chon thu muc, khong chon file.
@@ -3832,6 +4373,7 @@ class CamAIGui(ctk.CTk):
         open_in_explorer(target)
 
     def _mo_video_ket_qua(self):
+        """Mo ket qua: VIDEO (mp4) hoac ANH (jpg) - mo bang trinh phat mac dinh."""
         if not self.result or not os.path.exists(self.result.out_path):
             self._bao_thong_bao("Chưa có kết quả", "Hãy bấm BẮT ĐẦU chạy trước đã.")
             return
@@ -3846,7 +4388,11 @@ class CamAIGui(ctk.CTk):
             )
             return
         cmd = [PYTHON_EXE, BAO_CAO, "--csv", self.result.report_path]
-        if os.path.exists(self.result.out_path):
+        # v3.6: ket qua nguon ANH la file .jpg - trinh xem lai CHI doc video
+        # (.mp4) -> chi gan them khi that su la video.
+        if (os.path.exists(self.result.out_path)
+                and os.path.splitext(self.result.out_path)[1].lower()
+                not in duoi_anh()):
             cmd += ["--video", self.result.out_path]
         try:
             subprocess.Popen(cmd, cwd=APP_DIR)
@@ -3861,7 +4407,14 @@ class CamAIGui(ctk.CTk):
         source = self.v_video.get().strip()
         if not source:
             self._bao_canh_bao(
-                "Thiếu video", "Hãy chọn video trước khi vẽ vùng.")
+                "Thiếu nguồn", "Hãy chọn nguồn trước khi vẽ vùng.")
+            return
+        # v3.6: ve vung chi lam duoc voi nguon VIDEO (file video).
+        if loai_nguon(source) != LOAI_VIDEO:
+            self._bao_canh_bao(
+                "Chỉ vẽ vùng được với nguồn video.",
+                "Chỉ vẽ vùng được với nguồn video.",
+            )
             return
         cmd = [PYTHON_EXE, VE_VUNG, "--input", source, "--out", self.v_vung_file.get()]
         try:
@@ -3937,14 +4490,34 @@ class CamAIGui(ctk.CTk):
 
     # -------------------------------------------------------------- chay
 
+    @staticmethod
+    def _ten_nguon_ket_qua(source: str, loai: str) -> str:
+        """Ten go (khong duoi) dung cho file ket qua, theo loai nguon.
+
+        * video / anh : ten file goc (bo duoi) -> "video_test", "bus"
+        * camera may  : "camera_0"   (index camera)
+        * camera IP   : "camera_ip"  (khong lay ten tu duong dan URL)
+        """
+        if loai == LOAI_CAMERA:
+            return f"camera_{str(source).strip()}"
+        if loai == LOAI_MANG:
+            return "camera_ip"
+        ten = os.path.splitext(os.path.basename(source))[0]
+        return ten or "video"
+
     def _tao_cau_hinh(self) -> AnalysisConfig:
         face = self.v_face.get() == "1"
         zone = self.v_vung.get() == "1"
         source = self.v_video.get().strip()
+        # v3.6: o "Nguon" chua 4 kieu vao. Camera (may + IP) KHONG phai file
+        # tren dia -> khong kiem tra `os.path.isfile` cho 2 loai do.
+        loai = loai_nguon(source)
         if not source:
-            raise ValueError("Chưa chọn video.")
-        if not os.path.isfile(source):
-            raise ValueError(f"Không tìm thấy video:\n{source}")
+            raise ValueError("Chưa chọn nguồn.")
+        if loai in (LOAI_CAMERA, LOAI_MANG):
+            pass                       # nguon live -> khong can file
+        elif not os.path.isfile(source):
+            raise ValueError(f"Không tìm thấy nguồn:\n{source}")
 
         conf = parse_float(self.v_conf, 0.25, "Ngưỡng tin cậy")
         if not 0.05 <= conf <= 1.0:
@@ -3965,7 +4538,7 @@ class CamAIGui(ctk.CTk):
             raise ValueError(
                 f"Thư mục lưu kết quả không có trên máy:\n{thu_muc_ket_qua}"
             )
-        ten_goc = os.path.splitext(os.path.basename(source))[0] or "video"
+        ten_goc = self._ten_nguon_ket_qua(source, loai)
 
         return AnalysisConfig(
             input=source,
@@ -4040,7 +4613,14 @@ class CamAIGui(ctk.CTk):
         self.last_canh_lau = 0
         self._ten_nguoi_quen = ""
         self._bar_cu = -1.0
-        self.bar.set(0)
+        # v3.6: nguon LIVE (camera) khong biet tong frame -> thanh tien trinh
+        # chuyen sang che do indeterminate (chay vui khong phai %).
+        self._nguon_live = la_live(cfg.input)
+        if self._nguon_live:
+            self._bat_tien_trinh_live()
+        else:
+            self._ket_tuc_tien_trinh()
+            self.bar.set(0)
         # Xoa the doi tuong cua lan truoc + reset so lieu de khong tran
         # so cua video cu vao video moi.
         self.panel_su_kien.xoa_het()
@@ -4052,6 +4632,8 @@ class CamAIGui(ctk.CTk):
         self._set_trang_thai("chay", frame=0, tong=0, phan_tram=0)
         self._ghi_log("=" * 52)
         self._ghi_log(f"BẮT ĐẦU xử lý: {cfg.input}")
+        # v3.6: noi ro nguon dang phan tich (video / anh / camera may / IP).
+        self._ghi_log(self.dich("Nguồn: ") + self._mo_ta_nguon(cfg.input))
         # --- v3.2: 2 che do hien thi khung hinh ---
         # * xem truc tiep (tick "Xem truc tiep"): thread rieng do YOLO.
         # * phan tich theo lo (tick OFF): pipeline gui khung hinh co overlay
@@ -4061,7 +4643,34 @@ class CamAIGui(ctk.CTk):
         self._hien_anh_batch = False
         xem_truc_tiep = self.v_xem_video.get() == "1"
         xem_ket_qua = self.v_xem_ket_qua.get() == "1"
-        if xem_truc_tiep:
+        if self._nguon_live:
+            # Nguon LIVE: pipeline chay lien tuc -> KHONG mo them 1 ket noi
+            # camera thu hai de xem truc tiep (ton tai nguyen, hay loi).
+            # Dung luon khung hinh cua pipeline de xem.
+            if xem_truc_tiep:
+                self._ghi_log(
+                    "Nguồn camera: dùng luôn khung hình của pipeline để xem, "
+                    "không mở thêm kết nối camera thứ hai."
+                )
+            xem_truc_tiep = False
+            self._hien_anh_batch = xem_ket_qua
+            self._cap_nhat_nut_tam_dung_xem()
+            self.lbl_khung_hinh.configure(text=self._mo_ta_nguon(cfg.input))
+            self.o_hinh.configure(image=None, text="")
+        elif loai_nguon(cfg.input) == LOAI_ANH:
+            # v3.6: ANH TINH chi co 1 khung hinh -> khong mo thread xem truc
+            # tiep (VideoCapture khong doc duoc file anh). Hien khung hinh
+            # da ve khung cua pipeline.
+            if xem_truc_tiep:
+                self._ghi_log(
+                    "Nguồn ảnh tĩnh: hiển thị luôn khung hình đã vẽ khung."
+                )
+            xem_truc_tiep = False
+            self._hien_anh_batch = True
+            self._cap_nhat_nut_tam_dung_xem()
+            self.lbl_khung_hinh.configure(text=os.path.basename(cfg.input))
+            self.o_hinh.configure(image=None, text="")
+        elif xem_truc_tiep:
             if xem_ket_qua:
                 self._ghi_log(
                     "Đang bật 'Xem trực tiếp' nên 'Xem khung hình kết quả' "
@@ -4099,10 +4708,13 @@ class CamAIGui(ctk.CTk):
                 frame_cb_interval=1.0 / KHOUNG_HINH_FPS,
             )
         except CamAIError as exc:
-            self.queue.put(("error", str(exc)))
+            # v3.6: loi PHAN TICH (anh hong, camera khong mo duoc) -> bao
+            # nguoi dung bang hop thoai, khong chi dong do chu do.
+            self.queue.put(("loi_phan_tich", str(exc)))
         except Exception as exc:                      # noqa: BLE001 - GUI phai
             self.queue.put(                            # bat moi loi lai
-                ("error", f"Lỗi không mong đợi: {exc.__class__.__name__}: {exc}")
+                ("loi_phan_tich",
+                 f"Lỗi không mong đợi: {exc.__class__.__name__}: {exc}")
             )
         else:
             self.queue.put(("result", result))
@@ -4443,7 +5055,15 @@ class CamAIGui(ctk.CTk):
         source = self.v_video.get().strip()
         if not source:
             self._bao_canh_bao(
-                "Thiếu video", "Hãy chọn video trước khi vẽ vùng.")
+                "Thiếu nguồn", "Hãy chọn nguồn trước khi vẽ vùng.")
+            return
+        # v3.6: nguon CAMERA (may/IP) khong lay duoc khung hinh goc de ve
+        # vung tuong doi -> bao ro, khong mo loi.
+        if loai_nguon(source) in (LOAI_CAMERA, LOAI_MANG):
+            self._bao_canh_bao(
+                "Chỉ vẽ vùng được với nguồn video.",
+                "Chỉ vẽ vùng được với nguồn video.",
+            )
             return
         self._ghi_log(self.dich("> Đang lấy khung hình để vẽ vùng: ") + source)
         threading.Thread(
@@ -4455,18 +5075,24 @@ class CamAIGui(ctk.CTk):
         import cv2
 
         try:
-            cap = cv2.VideoCapture(source)
-            if not cap.isOpened():
-                self.queue.put(("error",
-                                self.dich("Không mở được video: ") + source))
-                return
-            try:
-                total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-                if total > 10:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, total // 2)
-                ok, frame = cap.read()
-            finally:
-                cap.release()
+            # v3.6: nguon ANH -> doc thang bang imread (VideoCapture khong mo
+            # duoc file anh).
+            if loai_nguon(source) == LOAI_ANH:
+                frame = cv2.imread(source, cv2.IMREAD_COLOR)
+                ok = frame is not None
+            else:
+                cap = cv2.VideoCapture(source)
+                if not cap.isOpened():
+                    self.queue.put(("error",
+                                    self.dich("Không mở được video: ") + source))
+                    return
+                try:
+                    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+                    if total > 10:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, total // 2)
+                    ok, frame = cap.read()
+                finally:
+                    cap.release()
             if not ok or frame is None:
                 self.queue.put(
                     ("error", "Không đọc được khung hình nào từ video."))
@@ -4535,7 +5161,25 @@ class CamAIGui(ctk.CTk):
           * chi lay KHUNG HINH CUOI CUNG trong hang doi (anh cu hon chua
             thi cu, khong can ve het),
           * loi / ket qua / xong van xu ly ngay de khong cham.
+
+        CHONG VAO LAI (v3.6): trong vong bom co the mo HOP THOAI MODAL (bao
+        loi phan tich, ve vung). Tk chay vong lap rieng cho hop thoai -> timer
+        `after()` cua vong bom sau co the chay LAI trong khi vong bom dang
+        chay -> 2 vong bom cung luc -> bom 2 lan moi chu ky -> app bi GIAT.
+        -> co co danh `_dang_bom`: vong bom vao lai thi THOAT NGAY (khong
+        len lich vong moi), vong ngoai van len lich DUNG MOT LAN.
         """
+        if getattr(self, "_dang_bom", False):
+            return                      # da co bom chay -> khong bom 2 vong
+        self._dang_bom = True
+        try:
+            self._hut_hang_doi_noi_dung()
+        finally:
+            self._dang_bom = False
+            self.after(PUMP_MS, self._hut_hang_doi)
+
+    def _hut_hang_doi_noi_dung(self):
+        """Phan than xu ly cua `_hut_hang_doi` (xem ghi chu ben tren)."""
         dong_log = []
         khung_hinh = None
         for _ in range(SO_MUC_1_VONG):
@@ -4570,6 +5214,19 @@ class CamAIGui(ctk.CTk):
                 dong_log.append(f"[LỖI] {payload}")
                 self.lbl_loi.configure(text=self.dich(payload))
                 self._set_trang_thai("loi")
+            elif kind == "loi_phan_tich":
+                # v3.6: loi PHAN TICH (anh hong / camera khong mo duoc) phai
+                # BAO CHO NGUOI DUNG bang hop thoai - khong chi dong do chu
+                # do trong nhat ky.
+                dong_log.append(f"[LỖI] {payload}")
+                self.lbl_loi.configure(text=self.dich(payload))
+                self._set_trang_thai("loi")
+                self._bao_canh_bao("Lỗi phân tích", str(payload))
+            elif kind == "quet_camera":
+                # v3.6: ket qua quet camera (thread nen -> hang doi -> UI).
+                self._ket_thuc_quet_camera(payload)
+            elif kind == "quet_camera_loi":
+                self._quet_camera_loi(payload)
             elif kind == "result":
                 self.result = payload
                 self._hien_ket_qua(payload)
@@ -4614,7 +5271,7 @@ class CamAIGui(ctk.CTk):
             # Keo / doi kich thuoc cua so: ve lai khung CUOI cho vua khung cha
             # (khong them vong `after()` rieng).
             self._ve_lai_khung_hinh()
-        self.after(PUMP_MS, self._hut_hang_doi)
+        # KHONG len lich vong bom o day - `_hut_hang_doi` (lop ngoai) lo.
 
     @staticmethod
     def _doi_neu_khac(var, gia_tri_moi) -> bool:
@@ -4626,6 +5283,29 @@ class CamAIGui(ctk.CTk):
         var.set(chuoi)
         return True
 
+    def _bat_tien_trinh_live(self):
+        """Chuyen thanh tien trinh sang che do INDETERMINATE (nguon live).
+
+        Camera (may hoac IP) khong biet truoc tong so khung hinh -> khong
+        co phan tram. Thanh "chay vui" de nguoi dung biet app dang chay,
+        thay vi duc yen o 0% (nhu loi chia 0).
+        """
+        self._bar_indeterminate = True
+        try:
+            self.bar.configure(mode="indeterminate")
+            self.bar.start()
+        except Exception:                             # noqa: BLE001
+            self._bar_indeterminate = False
+
+    def _ket_tuc_tien_trinh(self):
+        """Tra thanh tien trinh ve che do DETERMINATE (video / anh)."""
+        self._bar_indeterminate = False
+        try:
+            self.bar.stop()
+            self.bar.configure(mode="determinate")
+        except Exception:                             # noqa: BLE001
+            pass
+
     def _hien_tien_trinh(self, p: Progress):
         if p.total_frames:
             self._set_trang_thai(
@@ -4634,9 +5314,12 @@ class CamAIGui(ctk.CTk):
             )
         else:
             self._set_trang_thai("khung_hinh", frame=p.frame_index)
-        if p.percent != self._bar_cu:      # bar.set() ton 1.8ms, chi khi doi
-            self._bar_cu = p.percent
-            self.bar.set(p.percent / 100.0)
+        # Nguon live: bar dang o che do indeterminate -> KHONG set() (se
+        # lam vong chay nguoc lai thanh "chay vui").
+        if not getattr(self, "_bar_indeterminate", False):
+            if p.percent != self._bar_cu:      # bar.set() ton 1.8ms, chi khi doi
+                self._bar_cu = p.percent
+                self.bar.set(p.percent / 100.0)
         self._doi_neu_khac(self.v_so_nguoi, p.so_nguoi)
         self._doi_neu_khac(self.v_so_mat, p.so_mat)
         self._doi_neu_khac(self.v_so_vao, p.vao)
@@ -4656,9 +5339,20 @@ class CamAIGui(ctk.CTk):
         # GUI chi hien thi so lieu; viec gui tin ra ngoai do LOP LOI lo.
 
     def _hien_ket_qua(self, result):
-        self.bar.set(1.0)
+        # v3.6: nguon live (camera) -> thanh tien trinh dang chay vui, dung
+        # lai thoi. Video / anh -> bar chay toi 100%.
+        if getattr(self, "_bar_indeterminate", False):
+            self._ket_tuc_tien_trinh()
+            try:
+                self.bar.set(1.0)
+            except Exception:                         # noqa: BLE001
+                pass
+        else:
+            self._ket_tuc_tien_trinh()
+            self.bar.set(1.0)
         self._dung_xem_truc_tiep()      # ket thuc khung xem ngay khi xong
         self._set_trang_thai("dung_giua" if result.stopped else "xong")
+        # v3.6: ket qua co the la VIDEO (mp4) hoac ANH (jpg) - noi ro loai.
         self._ghi_log(f"Kết quả: {result.out_path}")
         self._ghi_log(f"Báo cáo: {result.report_path}")
         # Khong goi canh bao o day: CanhBaoNoi cua cam_ai_core da gui san
@@ -4741,21 +5435,31 @@ class CamAIGui(ctk.CTk):
             yeu_cau = [x.strip() for x in str(cfg.lop).split(",") if x.strip()]
             if not yeu_cau:
                 chon = [t for t in VAT_THE_MAC_DINH if t in id_lop]
-            elif yeu_cau[0].lower() == "all":
+                sai = []
+            elif _la_tat_ca_lop(yeu_cau[0]):
                 chon = [t for t in detector.names.values() if t != "person"]
+                sai = []
             else:
-                chon = yeu_cau
+                # v3.6: DUNG CHUNG ham chon lop voi cam_ai_core (`_chon_lop`)
+                # -> GUI hieu ca ten lop tieng Viet, ket qua GIONG HET CLI.
+                chon, sai = _chon_lop_cho_xem(str(cfg.lop), id_lop)
             # Lop go sai khong duoc lam VONG XEM CHET: bo qua + bao nhat ky,
             # dung lai chay tiep voi cac lop con lai. Truoc day `id_lop[t]`
             # nem KeyError lam ca khung xem truc tiep tat.
-            sai = [t for t in chon if t not in id_lop]
-            chon = [t for t in chon if t in id_lop]
             if sai:
                 self.queue.put((
                     "log",
-                    f"> [vật thể] Bỏ qua l không có: {', '.join(sai)}. "
-                    f"Các lớp đang nhận: "
-                    f"{', '.join(chon) if chon else 'không còn lớp nào'}",
+                    f"> [vật thể] Bỏ qua lớp không có: {', '.join(sai)}.",
+                ))
+            if chon:
+                self.queue.put((
+                    "log",
+                    f"> [vật thể] Các lớp đang nhận: {', '.join(chon)}",
+                ))
+            elif sai:
+                self.queue.put((
+                    "log",
+                    "> [vật thể] Không còn lớp nào hợp lệ, tắt nhận vật thể.",
                 ))
             vat_the_ids = np.array(
                 sorted({id_lop[t] for t in chon if id_lop[t] != PERSON_CLASS_ID}),
@@ -4763,10 +5467,13 @@ class CamAIGui(ctk.CTk):
             )
             ten_lop = {cid: ten_vat_the(ten) for cid, ten in detector.names.items()}
             if vat_the_ids.size:
+                # Dich theo MAU (dich roi moi format) - khoa co {n}/{ds} trong
+                # DICH_VI_EN la mau, khong phai chuoi literal.
                 self.queue.put((
                     "log",
-                    f"> [vật thể] Đang nhận {len(vat_the_ids)} lớp: "
-                    f"{', '.join(ten_lop[int(i)] for i in vat_the_ids)}",
+                    self.dich("> [vật thể] Đang nhận {n} lớp: {ds}").format(
+                        n=len(vat_the_ids),
+                        ds=", ".join(ten_lop[int(i)] for i in vat_the_ids)),
                 ))
             else:
                 self.queue.put((

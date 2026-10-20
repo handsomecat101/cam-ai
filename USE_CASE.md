@@ -86,7 +86,7 @@ Hiện CamAI đã detect được (đều **đã chạy thật**, xem `PROJECT_S
 | 3 | **Tên người quen** | ArcFace embedding + `known_faces/` | ✅ có |
 | 4 | **Tuổi / giới** | `genderage.onnx` | ✅ có |
 | 5 | **Biển số xe** | RapidOCR (2 engine) + regex VN | ✅ có (chưa có ảnh thật để nghiệm thu) |
-| 6 | **Vật thể 80 lớp COCO** | YOLO11 (`--lop`) | ⚠️ có, nhưng anh phải **gõ tên lớp tiếng Anh** → chưa dùng được với người không rành kỹ thuật |
+| 6 | **Vật thể 80 lớp COCO** | YOLO11 (`--lop`) | ✅ có — **bản 3.7 nhận tiếng Việt** ("ô tô, xe máy, chó, mèo…" hoặc không dấu "o to, xe may", hoặc tiếng Anh). `--list-lop` in đủ 80 lớp. Còn thiếu: **ô tick chọn 80 lớp** trong GUI |
 | 7 | **Ra / vào theo vùng** | bbox + vùng canh | ✅ có |
 | 8 | **Đứng lâu / quá ngưỡng đông** | quy tắc theo thời gian | ✅ có |
 
@@ -94,10 +94,10 @@ Hiện CamAI đã detect được (đều **đã chạy thật**, xem `PROJECT_S
 
 | Ưu tiên | Thể loại | Cần gì | Ghi chú |
 |---|---|---|---|
-| **P0** | **Nguồn ảnh tĩnh** | chế độ phân tích 1 ảnh, xuất ảnh đã vẽ khung | Đang làm |
-| **P0** | **Nguồn camera** (webcam `0`, camera IP `rtsp://`) | chọn thiết bị, chạy live, dừng bằng phím | Đang làm |
-| **P1** | **Chọn lớp vật thể bằng TIẾNG VIỆT** | map 80 lớp COCO → nhóm tiếng Việt (Phương tiện / An toàn lao động / Giao thông / Động vật / Đồ vật / …) + ô chọn có tick | YOLO11 **đã có sẵn** trong 1 lần gọi → chỉ là lớp vỏ, **không cần model mới** |
-| **P1** | **Đếm phương tiện** | dùng lớp `car/motorcycle/bus/truck` + đếm ra–vào | Dùng lại pipeline đếm sẵn có |
+| **P0** | **Nguồn ảnh tĩnh** | chế độ phân tích 1 ảnh, xuất ảnh đã vẽ khung | ✅ xong (bản 3.6 lõi + bản 3.7 GUI) |
+| **P0** | **Nguồn camera** (webcam `0`, camera IP `rtsp://`) | chọn thiết bị, chạy live, dừng bằng phím | ✅ xong (bản 3.6 lõi + bản 3.7 GUI). **Camera thật chưa kiểm chứng** (máy này không có camera) |
+| **P1** | **Chọn lớp vật thể bằng TIẾNG VIỆT** | map 80 lớp COCO → nhóm tiếng Việt (Phương tiện / An toàn lao động / Giao thông / Động vật / Đồ vật / …) + ô chọn có tick | ✅ **gõ tiếng Việt xong** (bản 3.7, `lop_viet.py`, 80 lớp khớp 100% model + ~200 từ đồng nghĩa). Còn lại: **ô tick 80 lớp trong GUI** |
+| **P1** | **Đếm phương tiện** | dùng lớp `car/motorcycle/bus/truck` + đếm ra–vào | ✅ xong (bản 3.7, `--dem-phuong-tien`): theo lớp + tổng lượt + max cùng lúc, 4 cột CSV mới ở cuối |
 | **P2** | **Mũ bảo hiểm / PPE** | YOLO11 có class `helmet` → dùng được ngay, sau đó mới train model PPE đầy đủ | Không cần model mới ở bước đầu |
 | **P2** | **Biển chữ / số móc / số container** | RapidOCR (đã có) chạy trên vùng chữ | Chỉ cần thêm quy tắc vùng |
 | **P2** | **Đo khoảng cách giữa 2 người** | bbox + toạ độ mặt đất | Không cần model mới |

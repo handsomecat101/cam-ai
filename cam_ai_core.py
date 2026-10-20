@@ -46,10 +46,14 @@ from ultralytics import YOLO
 
 from duong_dan import chuan_hoa_duong_dan
 
+# Bang lop COCO <-> tieng Viet (lop_viet.py). Module do KHONG import
+# ultralytics/torch -> import rat re, khong lam cham khoi dong app.
+import lop_viet
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PERSON_CLASS_ID = 0
-VERSION = "3.6"
+VERSION = "3.7"
 
 # --- v3.2: chat luong JPEG cua khung hinh gui ra GUI (che do phan tich theo lo)
 JPEG_CHAT_LUONG = 80                    # 0-100; 80 = rat kho cho mat, nho hon 85
@@ -86,6 +90,13 @@ CSV_FIELDS = [
 # muc 3 "CSV giu dung 10 cot"). Khong bao gio ghi 11/12 cot mac dinh.
 CSV_FIELDS_BIEN_SO = ["bien_so", "so_bien_so"]
 
+# --- dem phuong tien: cot them vao CUOI, CHI khi bat --dem-phuong-tien.
+# QUY TAC CU: khi tinh nang tat, CSV van dung 10 cot cu (khong bao gio ghi
+# them cot mac dinh).
+CSV_FIELDS_PHUONG_TIEN = [
+    "phuong_tien", "so_phuong_tien", "tong_phuong_tien", "max_phuong_tien",
+]
+
 HEADER = "CamAI v{} - ArcFace (SCRFD + w600k_r50)"
 
 # --- tu luu clip: cung codec voi video ket qua de mo duoc o moi noi
@@ -115,7 +126,9 @@ VAT_THE_MAC_DINH = [
     "car", "motorcycle", "bicycle", "bus", "truck",
     "backpack", "handbag", "suitcase", "cell phone",
 ]
-TEN_VAT_THE = {
+# GIA TRI CU DUOC GIU NGUYEN (khong doi 1 chu) de nhan tren khung hinh
+# khong doi -> video ket qua khong doi 1 pixel so voi phien ban truoc.
+_TEN_VAT_THE_CU = {
     "car": "xe o to",
     "motorcycle": "xe may",
     "bicycle": "xe dap",
@@ -135,6 +148,19 @@ TEN_VAT_THE = {
     "cat": "meo",
     "dog": "cho",
     "bird nest": "to chim",
+}
+
+# Ten lop (tieng Anh) -> ten tieng Viet KHONG DAU, dung de VE NHAN tren khung
+# hinh. Font cua supervision (cv2.putText + FONT_HERSHEY_SIMPLEX) KHONG ve
+# duoc dau tieng Viet (dau bi BO QUA im lang, xem _kk_kiem_khung_hinh_xe.py
+# muc C) -> nhan tren khung hinh phai bo dau.
+# Log / bao cao / CSV dung ten CO DAU (xem ten_vat_the_viet).
+#
+# 80 lop COCO lay tu lop_viet.TEN_LOP_VIET_KHONG_DAU (da doi chieu 100% voi
+# model yolo11n.pt), ghi de cac key da co san bang _TEN_VAT_THE_CU.
+TEN_VAT_THE = {
+    **lop_viet.TEN_LOP_VIET_KHONG_DAU,
+    **_TEN_VAT_THE_CU,
 }
 
 
@@ -254,6 +280,13 @@ class AnalysisConfig:
     # Tu chup anh su kien (tu_chup.py): MAC DINH TAT (chuoi rong = tat).
     tu_chup_dir: str = ""
     tu_chup_nhoan_lai_giay: float = 10.0
+    # --- DEM PHUONG TIEN (v3.6) ---
+    # Dat CUOI dataclass de moi truong doi khong phai doi thu tu vi tri cu.
+    # dem_phuong_tien: MAC DINH TAT -> hanh vi cu (khong dem, khong ve) khong doi.
+    # lop_phuong_tien: chuoi rong = dung mac dinh (lop_viet.XE_PHUONG_TIEN),
+    #   cung nhan duoc tieng Viet (vd "ô tô, xe máy") va tieng Anh.
+    dem_phuong_tien: bool = False
+    lop_phuong_tien: str = ""
 
     def __post_init__(self) -> None:
         """Chuan hoa duong dan tuong doi theo thu muc goc du an (duong_dan.py).
@@ -343,6 +376,12 @@ class AnalysisResult:
     bien_so: list = field(default_factory=list)   # list[KetQuaBienSo] doc duoc
     anh_su_kien: list = field(default_factory=list)  # duong dan anh tu chup
     stopped: bool = False          # True = nguoi dung dung giua chung
+    # --- dem phuong tien (v3.6) ---
+    # phuong_tien: {ten_lop_tieng_anh: {"ten_viet":..., "ten_anh":...,
+    #                                   "tong":..., "max_cung_luc":...}}
+    phuong_tien: dict = field(default_factory=dict)
+    tong_phuong_tien: int = 0      # tong so luot xe xuat hien (tinh theo lop)
+    max_phuong_tien: int = 0       # so xe nhieu nhat cung luc trong 1 khung hinh
 
 
 # ------------------------------------------------- ghi video an toan (moov atom)
@@ -549,6 +588,62 @@ def _goi_y_lop(ten_sai: list, id_lop: dict) -> str:
         if gan:
             goi_y.append(f"'{ten}' co phai la '{gan[0]}'?")
     return "; ".join(goi_y)
+
+
+def _chon_lop(chuoi: str, id_lop: dict) -> tuple[list[str], list[str]]:
+    """Chon lop vatu thu tu chuoi nguoi dung nhap.
+
+    Tra (danh sach lop hop le, danh sach token khong nhan ra).
+    - Token trung ten lop co san trong model (tieng Anh, hoac lop rieng cua
+      model nhu "bird nest") -> dung nguyen.
+    - Con lai -> tra cuu tieng Viet <-> tieng Anh (lop_viet.py):
+      "ô tô" / "o to" / "xe hơi" / "car" -> "car".
+    """
+    ra: list[str] = []
+    sai: list[str] = []
+    for phan in lop_viet.TACH_LOP_VIET(chuoi):
+        if phan in id_lop:                       # ten lop cua model
+            if phan not in ra:
+                ra.append(phan)
+            continue
+        ten = lop_viet.TRA_CUU_LOP_VIET(phan)   # tra cuu tieng Viet
+        if ten and ten[0] in id_lop:
+            if ten[0] not in ra:
+                ra.append(ten[0])
+        else:
+            sai.append(phan)
+    return ra, sai
+
+
+def _loi_lop_unknown(ten_sai: list, id_lop: dict) -> str:
+    """Thong bao loi 'khong co lop vat the nay' - TIENG VIET CO DAU.
+
+    Khong bao gio im lang bo qua lop sai (loi cu: --lop ma quen bi bo qua).
+    Loi nay LIET KE day du cac lop co san (tieng Viet / tieng Anh) + goi y
+    lop gan nhat.
+    """
+    dong = f"[lỗi] không nhận dạng được lớp: {', '.join(ten_sai)}"
+    goi_y = " | ".join(
+        g for g in (
+            lop_viet.GOI_Y_LOP_VIET(",".join(ten_sai)),
+            _goi_y_lop(ten_sai, id_lop),
+        ) if g
+    )
+    if goi_y:
+        dong += f"\n       Gợi ý: {goi_y}"
+    danh_sach = [
+        f"{lop_viet.TEN_LOP_VIET.get(ten, ten)} / {ten}"
+        for ten in sorted(id_lop, key=lambda t: id_lop[t])
+    ]
+    dong += "\n       Các lớp có sẵn (tiếng Việt / tiếng Anh):"
+    for i in range(0, len(danh_sach), 4):
+        dong += "\n         " + " | ".join(danh_sach[i:i + 4])
+    dong += (
+        "\n       Gõ 'app.py --list-lop' để xem đủ 80 lớp; "
+        "nhận được cả tiếng Việt lẫn tiếng Anh "
+        "(vd: --lop \"ô tô,xe máy\"); 'all' = tất cả lớp trừ người."
+    )
+    return dong
 
 
 def cai_tin_hieu_dung() -> dict:
@@ -795,6 +890,16 @@ class ClipRecorder:
 def ten_vat_the(ten_lop: str) -> str:
     """'motorcycle' -> 'xe may' (nhan tieng Viet khong dau)."""
     return TEN_VAT_THE.get(ten_lop, ten_lop)
+
+
+def ten_vat_the_viet(ten_lop: str) -> str:
+    """'motorcycle' -> 'xe máy' (tên CÓ DẤU - dùng log/báo cáo/CSV).
+
+    KHÔNG dùng hàm này để vẽ nhãn trên khung hình: font cv2.putText
+    (Hershey) của supervision không vẽ được dấu. Bằng chứng: xem
+    _kk_kiem_khung_hinh_xe.py (mục C).
+    """
+    return lop_viet.TEN_LOP_VIET.get(ten_lop, ten_lop)
 
 
 # ----------------------------------------------------------------- vung canh
@@ -1385,36 +1490,54 @@ def run_analysis(
 
     # --- vat the khac: chi ve khung + nhan + dem, KHONG tinh vao canh vung.
     # Person van chay qua pipeline cu (dem ra/vao, canh vung, mat) nhu cu.
-    id_lop = {}
-    ten_lop = {}                 # class_id -> nhan tieng Viet khong dau
+    id_lop = {ten: cid for cid, ten in detector.names.items()}
+    ten_lop_anh = {cid: ten for ten, cid in id_lop.items()}
+    # class_id -> nhan tieng Viet KHONG DAU (ve nhan tren khung hinh)
+    ten_lop = {cid: ten_vat_the(ten) for cid, ten in detector.names.items()}
     vat_the_ids = np.array([], dtype=int)
     if cfg.nhan_vat_the:
-        id_lop = {ten: cid for cid, ten in detector.names.items()}
         yeu_cau = [x.strip() for x in str(cfg.lop).split(",") if x.strip()]
         if not yeu_cau:
             chon = [ten for ten in VAT_THE_MAC_DINH if ten in id_lop]
-        elif yeu_cau[0].lower() == "all":
+        elif lop_viet.LA_TAT_CA(yeu_cau[0]):
             chon = [ten for ten in detector.names.values() if ten != "person"]
         else:
-            chon = yeu_cau
-        sai = [ten for ten in chon if ten not in id_lop]
-        if sai:
-            cap.release()
-            goi_y = _goi_y_lop(sai, id_lop)
-            raise CamAIError(
-                f"[loi] khong co lop vat the nay: {', '.join(sai)}"
-                f"{' (' + goi_y + ')' if goi_y else ''}. "
-                f"Cac lop co san: {', '.join(sorted(detector.names.values()))}. "
-                f"Kiem tra chinh ta; 'all' = tat ca lop tru nguoi."
-            )
+            # TRA CUU TIENG VIET <-> TIENG ANH (lop_viet.py).
+            # Nhan duoc: "ô tô" / "o to" / "car" / "xe hơi" -> "car".
+            chon, sai = _chon_lop(str(cfg.lop), id_lop)
+            if sai:
+                cap.release()
+                raise CamAIError(_loi_lop_unknown(sai, id_lop))
         vat_the_ids = np.array(
             sorted({id_lop[ten] for ten in chon if id_lop[ten] != PERSON_CLASS_ID}),
             dtype=int,
         )
-        ten_lop = {cid: ten_vat_the(ten) for cid, ten in detector.names.items()}
         log(
-            f"[vat the] nhan them {len(vat_the_ids)} lop: "
-            f"{', '.join(ten_lop[int(i)] for i in vat_the_ids)}"
+            f"[vat the] nhận thêm {len(vat_the_ids)} lớp: "
+            f"{', '.join(ten_vat_the_viet(ten_lop_anh[int(i)]) for i in vat_the_ids)}"
+        )
+
+    # --- dem phuong tien (chi khi bat --dem-phuong-tien).
+    # Person van la class "person" rieng -> KHONG bao gio dem nguoi vao xe.
+    xe_ids = np.array([], dtype=int)
+    ten_xe_viet = {}               # class_id -> ten tieng Viet CO DAU (log/CSV)
+    if cfg.dem_phuong_tien:
+        if str(cfg.lop_phuong_tien).strip():
+            chon_xe, sai_xe = _chon_lop(str(cfg.lop_phuong_tien), id_lop)
+            if sai_xe:
+                cap.release()
+                raise CamAIError(_loi_lop_unknown(sai_xe, id_lop))
+        else:
+            chon_xe = list(lop_viet.XE_PHUONG_TIEN)
+        xe_ids = np.array(
+            sorted({id_lop[ten] for ten in chon_xe if ten in id_lop}), dtype=int
+        )
+        ten_xe_viet = {
+            cid: ten_vat_the_viet(ten) for cid, ten in detector.names.items()
+        }
+        log(
+            "[phương tiện] ĐANG BẬT: đếm các lớp: "
+            f"{', '.join(ten_xe_viet[int(i)] for i in xe_ids)}"
         )
 
     tracker = sv.ByteTrack()
@@ -1587,6 +1710,12 @@ def run_analysis(
                 f"(khong dung app): {type(exc).__name__}: {exc}"
             )
 
+    # --- v3.6 dem phuong tien: cot CSV them o CUOI, CHI khi bat.
+    # Dat SAU khoi bien_so de thu tu cot luon dung: 10 cot cu -> +bien so
+    # -> +phuong tien. Tat -> van dung 10 cot nhu cu (khong doi bao gio).
+    if cfg.dem_phuong_tien:
+        csv_fields = csv_fields + CSV_FIELDS_PHUONG_TIEN
+
     # --- v3.0 tu chup anh (tu_chup.py): MAC DINH TAT (chuoi rong = tat)
     chup_anh = None
     if cfg.tu_chup_dir:
@@ -1628,6 +1757,10 @@ def run_analysis(
     last_seen: dict[int, float] = {}
     loiter_reported: set[int] = set()
     dem_vat_the: dict[int, list[int]] = {}      # class_id -> [so khung hinh, toi da]
+    # --- v3.6 dem phuong tien ---
+    dem_xe: dict[int, list[int]] = {}           # class_id -> [tong luot, max cung luc]
+    tong_xe = 0                                 # tong so luot xe (mien truong hop)
+    max_xe = 0                                  # so xe nhieu nhat cung luc
     # --- v3.0: bien so + tu chup anh
     ds_bien_so: dict[str, int] = {}             # bien so -> so khung hinh thay
     bien_so_da_thay: list[str] = []             # bien so thay trong video (theo thu tu)
@@ -1675,6 +1808,24 @@ def run_analysis(
                     vat_the = None
             elif vat_the_ids.size:
                 vat_the = None
+
+            # --- v3.6 dem phuong tien: dem theo tung lop, KHONG tinh vao
+            # dem nguoi (nguoi van la class "person" rieng).
+            xe = None
+            so_xe = 0
+            if xe_ids.size and len(tat_ca):
+                xe = tat_ca[np.isin(tat_ca.class_id, xe_ids)]
+                if len(xe):
+                    so_xe = len(xe)
+                    for cid in np.unique(xe.class_id):
+                        n = int((xe.class_id == cid).sum())
+                        rec = dem_xe.setdefault(int(cid), [0, 0])
+                        rec[0] += n                  # tong so luot xe cua lop nay
+                        rec[1] = max(rec[1], n)      # so xe cung luc nhieu nhat
+                    tong_xe += so_xe
+                    max_xe = max(max_xe, so_xe)
+                else:
+                    xe = None
 
             # --- khuon mat: quet theo --face-every de tiet kiem thoi gian
             face_results = []
@@ -1860,15 +2011,37 @@ def run_analysis(
                 )
 
             # --- vat the khac: khung + nhan ten lop (khong vao dem nguoi)
-            if vat_the is not None:
+            # Khi bat dem phuong tien, phuong tien duoc ve o khoi rieng
+            # (mau xanh) -> bo phuong tien ra khoi khoi ve vat the de
+            # KHONG ve 2 lan len cung 1 khung.
+            vat_the_ve = vat_the
+            if vat_the is not None and xe_ids.size:
+                con_lai = ~np.isin(vat_the.class_id, xe_ids)
+                vat_the_ve = vat_the[con_lai] if con_lai.any() else None
+            if vat_the_ve is not None:
                 if cfg.show_box:
                     frame = sv.BoxAnnotator(
                         thickness=2, color=sv.Color(r=255, g=180, b=0)
-                    ).annotate(scene=frame, detections=vat_the)
+                    ).annotate(scene=frame, detections=vat_the_ve)
                 if cfg.show_label:
                     frame = sv.LabelAnnotator().annotate(
-                        scene=frame, detections=vat_the,
-                        labels=[ten_lop[int(c)] for c in vat_the.class_id],
+                        scene=frame, detections=vat_the_ve,
+                        labels=[ten_lop[int(c)] for c in vat_the_ve.class_id],
+                    )
+
+            # --- v3.6 phuong tien: khung + nhan (ve ke ca khi --nhan-vat-the
+            # dang TAT, vi nguoi dung da bat --dem-phuong-tien).
+            # Nhan tren khung hinh dung ten KHONG DAU (font cv2.putText khong
+            # ve duoc dau) - xem _kk_kiem_khung_hinh_xe.py muc C.
+            if xe is not None:
+                if cfg.show_box:
+                    frame = sv.BoxAnnotator(
+                        thickness=2, color=sv.Color(r=0, g=140, b=255)
+                    ).annotate(scene=frame, detections=xe)
+                if cfg.show_label:
+                    frame = sv.LabelAnnotator().annotate(
+                        scene=frame, detections=xe,
+                        labels=[ten_lop[int(c)] for c in xe.class_id],
                     )
 
             line_zone.trigger(detections)
@@ -1977,6 +2150,20 @@ def run_analysis(
             if bo_doc_bien_so is not None:
                 dong_bao_cao["bien_so"] = " | ".join(r.chuoi for r in bs_frame)
                 dong_bao_cao["so_bien_so"] = len(bs_frame)
+            # Cot dem phuong tien them o CUOI, chi khi --dem-phuong-tien bat.
+            # "phuong_tien" = ten lop co trong khung hinh nay (co dau).
+            if cfg.dem_phuong_tien:
+                if xe is not None and len(xe):
+                    ten_trong_khung = [
+                        ten_xe_viet.get(int(cid), ten_lop_anh.get(int(cid), ""))
+                        for cid in sorted({int(c) for c in xe.class_id})
+                    ]
+                    dong_bao_cao["phuong_tien"] = " | ".join(ten_trong_khung)
+                else:
+                    dong_bao_cao["phuong_tien"] = ""
+                dong_bao_cao["so_phuong_tien"] = so_xe
+                dong_bao_cao["tong_phuong_tien"] = tong_xe
+                dong_bao_cao["max_phuong_tien"] = max_xe
             report_rows.append(dong_bao_cao)
 
             if frame_index % 50 == 0:
@@ -2125,12 +2312,27 @@ def run_analysis(
         if dem_vat_the:
             for cid in sorted(dem_vat_the, key=lambda c: ten_lop.get(c, str(c))):
                 so_khung, toi_da = dem_vat_the[cid]
+                # Ten lop CO DAU (log/báo cáo dùng tên có dấu; nhãn trên
+                # khung hình mới dùng tên không dấu).
                 log(
-                    f"{ten_lop.get(cid, cid):<12}: {so_khung} khung hinh,"
-                    f" toi da {toi_da}"
+                    f"{ten_vat_the_viet(ten_lop_anh.get(cid, '')):<12}: "
+                    f"{so_khung} khung hinh, toi da {toi_da}"
                 )
         else:
             log("khong phat hien vat the khac trong video nay")
+    if cfg.dem_phuong_tien:
+        log("\n--- ĐẾM PHƯƠNG TIỆN ---")
+        if dem_xe:
+            for cid in sorted(dem_xe, key=lambda c: ten_xe_viet.get(c, str(c))):
+                tong_lot, max_luc = dem_xe[cid]
+                log(
+                    f"{ten_xe_viet.get(cid, cid):<18}: {tong_lot} lượt, "
+                    f"tối đa {max_luc} xe cùng lúc"
+                )
+        else:
+            log("không phát hiện phương tiện nào trong video này")
+        log(f"Tổng số lượt phương tiện: {tong_xe}")
+        log(f"Số phương tiện nhiều nhất cùng lúc: {max_xe}")
     if recorder is not None:
         log("\n--- TU LUU CLIP ---")
         log(f"Clip da luu: {len(recorder.ket_qua)} file")
@@ -2204,4 +2406,16 @@ def run_analysis(
         bien_so=list(bien_so_da_thay),
         anh_su_kien=[d["duong_dan"] for d in chup_anh.ket_qua] if chup_anh else [],
         stopped=stopped,
+        # --- v3.6 dem phuong tien ---
+        phuong_tien={
+            ten_lop_anh.get(cid, ""): {
+                "ten_viet": ten_xe_viet.get(cid, ""),
+                "ten_anh": ten_lop_anh.get(cid, ""),
+                "tong": dem_xe[cid][0],
+                "max_cung_luc": dem_xe[cid][1],
+            }
+            for cid in dem_xe
+        },
+        tong_phuong_tien=tong_xe,
+        max_phuong_tien=max_xe,
     )

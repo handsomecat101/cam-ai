@@ -9,6 +9,123 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Log "Đang nhận N lớp" KHÔNG dịch được + lỗi chính tả "Bỏ qua l không có"
+
+**Triệu chứng (agent phát hiện khi sửa vòng 3):** 2 dòng log trong khung "xem trực tiếp"
+về lớp vật thể:
+```
+> [vật thể] Đang nhận 2 lớp: xe o to, xe may
+> [vật thể] Bỏ qua l không có: xyz
+```
+- **"Bỏ qua l không có"** — thiếu chữ **"ớp"** ⇒ đọc như lỗi chính tả rõ ràng.
+- **"Đang nhận N lớp: …"** khi bật tiếng Anh vẫn **giữ nguyên tiếng Việt**.
+
+**Nguyên nhân:**
+1. Lỗi chính tả nằm ngay trong chuỗi f-string của `gui.py`.
+2. Bản dịch không dịch được vì khoá trong `DICH_VI_EN` là **mẫu có tham số**:
+   `"> [vật thể] Đang nhận {n} lớp: {ds}"`, còn chuỗi thật đã được f-string nội suy
+   thành `"> [vật thể] Đang nhận 2 lớp: xe o to, xe may"` ⇒ **không khớp khoá nào** ⇒
+   khoá dịch là **khoá chết**.
+
+**Cách sửa (bản 3.7):**
+- Sửa chính tả: `"Bỏ qua l không có:"` → `"Bỏ qua lớp không có:"`.
+- Tách log thành **2 dòng** để mỗi dòng có tiền tố dịch được, và dùng
+  `self.dich(...).format(...)` thay vì f-string thẳng cho dòng có tham số.
+- Thêm khoá dịch cho cả 2 tiền tố.
+
+**Bài học:**
+- **Khoá dịch có tham số phải dùng `dich(...).format(...)`, không dùng f-string.**
+  Nếu không, khoá dịch **chết lặng lẽ** → app "song ngữ" mà 1 chỗ vẫn tiếng Việt.
+- Khi thêm chuỗi hiển thị mới, **luôn kiểm tra nó CÓ dịch được** bằng cách bật thử chế độ
+  tiếng Anh, không chỉ "đã thêm vào dict" ⇒ dict có khoá ≠ khoá được dùng.
+- Lỗi chính tả trong chuỗi hiển thị rất dễ lọt vì không ai đọc log hằng ngày — nên có
+  kiểm chứng riêng cho phần dịch (bộ `_kk_kiem_ngon_ngu_v3_3.py`).
+
+---
+
+## Mũi tên mục lớn không phản ánh trạng thái mở/đóng (mọi mục trông giống nhau)
+
+**Triệu chứng:** coordinator chụp ảnh GUI bản 3.6 rồi **phóng to 3×** vùng cột trái
+(`_kk_out/agent_a_nguon/zoom_chevron.png`) → thấy mục **NGUỒN đang MỞ** (nội dung hiện
+ra bên dưới) nhưng mũi tên vẫn là **ChevronRight (chỉ sang phải)** thay vì
+**ChevronDown (chỉ xuống)**. Cả 4 mục lớn đều dùng cùng một mũi tên ⇒ người dùng
+**không biết mục nào đang mở**.
+
+**Nguyên nhân (đã xác minh trong code, `gui.py` lớp `NhomLon`):**
+- `__init__` tạo nút `self.btn_mo` với `text=bieu_tượng("mui_phai")` — **luôn**.
+- Chỉ khi `dat_mo(True)` được gọi thì mới đổi sang `bieu_tượng("mui_xuong")`.
+- Với `mo_san=True` (mục NGUỒN), `__init__` chỉ gọi `self.khung.grid()` rồi
+  `grid_remove()` nếu đóng — **không gọi `dat_mo()`** ⇒ mũi tên mãi là ChevronRight.
+
+Lỗi này **có từ bản 3.6** (lúc gom 12 nhóm thành 4 mục lớn) — đã kiểm tra lại bằng
+`git show 35250e5:gui.py`, code y hệt.
+
+**Cách sửa (bản 3.7):** đặt mũi tên theo trạng thái khởi tạo — `mo_san=True` ⇒
+ChevronDown, ngược lại ChevronRight. **KHÔNG** gọi `dat_mo()` trong `__init__` vì hàm đó
+có tác dụng phụ đóng các mục lớn khác (vi phạm nguyên tắc "chỉ 1 mục mở tại một lúc").
+
+**Bài học:**
+- **Mọi widget có trạng thái phải khởi tạo đúng trạng thái**, không được "để mặc định
+  rồi sửa khi hành động xảy ra". Ở đây nhánh `mo_san` không đi qua hàm cập nhật nên
+  trạng thái hiển thị bị bỏ sót.
+- **Kiểm tra lỗi thị giác bằng ảnh phóng to 3×**, không tin nhìn bằng mắt ở kích thước
+  nhỏ — Ở 1610×980 mũi tên trông "đúng", phóng 3× mới thấy sai.
+- Khi giao diện dùng **ký hiệu trạng thái** (mũi tên, màu, tick), phải kiểm tra **mọi
+  tổ hợp trạng thái**, không chỉ trạng thái "mặc định".
+
+---
+
+## OpenCV Hershey **âm thầm bỏ dấu** tiếng Việt khi vẽ chữ lên khung hình
+
+**Triệu chứng:** nhãn lớp vật thể vẽ lên khung hình bằng `supervision` →
+`sv.LabelAnnotator` → `cv2.putText(..., cv2.FONT_HERSHEY_SIMPLEX, ...)`.
+Agent đo thực nghiệm (ảnh `_kk_out/_kk_nhan_khung_hinh_2.png`): chuỗi **"ô tô"** hiện
+ra thành **"o to"**, **"xe máy"** thành **"xe may"** — dấu **biến mất im lặng**, KHÔNG
+bị thay bằng ký tự rác.
+
+**Nguyên nhân:** font Hershey của OpenCV chỉ có **ASCII** — không có glyph dấu tiếng Việt.
+
+**Quyết định (bản 3.7):** chia 2 nơi dùng tên lớp:
+| Nơi dùng | Tên hiển thị | Vì sao |
+|---|---|---|
+| **Nhãn trên khung hình** | **KHÔNG dấu** (`xe o to`) | font Hershey không vẽ được dấu |
+| **Log / báo cáo / CSV** | **CÓ dấu** (`ô tô`) | chữ thuần, hiển thị được |
+
+Không chuyển nhãn khung hình sang PIL vì **đường pipeline vẽ khung đã được kiểm chứng
+kỹ** — đổi là rủi ro lớn hơn lợi ích (đẹp hơn 1 dấu).
+
+**Bài học:**
+- **OpenCV `putText` không hỗ trợ tiếng Việt** — font của hệ điều hành (`segoeui.ttf`)
+  hoặc PIL mới vẽ được dấu. Dự án đã có `bien_so.py` dùng PIL vì lý do này.
+- Muốn biết font có hỗ trợ dấu hay không thì **phải render ra ảnh rồi xem**, không
+  suy đoán từ tên font.
+
+---
+
+## GUI "xem trực tiếp" chỉ hiểu tên lớp tiếng Anh — lệch với CLI
+
+**Triệu chứng:** sau khi `cam_ai_core.py` hỗ trợ chọn lớp bằng **tiếng Việt**, phần
+**phân tích** (gọi `run_analysis`) hiểu tiếng Việt, nhưng phần **xem trực tiếp** trong
+GUI thì **không**. Nguyên nhân: `gui.py` hàm `_vong_xem()` **tự viết lại** logic chọn lớp:
+```python
+id_lop = {ten: cid for cid, ten in detector.names.items()}
+chon = [x.strip() for x in str(cfg.lop).split(",") if x.strip()]   # CHI tieng Anh
+```
+→ gõ "ô tô,xe máy" thì `id_lop[t]` không tồn tại ⇒ **khung xem trực tiếp không vẽ khung
+vật thể nào**, trong khi báo cáo thì có. Người dùng tưởng app bị hỏng.
+
+**Cách sửa (bản 3.7):** cho `_vong_xem` dùng **cùng hàm chọn lớp** của `cam_ai_core`
+(`_chon_lop`) thay vì viết lần thứ hai; có `getattr` fallback để GUI vẫn chạy nếu core
+thiếu hàm mới.
+
+**Bài học:**
+- **Không được copy logic chọn lớp vào nhiều nơi.** Mỗi quy tắc chỉ nên có **một nơi
+  quyết định** — ở đây là `cam_ai_core`. Lặp lại là cách chắc chắn GUI và CLI lệch nhau.
+- Khi một agent báo "tôi không sửa được file X vì agent khác đang giữ" thì **đó là tín
+  hiệu phải giao vòng sửa tiếp** (vòng 3), không được bỏ qua.
+
+---
+
 ## File lựa chọn ngôn ngữ bị commit vào git → app của người dùng tự mở tiếng Anh
 
 **Triệu chứng (bản 3.6, coordinator phát hiện khi kiểm chứng):** file `gui_ngon_ngu.json`

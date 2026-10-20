@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 15:30 — bản **3.6**: bám theo **định hướng sản phẩm đã chốt** (CamAI = app detect đa thể loại; app chấm công tách riêng; đổi nền tảng để sau) → **4 mục cấu hình lớn** thay cho 12 mục rời rạc + **2 nguồn mới: ẢNH & CAMERA** + `--list-camera`; `VERSION` nay là **3.6**)
+**Ngày cập nhật:** 2026-10-20 (sau 17:00 — bản **3.7**: **GUI nối xong 2 nguồn mới** (chọn ảnh / chọn camera) + **chọn lớp vật thể bằng TIẾNG VIỆT** (80 lớp COCO, file mới `lop_viet.py`) + **đếm phương tiện** (`--dem-phuong-tien`); sửa 3 lỗi thật, trong đó có **lỗi mũi tên mục lớn sai trạng thái** do coordinator phát hiện bằng cách phóng to 3× ảnh; `VERSION` nay là **3.7**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 
 > # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
@@ -29,7 +29,20 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.6 (mới nhất):** bản đầu tiên làm theo **định hướng mới anh chốt** (mục 0 đầu file).
+**Bản 3.7 (mới nhất):** **hoàn tất** mục tiêu anh chốt (mục 0 đầu file). (1) **GUI nối xong
+2 nguồn mới**: nhóm "NGUỒN" thành chọn nguồn tổng quát + nhãn trạng thái ("Loại nguồn:
+Video / Ảnh tĩnh / Camera máy / Camera IP") + 4 nút **Chọn video… / Chọn ảnh… / Chọn
+camera… / Danh sách camera** + hộp thoại quét camera (nền, không treo) + ô địa chỉ camera
+IP; thanh tiến trình **không xác định** khi quay, nút DỪNG dừng được vòng lặp live.
+(2) **Chọn lớp vật thể bằng TIẾNG VIỆT**: file mới **`lop_viet.py`** — bảng **80 lớp
+COCO ↔ tiếng Việt** (khớp 100% model) + ~200 từ đồng nghĩa; `--lop` nhận có dấu /
+không dấu / tiếng Anh; lệnh **`--list-lop`**. (3) **Đếm phương tiện** `--dem-phuong-tien`
+(4 cột CSV mới ở cuối, 10 cột cũ không đổi). (4) Sửa **3 lỗi thật**: mũi tên mục lớn sai
+trạng thái (lỗi có từ 3.6), GUI live view chỉ hiểu lớp tiếng Anh, OpenCV Hershey âm
+thầm bỏ dấu tiếng Việt. Xem **mục 2.1k**.
+
+**Bản 3.6:** gom 12 nhóm cấu hình → 4 mục lớn + **nguồn ẢNH & CAMERA ở tầng lõi** +
+`--list-camera`; sửa lỗi repo `gui_ngon_ngu.json` bị commit. Xem **mục 2.1j**.
 (1) **Gom 12 nhóm cấu hình → 4 mục lớn**: NGUỒN (mở sẵn) · PHÂN TÍCH · BIỂN SỐ & ẢNH ·
 CẢNH BÁO & MÔ HÌNH — mỗi mục có 1 dòng mô tả, chỉ 1 mục mở tại một lúc, mũi tên
 Segoe MDL2 xoay thật. Dải "Video mẫu dùng thử" **212px → 125px**. (2) **2 nguồn mới**:
@@ -669,9 +682,86 @@ ngôn ngữ** (nhận cả `Kết quả:`/`Result:` và `Báo cáo:`/`Report:`).
 | Encoding mọi file đã sửa | **BOM=False, CR=0** |
 
 **Còn lại ở bản 3.6 (cần làm tiếp):** phần **GUI** chưa nối vào 2 nguồn mới (chọn ảnh,
-chọn camera) — `cam_ai_core` đã xuất `loai_nguon()` / `quet_camera()` để GUI dùng ngay.
-Và **camera thật chưa kiểm chứng được** vì máy này không có camera (đã kiểm chứng đường
-đi live qua camera IP giả).
+chọn camera) → **đã làm xong ở bản 3.7** (mục 2.1k).
+
+---
+
+### 2.1k BẢN 3.7 — GUI NỐI 2 NGUỒN MỚI + LỚP TIẾNG VIỆT + ĐẾM PHƯƠNG TIỆN (2026-10-20)
+
+Bản này **hoàn tất** mục tiêu anh chốt ở mục 0: *CamAI = app detect đa thể loại, chạy
+được trên **file video + ảnh + quay video**, và chọn được lớp vật thể **bằng tiếng Việt***.
+
+#### A. GUI nối 2 nguồn mới (`gui.py`)
+
+| Hạng mục | Kết quả đo thật |
+|---|---|
+| **Chọn nguồn tổng quát** | Nhóm "NGUỒN" nay có label **"Nguồn"**, ô nhập dùng chung, và **nhãn trạng thái tự cập nhật**: `Loại nguồn: Video / Ảnh tĩnh / Camera máy (0) / Camera IP / Chưa chọn` (theo `cam_ai_core.loai_nguon()`) |
+| **4 nút** | **Chọn video…** · **Chọn ảnh…** · **Chọn camera…** · **Danh sách camera** |
+| **Hộp thoại chọn camera** | Quét camera **chạy nền** (có nút Huỷ, **không treo** — 2,5 s), hiện danh sách (index, tên, độ phân giải, mở được không), ô nhập **địa chỉ camera IP** có kiểm tra tiền tố `rtsp://`/`rtmp://`/`http://`/`https://`. Máy không có camera → báo rõ **"Máy này không có camera nào…"**, không crash |
+| **Thanh tiến trình live** | Nguồn camera có `total_frames = 0` ⇒ chuyển `mode="indeterminate"`, quay lại `determinate` khi xong; **nút DỪNG dừng được vòng lặp live** (`stopped=True`) |
+| **Nguồn ảnh trong GUI** | Phân tích 1 ảnh → **ảnh kết quả `.jpg`** + CSV; "Mở kết quả" / "Xem báo cáo" xử lý đúng cả ảnh lẫn video; "Vẽ vùng" **chỉ cho nguồn video** |
+| **Bản dịch Anh** | **45 chuỗi mới** trong `DICH_VI_EN`; kiểm chứng 17/17 chuỗi mới có bản dịch, chuỗi cũ vẫn dịch đúng |
+
+#### B. Lớp vật thể bằng TIẾNG VIỆT (file mới `lop_viet.py`)
+
+- **Bảng 80 lớp COCO ↔ tiếng Việt** (`lop_viet.py`), đọc thật từ `yolo11n.pt` → **khớp
+  100%** với model (đúng cả **id**, tên tiếng Anh, tên tiếng Việt), **không đoán mò**.
+- Module **không import torch/ultralytics** → import rẻ, không làm chậm lúc mở app.
+- **~200 từ đồng nghĩa**: "ô tô" = "xe hơi" = "xe ô tô" · "xe máy" = "mô tô" = "xe gắn máy"
+  · "xe khách" = "xe buýt" = "xe đò" · "xe tải" = "xe hàng" · "thuyền" = "tàu thuyền" ·
+  "tàu hỏa" = "tàu lửa" · "điện thoại" = "smartphone" · "gấu bông" = "thú bông" …
+- `--lop` giờ nhận **có dấu / không dấu / tiếng Anh** → **cùng kết quả** (CSV SHA256 giống
+  hệt). Gõ sai → **báo lỗi rõ** + **gợi ý** lớp gần nhất + liệt kê 80 lớp, `exit 1`.
+- `--list-lop` → in đủ **80 dòng** (id, tiếng Anh, tiếng Việt), `exit 0`, **không cần
+  `--input`**.
+- **`all`** cũng nhận được "tất cả" (→ 79 lớp).
+
+#### C. Đếm phương tiện (`--dem-phuong-tien`)
+
+| Hạng mục | Kết quả đo thật (video `car-detection.mp4`) |
+|---|---|
+| Theo lớp | `ô tô: 14250 lượt, tối đa 11` · `xe khách: 7988, tối đa 9` · `xe tải: 1453, tối đa 4` · `xe máy: 24, tối đa 1` |
+| Tổng | **23.715** lượt · **15** xe nhiều nhất cùng lúc |
+| CSV | **14 cột**: 10 cột cũ **giống hệt từng giá trị** + **4 cột mới ở CUỐI** (`phuong_tien`, `so_phuong_tien`, `tong_phuong_tien`, `max_phuong_tien`) |
+| Không lẫn vào đếm người | `person` vẫn đếm riêng (dòng có `so_nguoi=1` mà `so_phuong_tien=2`) |
+
+#### D. 4 LỖI THẬT ĐÃ SỬA (chi tiết ở `ISSUE_LOG.md`)
+
+1. **Mũi tên mục lớn sai trạng thái** — mục NGUỒN **đang mở** nhưng mũi tên vẫn chỉ
+   sang phải ⇒ cả 4 mục trông giống nhau. Lỗi **có từ bản 3.6** (đã kiểm lại bằng
+   `git show 35250e5:gui.py`). **Coordinator phát hiện bằng cách phóng to 3×** ảnh chụp.
+   Kèm: mũi tên được đánh dấu `_bo_ngon_ngu` để **đổi ngôn ngữ không xoá trạng thái**.
+2. **GUI "xem trực tiếp" chỉ hiểu lớp tiếng Anh** — `_vong_xem()` tự viết lại logic chọn
+   lớp ⇒ gõ "ô tô" thì **khung xem trực tiếp không vẽ khung nào** dù báo cáo có. Sửa:
+   dùng **cùng hàm** của `cam_ai_core` ⇒ GUI và CLI luôn cho kết quả giống nhau
+   (đã chứng minh bằng cách chạy thật: `ô tô,xe máy` → `['car','motorcycle']` ở cả hai).
+3. **OpenCV Hershey âm thầm bỏ dấu tiếng Việt** khi vẽ nhãn lên khung hình ("ô tô" →
+   "o to"). Quyết định: **khung hình dùng tên không dấu**, **log/báo cáo/CSV dùng tên có
+   dấu** (đường pipeline vẽ khung đã kiểm chứng kỹ, không đổi).
+4. **Log "Đang nhận N lớp" không dịch được** + lỗi chính tả "Bỏ qua l không có" — khoá
+   dịch là **mẫu có tham số** nhưng chuỗi thật đã f-string ⇒ khoá **chết lặng lẽ**; bật
+   tiếng Anh vẫn hiện tiếng Việt. Sửa bằng `self.dich(...).format(...)`.
+
+#### E. BẰNG CHỨNG — coordinator tự chạy lại trên code cuối
+
+| Bộ kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_nguon_viet.py` (coordinator, mới) | **35/35 PASS** |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** |
+| `_kk_kiem_nguon_gui.py` | **35/35 PASS** |
+| `_kk_kiem_gui_chay_thuc.py` (e2e 7 mục) | **7/7 PASS** — 39,1 s |
+| `_kk_kiem_gui_b3.py` | **4/4 PASS** |
+| `_kk_kiem_giao_dien.py` | **7/7 PASS** |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** |
+| `_kk_kiem_canvas_vung.py` | **PASS** — sai số 0,0000 |
+| `_kk_kiem_khong_mat_tinh_nang.py` | **PASS** — 20 checkbox + 12 nhóm con + 13 thẻ video mẫu **giống hệt**; **không mất nút nào** (3 nút mới + 1 đổi nhãn) |
+| Hồi quy video (baseline trích nguyên bản từ `git HEAD`) | CSV **SHA256 giống hệt**, thời gian **−0,43%** (nhiễu) |
+| Encoding mọi file đã sửa | **BOM=False, CR=0** |
+
+**Còn lại ở bản 3.7:** ô **tick chọn 80 lớp** trong GUI (hiện vẫn gõ tay vào ô lớp, đã nhận
+tiếng Việt); **camera thật chưa kiểm chứng được** (máy này không có camera — đã kiểm chứng
+đường đi live qua camera IP giả); **mục 7 / mục 8** vẫn chờ anh.
 
 ---
 
@@ -1170,6 +1260,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 17:00) | **Bản 3.7 — hoàn tất mục tiêu anh chốt: GUI nối xong 2 nguồn mới + lớp vật thể TIẾNG VIỆT + đếm phương tiện.** **Agent A (`gui.py`):** nhóm "NGUỒN" thành chọn nguồn tổng quát — label "Nguồn", nhãn trạng thái tự cập nhật theo `loai_nguon()` ("Video / Ảnh tĩnh / Camera máy / Camera IP"), 4 nút **Chọn video… / Chọn ảnh… / Chọn camera… / Danh sách camera**, hộp thoại chọn camera (quét **nền** + nút Huỷ, không treo) + ô địa chỉ camera IP có kiểm tra tiền tố; thanh tiến trình **indeterminate** khi quay, nút DỪNG dừng được vòng lặp live (`stopped=True`); nguồn ảnh xuất **ảnh kết quả `.jpg`** + CSV; **45 chuỗi mới** trong `DICH_VI_EN`. **Agent B (`lop_viet.py` mới + `cam_ai_core.py` + `app.py`):** bảng **80 lớp COCO ↔ tiếng Việt** đọc thật từ `yolo11n.pt` (khớp **100%** model, module **không import torch**), **~200 từ đồng nghĩa**; `--lop` nhận **có dấu / không dấu / tiếng Anh** → cùng kết quả (CSV SHA256 giống hệt), gõ sai báo lỗi **kèm gợi ý**; `--list-lop` in đủ 80 dòng; `--dem-phuong-tien` đếm theo lớp + tổng + max cùng lúc với **4 cột CSV mới ở CUỐI** (10 cột cũ không đổi). **Coordinator tự verify:** 10 bộ kiểm chứng **PASS** (lop tiếng Việt 53/53, chức năng 73/73, nguồn GUI 35/35, e2e 7/7, 3.3 4/4, thiết kế 7/7, ngôn ngữ 5/5, canvas PASS, **không mất tính năng PASS** — 20 checkbox + 12 nhóm con + 13 thẻ video mẫu giống hệt, không mất nút nào); hồi quy video **SHA256 giống hệt** bản gốc. **3 lỗi thật đã sửa** (chi tiết `ISSUE_LOG.md`): (1) **mũi tên mục lớn sai trạng thái** — NGUỒN đang mở nhưng mũi tên vẫn chỉ sang phải, lỗi **có từ bản 3.6** (đã kiểm lại bằng `git show 35250e5:gui.py`), coordinator phát hiện bằng cách **phóng to 3×** ảnh chụp; (2) **GUI "xem trực tiếp" chỉ hiểu lớp tiếng Anh** (`_vong_xem` tự viết lại logic chọn lớp) ⇒ gõ "ô tô" thì khung xem trực tiếp không vẽ khung nào dù báo cáo có → sửa bằng **cùng hàm** của core; (3) **OpenCV Hershey âm thầm bỏ dấu tiếng Việt** khi vẽ nhãn lên khung ("ô tô" → "o to") → khung hình dùng tên **không dấu**, log/báo cáo/CSV dùng tên **có dấu**. Xem mục **2.1k**. |
 | 2026-10-20 (sau 15:30) | **Bản 3.6 — 4 mục cấu hình lớn + nguồn ẢNH & nguồn CAMERA.** Bản đầu tiên làm theo **định hướng anh chốt** (CamAI = app detect đa thể loại trên **3 nguồn**; app chấm công tách riêng; đổi nền tảng để sau). **Agent 1 — `gui.py`:** lớp `NhomLon` 12 nhóm rời rạc → **4 mục lớn** (NGUỒN mở sẵn / PHÂN TÍCH / BIỂN SỐ & ẢNH / CẢNH BÁO & MÔ HÌNH), mỗi mục có 1 dòng mô tả, chỉ 1 mục mở tại một lúc, mũi tên `Segoe MDL2 Assets` E76C↔E70D xoay thật, mở mục con sẽ mở luôn mục lớn cha; dải "Video mẫu dùng thử" chuyển bố cục ngang **212px → 125px**. Script `_kk_kiem_khong_mat_tinh_nang.py` chứng minh **20 checkbox + 21 nút + 12 nhóm con + 13 thẻ video mẫu giống hệt trước/sau** (không mất tính năng). **Agent 2 — `cam_ai_core.py` + `app.py`:** chế độ **ẢNH** (`loai_nguon`, `la_live`, xuất `<ten>_ket_qua.jpg`) + chế độ **CAMERA** (webcam `0`, `rtsp://`/`http://`, ngân sách thời gian không treo, `q` để dừng, tiến trình indeterminate) + lệnh **`--list-camera`** + gọi thật `_chuan_hoa_console()`. **Coordinator verify (tự chạy lại):** chế độ ảnh **EXIT=0** (4 người, 2 mặt, nhận đúng "An"/"Binh", ảnh kết quả 199.956 B, CSV 1 dòng); `--list-camera` **EXIT=0** (máy này **không có camera**); e2e **7/7 PASS** (37,9 s); b3 **4/4**; giao diện **7/7**; ngôn ngữ **5/5**; canvas **PASS** (sai số 0,0000); hồi quy video CSV **251 dòng**, SHA256 **giống hệt** bản gốc. **Sửa lỗi repo do coordinator phát hiện:** `gui_ngon_ngu.json` (lựa chọn ngôn ngữ cá nhân) bị git theo dõi → script test để lại "en" ⇒ app của anh tự mở tiếng Anh + e2e FAIL → đã `git rm --cached` + `.gitignore` + reset `"vi"`, và sửa `_kk_kiem_gui_chay_thuc.py` **không còn phụ thuộc ngôn ngữ**. Bump 3.5 → **3.6**. Xem mục **2.1j**. |
 | 2026-10-20 (sau 14:20) | **ĐỊNH HƯỚNG SẢN PHẨM — anh chốt.** (1) **CamAI = app "detect đa thể loại"**, chạy trên **3 nguồn: file video ✅ · ảnh tĩnh (đang làm) · quay video/camera (webcam `0`, camera IP `rtsp://`, đang làm)**; mục tiêu **detect càng nhiều thể loại càng tốt**. (2) **Ứng dụng chấm công → TÁCH RA APP RIÊNG** (cần CSDL khuôn mặt riêng), dùng **chung** `face_engine.py` + `known_faces/`; nguyên tắc **CamAI lo detect, app kia lo nghiệp vụ + dữ liệu**. (3) **Đổi nền tảng (PySide6/Qt) → LÀM SAU**, khi đã chốt phạm vi tính năng để một lần viết lại cho đủ. Đã ghi đầy đủ vào `USE_CASE.md` mục 0 (định hướng) + mục 3.1 (bảng thể loại detect P0→P4), `PROJECT_STATE.md` mục 0 (đầu file) + mục 6 (gotcha 9g/9h/9i) + `ROADMAP.md`. Bài học: chọn nền tảng phải **nói giới hạn + hỏi ưu tiên "đẹp hay nhẹ"** trước, và **luôn có launcher 1-click + hướng dẫn mở app**. |
 | 2026-10-20 (sau 09:50) | **Bản 3.5 — sửa giật kéo cửa sổ + launcher 1-click.** Anh báo thật: *"kéo cửa sổ bị giật lắm"* + *"chả bao giờ chỉ tôi cách mở app"*. **Chẩn đoán bằng số đo** (loại 3 giả thuyết sai: tooltip, vẽ lại, app chạy nền): giật **chỉ ở lần kéo ĐẦU TIÊN** (859–984 ms; lần 2 = 20 ms; cửa sổ rỗng không bị; bỏ scrollbar → còn 144 ms) → thủ phạm là `CTkScrollbar._draw()` gọi **`update_idletasks()`** = xả hết hàng đợi idle **của toàn bộ app** → vẽ lại 851 widget. **Đã sửa + khởi động ấm + tooltip dùng 1 cửa sổ duy nhất, trì hoãn 450 ms** → lần kéo đầu còn **19,4 ms, 0 lần tre**, mở app **không chậm hơn** (13,3 s → 12,5 s). Thêm **`Mo CamAI.vbs`** (launcher 1-click, đã test thật) + **`Mo CamAI.bat`** + **`HUONG-DAN-MO-APP.md`**. 5 bộ kiểm chứng của coordinator PASS hết (e2e 7/7, 3.3 4/4, preview, ngôn ngữ 5/5, thiết kế 7/7). Bump 3.4 → **3.5**. Xem mục **2.1i**. |

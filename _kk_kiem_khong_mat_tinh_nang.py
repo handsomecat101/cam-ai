@@ -154,6 +154,21 @@ def thu_thap(app) -> dict:
 
 # ------------------------------------------------------------------ so sanh
 
+# v3.6: 3 NUT CHON NGUON moi (anh / camera / danh sach camera).
+# Day la TINH NANG MOI (khong mat gi) - danh sach khoa "lenh" cua nut.
+NUT_MOI_CHO_PHEP = {
+    "CamAIGui._chon_anh",
+    "CamAIGui._chon_camera",
+    "CamAIGui._xem_danh_sach_camera",
+}
+
+# v3.6: doi CHU HIEN THI cua 1 nut (ket qua co the la video HOAC anh).
+# lenh -> (chu cu, chu moi)
+NHAN_DOI_CHO_PHEP = {
+    "CamAIGui._mo_video_ket_qua": ("Mở video kết quả", "Mở kết quả"),
+}
+
+
 def khoa_dong(x) -> str:
     return json.dumps(x, ensure_ascii=False, sort_keys=True)
 
@@ -173,7 +188,6 @@ def so_sanh(a: dict, b: dict) -> tuple[bool, list[str]]:
     dong = []
     ok = True
     for khoa, nhan in (("checkboxes", "CHECKBOX"),
-                       ("buttons", "NUT (chuc nang)"),
                        ("nhom", "NHOM TINH NANG"),
                        ("the_video_mau", "THE VIDEO MAU")):
         ds_a = sorted(a.get(khoa, []), key=khoa_dong)
@@ -192,6 +206,60 @@ def so_sanh(a: dict, b: dict) -> tuple[bool, list[str]]:
                 dong.append(f"          - chi co TRUOC: {x}")
             for x in only_b[:20]:
                 dong.append(f"          - chi co SAU : {x}")
+
+    # --- NUT (chuc nang): so theo LENH (ham), KHONG theo chu hien thi ---
+    # Doi chu hien thi (vd "Mo video ket qua" -> "Mo ket qua") KHONG phai
+    # mat tinh nang - nen so theo lenh. Nut BI MAT (co lenh, khong con) =
+    # FAIL that. Nut MOI = chi duoc phep khi co trong danh sach cho phep.
+    def theo_lenh(ds):
+        out: dict = {}
+        for x in ds:
+            out.setdefault(x.get("lenh", ""), []).append(x.get("text", ""))
+        return out
+
+    nut_a = theo_lenh(a.get("buttons", []))
+    nut_b = theo_lenh(b.get("buttons", []))
+    lenh_a = {k for k in nut_a if k}
+    lenh_b = {k for k in nut_b if k}
+
+    mat = sorted(lenh_a - lenh_b)
+    if mat:
+        ok = False
+        dong.append(f"  [SAI ] NUT (chuc nang)      MAT {len(mat)} nut")
+        for lh in mat:
+            dong.append(f"          - khong con nut: {lh} {nut_a[lh]}")
+    else:
+        dong.append(f"  [OK  ] NUT (chuc nang)      {len(lenh_a):3d} lenh - KHONG MAT NUT NAO")
+
+    moi = sorted(lenh_b - lenh_a)
+    cho_phep = [lh for lh in moi if lh in NUT_MOI_CHO_PHEP]
+    khong_cho_phep = [lh for lh in moi if lh not in NUT_MOI_CHO_PHEP]
+    if khong_cho_phep:
+        ok = False
+        dong.append(f"  [SAI ] NUT (chuc nang)      {len(khong_cho_phep)} nut MOI "
+                    f"KHONG nam trong danh sach cho phep")
+        for lh in khong_cho_phep:
+            dong.append(f"          - nut moi khong cho phep: {lh} {nut_b[lh]}")
+    if cho_phep:
+        dong.append(f"  [MOI ] NUT (chuc nang)      {len(cho_phep)} nut MOI (cho phep)")
+        for lh in cho_phep:
+            dong.append(f"          - nut moi: {lh} {nut_b[lh]}")
+
+    doi_nhan = []
+    for lh in sorted(lenh_a & lenh_b):
+        if sorted(nut_a[lh]) != sorted(nut_b[lh]):
+            doi_nhan.append((lh, nut_a[lh], nut_b[lh]))
+    cho_phep_nhan = [x for x in doi_nhan if x[0] in NHAN_DOI_CHO_PHEP]
+    khong_cho_phep_nhan = [x for x in doi_nhan if x[0] not in NHAN_DOI_CHO_PHEP]
+    for lh, cu, moi_cu in khong_cho_phep_nhan:
+        ok = False
+        dong.append(f"  [SAI ] NUT (chuc nang)      doi nhan khong cho phep: "
+                    f"{lh} {cu} -> {moi_cu}")
+    if cho_phep_nhan:
+        dong.append(f"  [MOI ] NUT (chuc nang)      {len(cho_phep_nhan)} nut DOI NHAN "
+                    f"(cho phep)")
+        for lh, cu, moi_cu in cho_phep_nhan:
+            dong.append(f"          - doi nhan: {lh} {cu} -> {moi_cu}")
 
     # --- NUT MUI TEN (bat / dong) ---
     # Nut MUI TEN la CAU TRUC, khong phai tinh nang: so sanh theo LOAI.

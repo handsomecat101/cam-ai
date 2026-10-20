@@ -13,6 +13,16 @@ Nguon vao (4 kieu - cung 1 pipeline):
     .venv\\Scripts\\python.exe app.py --input rtsp://...       (camera IP)
     .venv\\Scripts\\python.exe app.py --list-camera            (liet ke camera)
 
+Lop vat the (nhan duoc ca tieng Viet lan tieng Anh):
+    .venv\\Scripts\\python.exe app.py --list-lop               (xem du 80 lop COCO)
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --lop "ô tô,xe máy"
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --lop "o to,xe may"
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --lop "car,motorcycle"
+
+Dem phuong tien:
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --dem-phuong-tien
+    .venv\\Scripts\\python.exe app.py --input video.mp4 --dem-phuong-tien --lop-phuong-tien "ô tô,xe máy"
+
 Doc bien so Viet Nam (chay 100% tren may, khong gui anh ra ngoai):
     .venv\\Scripts\\python.exe app.py --input video.mp4 --doc-bien-so
     .venv\\Scripts\\python.exe app.py --input video.mp4 --doc-bien-so --vung-bien-so 0.1,0.3,0.9,0.8
@@ -45,6 +55,7 @@ from cam_ai_core import (AnalysisConfig, CamAIError, LOAI_ANH, LOAI_MANG,
                          THIET_BI_CHON, THIET_BI_MAC_DINH, VERSION,
                          loai_nguon, quet_camera, run_analysis)
 from duong_dan import APP_DIR, chuan_hoa_duong_dan
+import lop_viet
 
 __all__ = ["VERSION", "parse_args", "main"]
 
@@ -242,6 +253,24 @@ def _liet_ke_camera() -> None:
         print("Dùng camera: --input 0 (camera đầu tiên trong danh sách)")
 
 
+def _liet_ke_lop() -> None:
+    """In du 80 lop COCO (id, tieng Anh, tieng Viet) roi thoat ma 0.
+
+    Khong can --input. Day la lenh Liet ke, khong phai loi.
+    """
+    print("=== 80 LỚP COCO (YOLO11n) — tiếng Việt / tiếng Anh ===")
+    print(f"{'ID':>3}  {'TIẾNG ANH':<22} TIẾNG VIỆT")
+    print("-" * 62)
+    for cid, ten_anh, ten_viet in lop_viet.DANH_SACH_LOP_VIET():
+        print(f"{cid:>3}  {ten_anh:<22} {ten_viet}")
+    print("-" * 62)
+    print("Dùng với --lop (nhận được cả tiếng Việt lẫn tiếng Anh):")
+    print('   --lop "ô tô,xe máy"     (tiếng Việt có dấu)')
+    print('   --lop "o to,xe may"     (tiếng Việt không dấu)')
+    print('   --lop "car,motorcycle"  (tiếng Anh)')
+    print('   --lop all              (tất cả lớp trừ người)')
+
+
 def _chuan_hoa_output(output: str | None) -> str:
     """Chuan hoa --output (duong dan GHI RA video ket qua + CSV bao cao).
 
@@ -273,6 +302,12 @@ def parse_args():
         "--list-camera",
         action="store_true",
         help="liet ke cac camera tren may nay roi thoat (khong can --input)",
+    )
+    parser.add_argument(
+        "--list-lop",
+        action="store_true",
+        help="liet ke du 80 lop COCO (id, tieng Anh, tieng Viet) roi thoat "
+             "(khong can --input)",
     )
     # default=None de phan biet "nguoi dung khong truyen --output" voi
     # "nguoi dung truyen duong dan tuong doi" (xem _chuan_hoa_output).
@@ -362,9 +397,27 @@ def parse_args():
     vat_group.add_argument(
         "--lop",
         default="",
-        help="danh sach lop can nhan, cach nhau bang dau phay, vi du --lop car,motorcycle "
+        help="danh sach lop can nhan, cach nhau bang dau phay. NHẬN ĐƯỢC CẢ "
+             "TIẾNG VIỆT LẪN TIẾNG ANH: "
+             '--lop "ô tô,xe máy" | --lop "o to,xe may" | --lop "car,motorcycle" '
              "(mac dinh: nhom pho bien; 'all' = tat ca lop tru nguoi; "
              "truyen --lop se tu dong bat --nhan-vat-the)",
+    )
+
+    xe_group = parser.add_argument_group("dem phuong tien")
+    xe_group.add_argument(
+        "--dem-phuong-tien",
+        action="store_true",
+        help="đếm phương tiện (ô tô, xe máy, xe đạp, xe khách, xe tải) theo từng "
+             "lớp: tổng lượt xuất hiện + số xe nhiều nhất cùng lúc "
+             "(mặc định: tắt)",
+    )
+    xe_group.add_argument(
+        "--lop-phuong-tien",
+        default="",
+        help="các lớp phương tiện cần đếm (mặc định: ô tô, xe máy, xe đạp, "
+             "xe khách, xe tải). Nhận được cả tiếng Việt lẫn tiếng Anh, "
+             'vd --lop-phuong-tien "ô tô,xe máy"',
     )
 
     nhan_group = parser.add_argument_group("do nhan nguoi o xa")
@@ -454,7 +507,7 @@ def parse_args():
         help="mỗi loại sự kiện chỉ chụp 1 lần trong N giây (mặc định: 10)",
     )
     args = parser.parse_args()
-    if not args.list_camera and not args.input:
+    if not args.list_camera and not args.list_lop and not args.input:
         # Giu nguyen hanh vi cu cua argparse: thieu --input -> exit ma 2.
         parser.error("the following arguments are required: --input")
     return args
@@ -470,6 +523,11 @@ def main() -> None:
     # --- lenh liet ke camera: in danh sach roi thoat ma 0 (khong phai loi).
     if args.list_camera:
         _liet_ke_camera()
+        return
+
+    # --- lenh liet ke 80 lop COCO: in danh sach roi thoat ma 0 (khong phai loi).
+    if args.list_lop:
+        _liet_ke_lop()
         return
 
     # --- duong dan: chuan hoa theo thu muc goc du an (xem duong_dan.py).
@@ -504,6 +562,9 @@ def main() -> None:
         clip_ghi_tat_ca=args.clip_ghi_tat_ca,
         nhan_vat_the=args.nhan_vat_the,
         lop=args.lop,
+        # --- v3.6 dem phuong tien ---
+        dem_phuong_tien=args.dem_phuong_tien,
+        lop_phuong_tien=args.lop_phuong_tien,
         tach_o=args.tach_o,
         bat_canh_bao=args.bat_canh_bao,
         canh_bao_mo_phong=args.canh_bao_mo_phong,
@@ -521,10 +582,26 @@ def main() -> None:
     )
 
     try:
-        run_analysis(cfg, log=_LogCLI(cfg))
+        ket_qua = run_analysis(cfg, log=_LogCLI(cfg))
     except CamAIError as exc:
         # Giu nguyen hanh vi cu: loi ra stderr roi dung chay.
         raise SystemExit(str(exc))
+
+    # --- tom tat cuoi cua CLI: them muc dem phuong tien khi bat.
+    if cfg.dem_phuong_tien:
+        print("")
+        print("========== TÓM TẮT ĐẾM PHƯƠNG TIỆN ==========")
+        if ket_qua.phuong_tien:
+            for thong_tin in ket_qua.phuong_tien.values():
+                print(
+                    f"{thong_tin['ten_viet']:<18}: {thong_tin['tong']} lượt, "
+                    f"tối đa {thong_tin['max_cung_luc']} xe cùng lúc"
+                )
+        else:
+            print("Không phát hiện phương tiện nào trong video này.")
+        print(f"Tổng số lượt phương tiện: {ket_qua.tong_phuong_tien}")
+        print(f"Số phương tiện nhiều nhất cùng lúc: {ket_qua.max_phuong_tien}")
+        print("===============================================")
 
 
 if __name__ == "__main__":

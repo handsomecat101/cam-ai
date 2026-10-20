@@ -2,6 +2,60 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.7] — 2026-10-20 (sau 17:00)
+
+`VERSION` trong `cam_ai_core.py` = **3.7**.
+
+Bản này **hoàn tất** mục tiêu anh chốt: *CamAI = app detect đa thể loại, chạy được trên
+**file video + ảnh + quay video**, và **chọn được lớp vật thể bằng tiếng Việt***.
+
+### Đã thêm
+
+| # | Hạng mục | Chi tiết |
+|---|---|---|
+| 1 | **GUI nối 2 nguồn mới** | Nhóm "NGUỒN" nay là chọn nguồn tổng quát: label **"Nguồn"**, nhãn trạng thái tự cập nhật (**"Loại nguồn: Video / Ảnh tĩnh / Camera máy / Camera IP"**), 4 nút: **Chọn video… / Chọn ảnh… / Chọn camera… / Danh sách camera** |
+| 2 | **Hộp thoại chọn camera** | Quét camera (chạy **nền**, có nút Huỷ, **không treo**), hiện danh sách (index, tên, độ phân giải, mở được không), ô nhập **địa chỉ camera IP** (`rtsp://` / `rtmp://` / `http://` / `https://`) có kiểm tra định dạng. Máy không có camera → báo rõ, **không crash** |
+| 3 | **Thanh tiến trình "không xác định"** khi quay camera | `total_frames = 0` ⇒ dùng `mode="indeterminate"`; nút **DỪNG** dừng được vòng lặp live (`stopped=True`) |
+| 4 | **Nguồn ảnh trong GUI** | Phân tích 1 ảnh → xuất **ảnh kết quả `.jpg`** + CSV; mở kết quả / xem báo cáo xử lý đúng cả ảnh lẫn video; vẽ vùng chỉ cho nguồn video |
+| 5 | **`lop_viet.py` — bảng 80 lớp COCO ↔ tiếng Việt** | Module độc lập, **không import torch/ultralytics** (import rẻ). `TEN_LOP_VIET` (80 lớp → tiếng Việt có dấu), `DANH_SACH_LOP_VIET()` (id + Anh + Việt, đúng thứ tự model), `TRA_CUU_LOP_VIET()`, `GOI_Y_LOP_VIET()`, `XE_PHUONG_TIEN` |
+| 6 | **`--lop` nhận tiếng Việt** | Gõ được **"ô tô,xe máy"** (có dấu), **"o to,xe may"** (không dấu) hoặc **"car,motorcycle"** (tiếng Anh) → cùng kết quả. Gõ sai → báo lỗi rõ **kèm gợi ý** + liệt kê 80 lớp |
+| 7 | **`--list-lop`** | In đủ **80 lớp** (id, tiếng Anh, tiếng Việt) rồi thoát `exit 0`, **không cần `--input`** |
+| 8 | **Đếm phương tiện** | `--dem-phuong-tien`: đếm theo từng lớp + tổng lượt + số xe nhiều nhất cùng lúc; **4 cột CSV mới ở CUỐI** (`phuong_tien`, `so_phuong_tien`, `tong_phuong_tien`, `max_phuong_tien`), 10 cột cũ **không đổi** |
+| 9 | **~200 từ đồng nghĩa tiếng Việt** | "ô tô" = "xe hơi" = "xe ô tô" · "xe máy" = "mô tô" = "xe gắn máy" · "xe khách" = "xe buýt" = "xe đò" · "xe tải" = "xe hàng" · "thuyền" = "tàu thuyền" · "tàu hỏa" = "tàu lửa" · "điện thoại" = "smartphone" · "gấu bông" = "thú bông" … |
+
+### Đã sửa
+
+| Mục | Chi tiết |
+|---|---|
+| **Mũi tên mục lớn sai trạng thái** | Mục **NGUỒN đang mở** nhưng mũi tên vẫn chỉ sang phải ⇒ cả 4 mục trông giống nhau. Lỗi có từ bản 3.6 (đã kiểm lại bằng `git show 35250e5:gui.py`). Sửa: mũi tên khởi tạo đúng trạng thái (mở ⇒ ChevronDown). Phát hiện bởi coordinator khi **phóng to 3×** ảnh chụp |
+| **GUI "xem trực tiếp" không hiểu lớp tiếng Việt** | `_vong_xem()` tự viết lại logic chọn lớp (chỉ tiếng Anh) ⇒ gõ "ô tô" thì **khung xem trực tiếp không vẽ khung nào** dù báo cáo có. Sửa: dùng **cùng hàm** của `cam_ai_core` → GUI và CLI luôn cho kết quả giống nhau |
+| **Lỗi hiển thị khi nhóm cha đang thu gọn** | `_hang()` cho cột điều khiển `minsize=140` — nếu không, các nút rộng bị Tk bóp còn 124px ⇒ **chữ bị cắt** |
+| **Log "Đang nhận N lớp" không dịch được** + lỗi chính tả | Khoá dịch là **mẫu có tham số** (`"...{n} lớp: {ds}"`) nhưng chuỗi thật đã f-string → khoá dịch **chết lặng lẽ** ⇒ bật tiếng Anh vẫn hiện tiếng Việt. Sửa: `self.dich(...).format(...)`. Kèm sửa chính tả `"Bỏ qua l không có:"` → `"Bỏ qua lớp không có:"` |
+
+### BẰNG CHỨNG — coordinator tự chạy lại trên code cuối
+
+| Bộ | Kết quả |
+|---|---|
+| `_kk_kiem_nguon_viet.py` (coordinator, mới) | **35/35 PASS** — 80 lớp khớp 100% model, 13/13 tra cứu tiếng Việt, CLI `--list-lop` đủ 80 dòng, CSV 14 cột, hồi quy SHA256 giống bản gốc |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** — 10 cột CSV cũ giống hệt từng giá trị, 4 cột mới ở cuối |
+| `_kk_kiem_nguon_gui.py` | **35/35 PASS** |
+| `_kk_kiem_gui_chay_thuc.py` (e2e) | **7/7 PASS** — 39,1 s |
+| `_kk_kiem_gui_b3.py` | **4/4 PASS** |
+| `_kk_kiem_giao_dien.py` | **7/7 PASS** |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** |
+| `_kk_kiem_canvas_vung.py` | **PASS** — sai số 0,0000 |
+| `_kk_kiem_khong_mat_tinh_nang.py` | **PASS** — 20 checkbox + 12 nhóm con + 13 thẻ video mẫu **giống hệt**; 21 lệnh nút **không mất nút nào** (3 nút mới + 1 đổi nhãn) |
+| Hồi quy video (baseline từ git HEAD) | CSV **SHA256 giống hệt**, thời gian **−0,43%** (nhiễu) |
+| Encoding mọi file đã sửa | **BOM=False, CR=0** |
+
+### CHƯA ĐẠT ở bản 3.7
+
+- **Camera thật chưa kiểm chứng được** — máy này **không có camera**. Đã kiểm chứng đường
+  đi live qua **camera IP giả** (HTTP MJPEG) và đường lỗi (rõ ràng, không treo).
+- **Chưa có ô tick chọn 80 lớp** trong GUI — hiện vẫn gõ tay vào ô lớp (đã nhận tiếng Việt).
+- **Mục 7 / mục 8** — vẫn chờ **anh** xác nhận.
+
 ## [3.6] — 2026-10-20 (sau 15:30)
 
 `VERSION` trong `cam_ai_core.py` = **3.6**.

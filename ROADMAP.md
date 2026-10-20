@@ -136,19 +136,35 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 - [x] **Sửa lỗi repo**: `gui_ngon_ngu.json` (lựa chọn ngôn ngữ của người dùng) bị git
       theo dõi → đã `git rm --cached` + `.gitignore`, reset "vi"; bộ e2e không còn phụ thuộc
       ngôn ngữ
-- [ ] **Nối GUI với 2 nguồn mới**: nút "Chọn ảnh…" (phân tích 1 ảnh, hiện ảnh kết quả
-      trong khung xem) + nút "Chọn camera…" (dùng `quet_camera()`) + thanh tiến trình
-      không xác định khi đang quay
-- [ ] **P1 — chọn lớp vật thể bằng TIẾNG VIỆT**: YOLO11 đã có sẵn 80 lớp COCO nhưng anh
-      phải gõ tên lớp tiếng Anh. Cần map sang nhóm tiếng Việt (Phương tiện / An toàn lao
-      động / Giao thông / Động vật / Đồ vật…) + ô tick chọn. **Không cần model mới**
-- [ ] **P1 — đếm phương tiện**: dùng lớp `car/motorcycle/bus/truck` + đếm ra–vào sẵn có
+- [x] **Bản 3.7 — GUI nối 2 nguồn mới + lớp tiếng Việt + đếm phương tiện**
+  - **GUI nối 2 nguồn mới**: nhóm "NGUỒN" thành chọn nguồn tổng quát — nhãn trạng thái
+    ("Loại nguồn: Video / Ảnh tĩnh / Camera máy / Camera IP"), 4 nút **Chọn video… /
+    Chọn ảnh… / Chọn camera… / Danh sách camera**, hộp thoại chọn camera (quét nền, không
+    treo) + ô nhập **địa chỉ camera IP**. Thanh tiến trình **không xác định** khi quay,
+    nút **DỪNG** dừng được vòng lặp live.
+  - **P1 — chọn lớp vật thể bằng TIẾNG VIỆT**: file mới **`lop_viet.py`** — bảng **80 lớp
+    COCO ↔ tiếng Việt** (khớp 100% model, đọc thật từ `yolo11n.pt`) + **~200 từ đồng
+    nghĩa** ("ô tô" = "xe hơi", "xe máy" = "mô tô", "xe khách" = "xe buýt"…). `--lop` giờ
+    nhận **có dấu / không dấu / tiếng Anh** → cùng kết quả; gõ sai thì báo lỗi **kèm gợi
+    ý**. Lệnh **`--list-lop`** in đủ 80 lớp. **Không cần model mới.**
+  - **P1 — đếm phương tiện**: `--dem-phuong-tien` — đếm theo từng lớp + tổng lượt + số xe
+    nhiều nhất cùng lúc; **4 cột CSV mới ở CUỐI**, 10 cột cũ **không đổi**.
+  - **Sửa 3 lỗi thật**: mũi tên mục lớn sai trạng thái (có từ 3.6, coordinator phát
+    hiện bằng cách phóng to 3× ảnh) · GUI "xem trực tiếp" chỉ hiểu lớp tiếng Anh (lệch với
+    CLI) · OpenCV Hershey âm thầm bỏ dấu tiếng Việt khi vẽ nhãn lên khung.
+  - Kiểm chứng: **10 bộ PASS** (e2e 7/7, lớp tiếng Việt 53/53, chức năng 73/73, nguồn GUI
+    35/35, 3.3 4/4, thiết kế 7/7, ngôn ngữ 5/5, canvas PASS, không mất tính năng PASS,
+    coordinator 35/35); hồi quy video **SHA256 giống hệt** bản gốc.
 - [ ] **Chờ anh xác nhận lại mục 7** — mở app (double-click `Mo CamAI.vbs`) rồi kéo cửa sổ xem
       còn giật không. Số đo đã sạch nhưng **cần cảm nhận của người dùng**
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh
 - [ ] **Chờ ảnh biển số Việt Nam thật** của anh — mới nghiệm thu được OCR biển số
       (hiện mới kiểm chứng bằng ảnh giả 10/10). Bản 3.3 đã có nút **"Đọc biển số
       thử…"** → anh gửi ảnh → bấm 1 nút → có kết quả trong vài giây
+- [ ] **Camera thật chưa kiểm chứng được** — máy này **không có camera**. Đã kiểm chứng
+      đường đi live qua **camera IP giả** (HTTP MJPEG) + đường lỗi (rõ ràng, không treo)
+- [ ] **Ô tick chọn 80 lớp trong GUI** — hiện vẫn gõ tay vào ô lớp (đã nhận tiếng Việt).
+      Cần danh sách 80 checkbox trong GUI (đọc từ `lop_viet.DANH_SACH_LOP_VIET()`)
 - [ ] **App mở mất ~12,5 s** (đo được: `import gui` 6,8 s + dựng giao diện 2,7 s) — chưa tối ưu.
       Nếu anh thấy chờ lâu, em rút ngắn phần nạp thư viện (nạp model OCR/YOLO **trễ** khi bấm
       BẮT ĐẦU thay vì lúc mở app)
