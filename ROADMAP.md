@@ -155,6 +155,12 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
   - Kiểm chứng: **10 bộ PASS** (e2e 7/7, lớp tiếng Việt 53/53, chức năng 73/73, nguồn GUI
     35/35, 3.3 4/4, thiết kế 7/7, ngôn ngữ 5/5, canvas PASS, không mất tính năng PASS,
     coordinator 35/35); hồi quy video **SHA256 giống hệt** bản gốc.
+- [x] **Đẩy lên GitHub + bộ cài máy mới** (anh chuyển sang máy khác)
+  - Repo **private**: `https://github.com/handsomecat101/cam-ai` — nhánh `master`, toàn bộ lịch sử, **~3 MB**
+  - `cai_dat_may_moi.bat` → tạo `.venv` + cài thư viện + tải 2 model, **1 lệnh**
+  - `TAI-MAY-MOI.md` = hướng dẫn máy mới (clone → cài → mở app → git pull/push)
+  - **Không commit** (quá nặng / là dữ liệu cá nhân): `models/` 784 MB · `video_mau/` 507 MB · `known_faces/` · `.venv/`
+  - `known_faces_mau.zip` (41 KB) — 10 ảnh "An"/"Binh" để anh chuyển máy bằng USB
 - [ ] **Chờ anh xác nhận lại mục 7** — mở app (double-click `Mo CamAI.vbs`) rồi kéo cửa sổ xem
       còn giật không. Số đo đã sạch nhưng **cần cảm nhận của người dùng**
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh

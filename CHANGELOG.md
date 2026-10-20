@@ -22,6 +22,20 @@ Bản này **hoàn tất** mục tiêu anh chốt: *CamAI = app detect đa thể
 | 7 | **`--list-lop`** | In đủ **80 lớp** (id, tiếng Anh, tiếng Việt) rồi thoát `exit 0`, **không cần `--input`** |
 | 8 | **Đếm phương tiện** | `--dem-phuong-tien`: đếm theo từng lớp + tổng lượt + số xe nhiều nhất cùng lúc; **4 cột CSV mới ở CUỐI** (`phuong_tien`, `so_phuong_tien`, `tong_phuong_tien`, `max_phuong_tien`), 10 cột cũ **không đổi** |
 | 9 | **~200 từ đồng nghĩa tiếng Việt** | "ô tô" = "xe hơi" = "xe ô tô" · "xe máy" = "mô tô" = "xe gắn máy" · "xe khách" = "xe buýt" = "xe đò" · "xe tải" = "xe hàng" · "thuyền" = "tàu thuyền" · "tàu hỏa" = "tàu lửa" · "điện thoại" = "smartphone" · "gấu bông" = "thú bông" … |
+| 10 | **Bộ cài đặt 1 lệnh cho máy mới** | `cai_dat_may_moi.bat` (double-click) → `cai_dat_may_moi.py`: tạo `.venv`, cài thư viện, tải `yolo11n.pt`, tải model ArcFace (`tai_tao_model.py`), in tổng kết. **Không chết khi 1 bước fail** — bỏ qua bước đó và đi tiếp; exit 0 chỉ khi venv + 2 model đều có |
+| 11 | **`requirements.txt` đầy đủ + đúng** | Bổ sung 5 gói đang thiếu: `customtkinter` (GUI), `pillow` (vẽ nhãn tiếng Việt), `rapidocr-onnxruntime` (OCR biển số), `openpyxl` (báo cáo .xlsx), `pywin32` (script chụp màn hình). Dòng `torch` **cố ý comment** vì bản `+cu126` không có trên PyPI — script cài riêng từ index pytorch.org |
+| 12 | **`TAI-MAY-MOI.md`** | Hướng dẫn đầy đủ cho máy mới: yêu cầu hệ thống, clone (kèm cách dùng PAT), cài đặt, mở app, **bảng "những thứ KHÔNG có trong git"** (models 784 MB, video_mau 507 MB, known_faces) và cách lấy lại từng thứ, quy trình `git pull/push`, gotcha đã biết |
+
+### BỔ SUNG SAU KHI CHỐT 3.7 — ĐẨY LÊN GITHUB (anh chuyển sang máy khác)
+
+| Hạng mục | Chi tiết |
+|---|---|
+| **Repo GitHub** | `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử commit** (từ `bb52c18` bản 3.5 → `7ebe43b`) đã lên. Kích thước repo **~3 MB** (chỉ code + tài liệu) |
+| **Cố ý KHÔNG commit** | `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` (ảnh khuôn mặt) · `*.pt` / `*.onnx` · file kết quả chạy. Lý do: GitHub giới hạn 100 MB/file, repo 1,3 GB sẽ clone chậm; model tải lại được bằng 1 lệnh |
+| **Giữ lại file giấy phép** | `video_mau/moi/NGUON_LICENSE_NGUOI.md` **vẫn được commit** — là attribution CC BY / CC BY-SA cho 5 video Wikimedia, bắt buộc phải có |
+| **`known_faces_mau.zip`** (41 KB, **không commit**) | Gói 10 ảnh "An"/"Binh" để anh chuyển sang máy mới bằng USB. Ảnh khuôn mặt **cố ý không đưa vào git** (biometric data + git history không xoá được) |
+| **Xung đột thật do agent phát hiện khi làm bộ cài** | `rapidocr-onnxruntime` kéo theo bản **CPU** của `onnxruntime` và **ghi đè** bản GPU. Script cài đặt phát hiện (chỉ khi cả 2 dist-info nằm trong `.venv`) và cài lại `onnxruntime-gpu==1.23.2` |
+| **Xác minh** | `pip install --dry-run -r requirements.txt` → **exit 0**, cả 11 dòng đang hoạt động đều resolve; `torch==2.14.0` trên index cu126 → `torch-2.14.0+cu126` (cp313 win_amd64) resolve được; `insightface==2.1` có sẵn wheel (không cần trình biên dịch); chạy thật `cai_dat_may_moi.py` → **exit 0**, chạy từ số 0 (xoá `.venv` trước) → tạo venv + thông báo tiếng Việt có dấu đúng |
 
 ### Đã sửa
 
