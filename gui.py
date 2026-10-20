@@ -53,6 +53,14 @@ from duong_dan import APP_DIR
 import gui_khung as GK
 from gui_khung import PanelSuKien, cat_anh_moi, ve_khung_hinh
 
+# HANG SO THIET KE tach rieng sang `giao_dien.py` (design system da chot):
+# mau, font, khoang cach, bo goc, kich thuoc, bieu tuong Windows.
+# gui.py KHONG viet hex tay ben ngoai - mau lay tu `MAU`.
+import giao_dien as GD
+from giao_dien import (MAU, MAU_TRANG_THAI, BO_GOC, BO_GOC_NUT,
+                       BO_GOC_O_NHAP, BO_GOC_THE, KICH_THUOC,
+                       anh_bieu_tuong, bieu_tượng, xac_nhan_font)
+
 PYTHON_EXE = sys.executable
 VE_VUNG = os.path.join(APP_DIR, "ve_vung.py")
 BAO_CAO = os.path.join(APP_DIR, "bao_cao_tong_ket.py")
@@ -118,35 +126,12 @@ RESIZE_CHO_MS = 180                # ms - ngung keo bao lau thi ve lai khung hin
 # chua do duoc khung cha (lan dau mo / cua so bi nho).
 XEM_VIDEO_BE_RONG = 1100
 XEM_VIDEO_CAO = 620
-LABEL_WIDTH = 118                  # be ngan can cua 1 hang cau hinh
-FONT = "Segoe UI"
-FONT_SO = "Consolas"
+LABEL_WIDTH = 124                  # be ngan can cua 1 hang cau hinh (cot CUNG)
 
-# --- BANG MAU CHUAN ------------------------------------------------------
-# Phong cach: "dark tech + xanh trang thai".
-# TAT CA ma mau cua gui.py deu lay tu dict nay - KHONG viet hex tay ben ngoai.
-MAU = {
-    "nen":            "#0F172A",   # nen chinh cua cua so
-    "the":            "#1B2336",   # nen the / thanh tieu de nhom
-    "the_phu":        "#272F42",   # nen phu (o nhap, hang nho)
-    "chu":            "#F8FAFC",   # chu chinh
-    "chu_phu":        "#94A3B8",   # chu phu tren nen chinh
-    "chu_phu_the":    "#CBD5E1",   # chu phu tren nen the (de doc hon)
-    "nut":            "#22C55E",   # nut chinh (CTA) + chu bao thanh cong
-    "nut_hover":      "#16A34A",
-    "nut_phu":        "#334155",   # nut phu
-    "nut_phu_hover":  "#475569",
-    "vien":           "#334155",   # vien 1px
-    "loi":            "#EF4444",   # chu bao loi
-    "focus":          "#FFFFFF",   # vien sang khi focus
-}
-
-# --- BO GOC + KHOANG CACH ------------------------------------------------
-BO_GOC_THE = 10      # the / khung
-BO_GOC_NUT = 8       # nut
-BO_GOC_O_NHAP = 6    # o nhap
-KHOANG_CACH = 8      # khoang cach toi thieu giua 2 phan tu
-LE_NGOAI = 16        # le ngoai toi thieu cua cua so
+# --- BO GOC + KHOANG CACH + MAU ---------------------------------------------
+# TAT CA lay tu `giao_dien.py` (design system da chot) - khong viet hex tay.
+KHOANG_CACH = GD.KHOANG_CACH["nho"]      # 8  - giua 2 hang cau hinh
+LE_NGOAI = GD.LE_NGOAI                  # 16 - le ngoai quanh mep cua so
 
 
 # ---------------------------------------------------------------- VIDEO MAU
@@ -233,22 +218,21 @@ LE_KHUNG = 60                        # de trong giua man hinh khi cat nho
 # --- BO CUC 3 VUNG (mau tham chieu: video lon ~76%, danh sach su kien ~24%) ---
 # Cot TRAI da thu gon de video duoc rong ra; cot SU KIEN giu nguyen bang chuc
 # nang (anh crop that) nhung hep hon. Ty le video/(video+su kien) ~ 76%.
-RONG_COT_TRAI = 300                 # cot CAI DAT ben trai
+RONG_COT_TRAI = 320                 # cot CAI DAT ben trai (MASTER: 280-320)
 RONG_COT_SU_KIEN = 320              # cot DANH SACH SU KIEN ben phai
 # --- BE NGAT DONG TRONG COT CAI DAT ---
 # Do that 2026-10-19 bang `_kk_agent_b_do_le.py`: khung noi dung ben trong
 # CTkScrollableFrame chi rong 268px (300 - le ngoai 16 - thanh cuon ~16).
-# Nhieu nhan cu dat `wraplength` 180-300px => Tk xuong dong o be 180-300px
-# NHUNG widget chi rong 104-232px => CHU BI CAT NGANG GIUA DONG.
+# v3.4: cot trai rong 320px -> noi dung 288px (320 - le ngoai 16 - cuon ~16).
 # Phai tinh wraplength tu be rong THAT con lai, khong dat so tu nghieng.
-BE_NOI_DUNG_TRONG_NHOM = 268        # be ngang that cua khung 1 nhom
-LE_MO_TA_NHOM = 36                  # le cua dong mo ta (dinh nghia o NhomTinhNang)
-LE_GHI_Y = 10                       # le cua dong ghi chu nho
-WRAP_MO_TA_NHOM = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - 8      # 224
-WRAP_GHI_Y = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - LE_GHI_Y - 8  # 214
+BE_NOI_DUNG_TRONG_NHOM = 288        # be ngang that cua khung 1 nhom
+LE_MO_TA_NHOM = 24                  # le cua dong mo ta (dinh nghia o NhomTinhNang)
+LE_GHI_Y = 24                       # le cua dong ghi chu nho (thut lui ve trong)
+WRAP_MO_TA_NHOM = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - 8      # 256
+WRAP_GHI_Y = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - LE_GHI_Y - 8  # 232
 # Chu cua 1 checkbox trong khung cau hinh (tru 24px o check + 6px khe).
-# Be trong cua khung cau hinh = 268 - 36 (le cua nhom) = 232px.
-WRAP_CHECKBOX = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - 24 - 6 - 2  # 200
+# Be trong cua khung cau hinh = 288 - 24 (le cua nhom) = 264px.
+WRAP_CHECKBOX = BE_NOI_DUNG_TRONG_NHOM - LE_MO_TA_NHOM - 24 - 6 - 2  # 232
 TY_LE_COT_VIDEO = 76                # video chiem 76% be ngang vung hien thi
 # Chieu cao o nhhat ky: giu ngan de khoang chay cho khung video (16:9).
 CAO_NHAT_KY = 104
@@ -383,13 +367,13 @@ DICH_VI_EN = {
         "them. Measured: about 2.5x faster on a busy camera, about 2x on an "
         "empty one. People counting is not affected.",
     "Đo thật trên video đông người (10 người/khung): "
-    "1 → 5,2 khung/giây · 2 → 7,6 · 5 → 12,5 · 10 → 23,4. "
+    "1 -> 5,2 khung/giây · 2 -> 7,6 · 5 -> 12,5 · 10 -> 23,4. "
     "Đếm người KHÔNG đổi, chỉ giảm số lần quét mặt. "
     "Máy chấm công (người đứng ở cửa) để 5 là đủ. "
     "Giám sát người đi qua nhanh thì để 1–2. "
     "Camera vắng người thì nhận được nhiều hơn các số trên.":
-        "Measured on a busy video (10 people per frame): 1 → 5.2 fps · "
-        "2 → 7.6 · 5 → 12.5 · 10 → 23.4. People counting does not change, "
+        "Measured on a busy video (10 people per frame): 1 -> 5.2 fps · "
+        "2 -> 7.6 · 5 -> 12.5 · 10 -> 23.4. People counting does not change, "
         "only how often faces are scanned. For an attendance clock (people "
         "stand at the door) 5 is enough. For watching people pass by fast, "
         "keep 1–2. An empty camera does better than these numbers.",
@@ -564,10 +548,10 @@ DICH_VI_EN = {
     "Xem thông tin mô hình AI đang dùng": "See the AI model information in use",
 
     # --- dieu khien / tien trinh / so lieu ---
-    "▶  BẮT ĐẦU": "▶  START",
-    "●  DỪNG": "●  STOP",
-    "▶": "▶",
-    "▼": "▼",
+    # Icon nut lay tu font Windows (Segoe MDL2 Assets) - nen chuoi nut
+    # chi con CHU, khong con ky tu to hop.
+    "BẮT ĐẦU": "START",
+    "DỪNG": "STOP",
     "Tiến trình": "Progress",
     "Người": "People",
     "Mặt": "Faces",
@@ -895,6 +879,30 @@ DICH_VI_EN = {
     "Cần chọn video trước.":
         "Draw it right in this window: drag the mouse over the zone then press "
         "Save. Pick a video first.",
+
+    # --- v3.4 (thiet ke lai): nhan khu vuc + don vi + ghi chu checkbox ---
+    "NGUỒN": "SOURCE",
+    "PHÂN TÍCH": "ANALYSIS",
+    "Bỏ qua mặt nhỏ hơn (px)": "Skip faces smaller than (px)",
+    "Quét mặt mỗi (khung hình)": "Scan faces every (frames)",
+    "Cảnh báo khi vượt quá (người)": "Alert when over (people)",
+    "Cảnh báo khi người đứng lâu (giây)": "Alert when standing still (seconds)",
+    "Tổng thời lượng 1 clip (giây)": "Total length of 1 clip (seconds)",
+    "Nghỉ giữa 2 lần (giây)": "Pause between 2 times (seconds)",
+    "Gộp tin (giây)": "Group messages (seconds)",
+    "Giới hạn (tin/phút)": "Limit (messages/minute)",
+    "Vẽ khung quanh mỗi người trong khung hình.":
+        "Draw a box around every person in the frame.",
+    "Ghi tên lên khung nếu nhận diện được người quen.":
+        "Write the name on the box when a known person is recognised.",
+    "Làm mờ nền để dễ nhìn thấy người.":
+        "Blur the background so people stand out.",
+    "Xem video ngay khi đang phân tích.":
+        "Watch the video live while the analysis runs.",
+    "Xem khung hình đã vẽ khung sau khi phân tích.":
+        "See the drawn boxes on the frames after the analysis.",
+    "Đường dẫn video đầy đủ": "Full video path",
+    "Thư mục lưu kết quả đầy đủ": "Full results folder",
 }
 
 # KHOA DUOC PHEP "DICH TIEU DOAN" (chuoi co noi dung bien nhau phia sau).
@@ -934,29 +942,18 @@ NHAN_TRANG_THAI_NGAN = {
     "xong": "Xong",
 }
 
-# Mau nen cua HUYEN TRANG THAI - nhin la biet ngay, khong phai doc chu.
-MAU_TRANG_THAI = {
-    "chua_chay": "#334155",
-    "chay": "#15803D",
-    "khung_hinh_day_du": "#15803D",
-    "khung_hinh": "#15803D",
-    "tam_dung": "#B45309",
-    "loi": "#B91C1C",
-    "dung_giua": "#B45309",
-    "xong": "#15803D",
-}
-
-# BIEU TU trang thai (ky tu HINH HOC, KHONG phai emoji - quy tac cua anh).
+# BIEU TU trang thai (ky tu HINH HOC cua font WINDOWS, KHONG phai emoji).
+# Font: `Segoe MDL2 Assets` (xem `giao_dien.bieu_tuong`).
 # Chi doc bang mat, khong can dich.
 BIEU_TU_TRANG_THAI = {
-    "chua_chay": "○",           # vong rong - chua chay
-    "chay": "▶",                # tam giac - dang chay
-    "khung_hinh_day_du": "▶",
-    "khung_hinh": "▶",
-    "tam_dung": "❙❙",          # hai vet dung - tam dung
-    "loi": "✖",                 # dau X - loi
-    "dung_giua": "■",           # vuong - dung giua chung
-    "xong": "✔",                # dau tick - xong
+    "chua_chay": bieu_tượng("thong_tin"),      # Info - chua chay
+    "chay": bieu_tượng("phat"),                # Play - dang chay
+    "khung_hinh_day_du": bieu_tượng("phat"),
+    "khung_hinh": bieu_tượng("phat"),
+    "tam_dung": bieu_tượng("tam_dung"),        # Pause - tam dung
+    "loi": bieu_tượng("loi"),                  # Error - loi
+    "dung_giua": bieu_tượng("dung"),           # Stop - dung giua chung
+    "xong": bieu_tượng("tick"),                # CheckMark - xong
 }
 
 
@@ -1172,7 +1169,7 @@ class HuongDan:
             self.cua_so.attributes("-topmost", True)
             lbl = tk.Label(
                 self.cua_so, text=noi_dung, justify="left",
-                background="#1b1f27", foreground="#f2f4f8",
+                background=MAU["the_phu"], foreground=MAU["chu"],
                 font=self.font, padx=8, pady=5, wraplength=self.do_rong_max,
             )
             lbl.pack()
@@ -1324,13 +1321,13 @@ class GoiYTronO:
 class NhomTinhNang(ctk.CTkFrame):
     """MOT tinh nang trong menu: 1 dong tieu de + 1 khung cau hinh an/hi.
 
-    Tieu de:  [▶/▼] [x] Ten tinh nang
+    Tieu de:  [mui ten] [x] Ten tinh nang
     Khi mo:   them 1 dong ghi chu nho xam + 1 khung cau hinh ngay ben duoi.
     Dung grid() + grid_remove() de an hien (KHONG dung pack_forget).
     """
 
     def __init__(self, master, ten, var, lenh="", font=None, font_nho=None,
-                 mac_dinh=(), co_checkbox=True) -> None:
+                 font_bieu_tuong=None, mac_dinh=(), co_checkbox=True) -> None:
         super().__init__(master, fg_color=MAU["nen"])
         self.var = var
         self.co_checkbox = co_checkbox
@@ -1347,23 +1344,29 @@ class NhomTinhNang(ctk.CTkFrame):
         self.thanh.grid_columnconfigure(1, weight=1)
 
         self.btn_mo = ctk.CTkButton(
-            self.thanh, text="▶", width=30, height=28,
+            self.thanh, text=bieu_tượng("mui_phai"), width=36, height=36,
             fg_color="transparent", hover_color=MAU["nut_phu"],
-            text_color=MAU["chu"], font=font, corner_radius=BO_GOC_NUT,
-            command=self._doi_trang_thai,
+            text_color=MAU["chu"], font=font_bieu_tuong,
+            corner_radius=BO_GOC_NUT, command=self._doi_trang_thai,
         )
         # nut mui ten giu nguyen mau trong suot - khong cho vong mau chung doi.
         self.btn_mo._bo_toc_style = True
-        self.btn_mo.grid(row=0, column=0, sticky="w", padx=(6, KHOANG_CACH),
-                         pady=6)
+        self.btn_mo.grid(row=0, column=0, sticky="w", padx=(4, KHOANG_CACH),
+                         pady=4)
 
         if co_checkbox:
             self.chk = ctk.CTkCheckBox(
                 self.thanh, text=ten, variable=var, font=font,
                 text_color=MAU["chu"], fg_color=MAU["nut"],
                 hover_color=MAU["nut_hover"], border_color=MAU["nut_phu"],
+                # Dau tick ve bang MAU TOI (nen) tren nen o XANH - neu ve
+                # cung mau nen o thi dau tick BIEN MAT hoan toan.
+                checkmark_color=MAU["nen"],
                 command=self._doi_checkbox, onvalue="1", offvalue="0"
             )
+            # Tieu de nhom la TI EU DE KHU VUC (15px semibold) - giu nguyen,
+            # khong cho vong mau chung doi kich thuoc chu xuong 13px.
+            self.chk._bo_toc_style = True
         else:
             self.chk = ctk.CTkLabel(self.thanh, text=ten, font=font,
                                     text_color=MAU["chu"], anchor="w")
@@ -1411,11 +1414,11 @@ class NhomTinhNang(ctk.CTkFrame):
         if mo:
             self.lbl_lenh.grid()
             self.khung.grid()
-            self.btn_mo.configure(text="▼")
+            self.btn_mo.configure(text=bieu_tượng("mui_xuong"))
         else:
             self.lbl_lenh.grid_remove()
             self.khung.grid_remove()
-            self.btn_mo.configure(text="▶")
+            self.btn_mo.configure(text=bieu_tượng("mui_phai"))
 
     # ---------------------------------------------------------- tien ich
 
@@ -1445,21 +1448,35 @@ class CamAIGui(ctk.CTk):
         self.after(80, self._canh_giua_trong_vung_lam_viec)
         self.configure(fg_color=MAU["nen"])
 
-        # --- chu: Segoe UI cho chu, Consolas chi cho so / bang / nhat ky ---
-        self.font_title = ctk.CTkFont(family=FONT, size=20, weight="bold")
-        self.font_group = ctk.CTkFont(family=FONT, size=18, weight="bold")
-        self.font_nhom = ctk.CTkFont(family=FONT, size=15)          # tieu de nhom
-        self.font_tieu_de = ctk.CTkFont(family=FONT, size=14)
-        self.font_nut = ctk.CTkFont(family=FONT, size=15)
-        self.font_nho = ctk.CTkFont(family=FONT, size=12)
-        self.font_nho_bold = ctk.CTkFont(family=FONT, size=12, weight="bold")
-        self.font_nho_xam = ctk.CTkFont(family=FONT, size=12)
-        self.font_code = ctk.CTkFont(family=FONT_SO, size=12)
-        self.font_so = ctk.CTkFont(family=FONT_SO, size=13)        # so lieu
-        self.font_stat = ctk.CTkFont(family=FONT_SO, size=20, weight="bold")
-        # so lieu noi bat: TO de doc tu xa (yeu cau cua anh Tuấn)
-        self.font_stat_lon = ctk.CTkFont(family=FONT, size=30, weight="bold")
-        self.font_bam = ctk.CTkFont(family=FONT, size=15, weight="bold")
+        # --- KIEM TRA FONT thuc te (tkinter.font.families) -> fallback ---
+        # Font chi dung font co san tren Windows. `xac_nhan_font` tra ve dict
+        # de in ra kiem chung; neu thieu font bieu tuong Windows thi
+        # `co_font_bieu_tuong()` = False va moi noi dung dung CHU THAY ICON.
+        self.kiem_tra_font = xac_nhan_font(self)
+
+        # --- chu: Segoe UI cho chu, Cascadia Mono cho so / bang / nhat ky ---
+        # Vai tro theo MASTER.md muc 3 (tieu de app 23, tieu de khu vuc 15
+        # semibold, nhan o 13, ghi chu 12, so lieu 28 bold).
+        self.font_title = ctk.CTkFont(family=GD.FONT_CHU, size=23, weight="bold")
+        self.font_group = ctk.CTkFont(family=GD.FONT_DEN, size=18, weight="bold")
+        self.font_nhom = ctk.CTkFont(family=GD.FONT_DAM, size=15)   # tieu de nhom
+        self.font_tieu_de = ctk.CTkFont(family=GD.FONT_DAM, size=15)  # tieu de khu vuc
+        self.font_nut = ctk.CTkFont(family=GD.FONT_CHU, size=14, weight="bold")
+        self.font_nho = ctk.CTkFont(family=GD.FONT_CHU, size=13)      # nhan o
+        self.font_nho_bold = ctk.CTkFont(family=GD.FONT_DAM, size=13, weight="bold")
+        self.font_nho_xam = ctk.CTkFont(family=GD.FONT_CHU, size=12)  # ghi chu
+        # Nhan khu vuc ("NGUON", "PHAN TICH"): 12px semibold viet HOA.
+        self.font_nhan_nhom = ctk.CTkFont(family=GD.FONT_DAM, size=12,
+                                          weight="bold")
+        self.font_code = ctk.CTkFont(family=GD.FONT_SO, size=12)
+        self.font_so = ctk.CTkFont(family=GD.FONT_SO, size=13)        # so lieu
+        # so lieu noi bat: 28px bold (MASTER.md muc 3 - badge so lieu).
+        self.font_stat = ctk.CTkFont(family=GD.FONT_CHU, size=28, weight="bold")
+        self.font_stat_lon = ctk.CTkFont(family=GD.FONT_CHU, size=30, weight="bold")
+        self.font_bam = ctk.CTkFont(family=GD.FONT_CHU, size=15, weight="bold")
+        # Font bieu tuong Windows (Segoe MDL2 Assets) - rong khi co font.
+        self.font_bieu_tuong = ctk.CTkFont(
+            family=GD.FONT_BIEU_TUONG or GD.FONT_CHU, size=14)
 
         self.queue: queue.Queue = queue.Queue()
         self.stop_flag = threading.Event()
@@ -1474,8 +1491,11 @@ class CamAIGui(ctk.CTk):
         self.cua_so_model = None
         self._mau_trang_thai = "chua_chay"
         self._du_lieu_trang_thai = {}
+        self._anh_icon = None           # anh icon app (neu co file .ico)
+        self._anh_icon_pil = None       # ban PIL goc (de ve o thanh dau)
 
         self._khoi_tao_bien()
+        self._cai_icon()                # icon app - thieu file thi bo qua
         self._dung_giao_dien()
         self._cap_nhat_trang_thai()
         self._lam_moi_trang_thai()          # ve huyen trang thai luc moi mo
@@ -1487,6 +1507,52 @@ class CamAIGui(ctk.CTk):
         self.after(PUMP_MS, self._hut_hang_doi)
         # Anh xem truoc video mau: doc o thread nen, giu GUI khong tre luc mo.
         self.after(220, self._bat_dau_doc_thumb)
+
+    # ------------------------------------------------------------ icon app
+
+    def _cai_icon(self) -> None:
+        """Nap icon app tu `assets/camai.ico` (neu co).
+
+        Tk KHONG doc duoc file .ico truc tiep -> dung PIL doi sang anh roi
+        `PhotoImage`. File CHUA co san (coordinator tao sau) -> BO QUA IM LANG,
+        app van chay binh thuong, khong bao loi.
+        """
+        duong_dan = os.path.join(APP_DIR, "assets", "camai.ico")
+        if not os.path.isfile(duong_dan):
+            return
+        try:
+            from PIL import Image, ImageTk
+            anh = Image.open(duong_dan)
+            anh = anh.convert("RGBA")
+            anh.thumbnail((64, 64), Image.LANCZOS)
+            self._anh_icon = ImageTk.PhotoImage(anh)
+            self._anh_icon_pil = anh
+            self.iconphoto(True, self._anh_icon)
+        except Exception:                             # noqa: BLE001
+            self._anh_icon = None
+            self._anh_icon_pil = None
+        try:
+            # `iconbitmap` nhan file .ico truc tiep tren Windows.
+            self.iconbitmap(duong_dan)
+        except Exception:                             # noqa: BLE001
+            pass
+
+    def _anh_bieu_tuong(self, ma: str, size: int = 16, mau=(255, 255, 255, 255)):
+        """Anh icon (font Windows) cho nut - tra ve `CTkImage` hoac None.
+
+        Tk khong ve duoc 2 font khac nhau trong 1 chuoi, nen nut co ca icon
+        + chu phai dung `image=` cho icon. Neu may khong co font bieu tuong
+        Windows -> None (nut chi hien chu).
+        """
+        if not GD.co_font_bieu_tuong():
+            return None
+        anh = anh_bieu_tuong(ma, size, mau)
+        if anh is None:
+            return None
+        try:
+            return ctk.CTkImage(light_image=anh, dark_image=anh, size=anh.size)
+        except Exception:                             # noqa: BLE001
+            return None
 
     def _tieu_de(self) -> str:
         return self.dich(TIEU_DE_CUA_SO).format(phien_ban=VERSION)
@@ -1672,8 +1738,11 @@ class CamAIGui(ctk.CTk):
                      anchor="w").grid(row=0, column=1, sticky="w",
                                       padx=(10, 0), pady=(8, 2))
         self.btn_video_mau = ctk.CTkButton(
-            khung, text="Ẩn", width=64, height=26, font=self.font_nho_xam,
-            command=self._doi_hien_video_mau,
+            khung, text="Ẩn", width=76, height=KICH_THUOC["cao_nut"],
+            font=self.font_nho, command=self._doi_hien_video_mau,
+            fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
+            text_color=MAU["chu"], border_width=1, border_color=MAU["vien"],
+            corner_radius=BO_GOC_NUT,
         )
         self.btn_video_mau.grid(row=0, column=2, sticky="e", padx=(0, 12),
                                 pady=(8, 2))
@@ -1750,18 +1819,27 @@ class CamAIGui(ctk.CTk):
     def _lam_moi_trang_thai(self) -> None:
         khuôn = TRANG_THAI_TIEN_TRINH[self._mau_trang_thai]
         self.v_tien_trinh.set(self.dich(khuôn).format(**self._du_lieu_trang_thai))
-        # Huyện trạng thái: MÀU + BIỂU TỰ HÌNH HỌC (không phải emoji) + CHỮ NGẮN.
-        # CHỮ NGẮN Ở ĐÂY là chủ ý: chi tiết "2/250 · 1%" do nhãn TIẾN TRÌNH bên
-        # cạnh lo. Trước đây huyện in luôn cả chuỗi dài đó nên hai nhãn bị đè
-        # vào nhau ở góc trên phải khi cửa sổ nhỏ lại.
+        # Huyen trang thai: MAU + BIEU TUONG FONT WINDOWS + CHU NGAN.
+        # CHU NGAN o day la chu y: chi tiet "2/250 · 1%" do nhan TIEN TRINH ben
+        # canh lo. Truoc day huyen in luon ca chuoi dai do nen hai nhan bi de
+        # vao nhau o goc tren phai khi cua so nho lai.
         ngan = self.dich(NHAN_TRANG_THAI_NGAN.get(
             self._mau_trang_thai, TRANG_THAI_TIEN_TRINH[self._mau_trang_thai]))
         if getattr(self, "huyen", None) is not None:
             self.huyen.configure(
-                text=f"{BIEU_TU_TRANG_THAI.get(self._mau_trang_thai, '')}  "
-                     + ngan,
                 fg_color=MAU_TRANG_THAI.get(self._mau_trang_thai, MAU["nut_phu"]),
             )
+            self.huyen_chu.configure(text=ngan)
+            # Khong co font bieu tuong Windows -> dung CHU VIET TAT thay the.
+            if GD.co_font_bieu_tuong():
+                self.huyen_icon.configure(
+                    text=BIEU_TU_TRANG_THAI.get(self._mau_trang_thai, ""))
+            else:
+                self.huyen_icon.configure(
+                    text={"chua_chay": "OK", "chay": ">>", "tam_dung": "||",
+                          "loi": "X", "dung_giua": "||", "xong": "OK"}.get(
+                              self._mau_trang_thai, ""))
+        self._cap_nhat_mau_so_lieu()
 
     # ------------------------------------------------------------ bien
 
@@ -1889,30 +1967,14 @@ class CamAIGui(ctk.CTk):
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(2, weight=0, minsize=0)
 
-        ctk.CTkLabel(
-            self, text="CamAI — Phân tích video giám sát",
-            font=self.font_title, text_color=MAU["chu"], anchor="w",
-        ).grid(row=0, column=0, columnspan=2, sticky="ew", padx=LE_NGOAI,
-               pady=(12, 6))
-
-        # Nut doi ngon ngu Tieng Viet <-> English, goc tren ben phai.
-        self.btn_ngon_ngu = ctk.CTkButton(
-            self, text="English", width=150, height=34,
-            font=self.font_nho, command=self._doi_ngon_ngu,
-            fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
-            corner_radius=BO_GOC_NUT,
-        )
-        self.btn_ngon_ngu._bo_toc_style = True
-        self.btn_ngon_ngu._bo_ngon_ngu = True      # tu quan ly chu rieng
-        # COT 1 (cot hien thi) chu KHONG dat nut nay o cot 2: cot 2 se no
-        # ra het be rong nut (~166px) va lam cot video bi eo lai.
-        self.btn_ngon_ngu.grid(row=0, column=1, sticky="e", padx=(0, LE_NGOAI),
-                               pady=(12, 6))
+        # --- THANH DAU 64px (MASTER.md muc 5) ---
+        self._thanh_dau()
 
         self._cot_cai_dat()
         self._cot_hien_thi()
         self._ap_dung_theme()          # mau chung cho toan bo widget da tao
         self._bang_video_mau()         # dai the video mau co anh xem truoc
+        self._chuan_hoa_font()         # font Segoe UI cho the video mau
 
         self.lbl_loi = ctk.CTkLabel(
             self, text="", font=self.font_nho, text_color=MAU["loi"],
@@ -1921,10 +1983,93 @@ class CamAIGui(ctk.CTk):
         self.lbl_loi.grid(row=3, column=0, columnspan=3, sticky="ew",
                           padx=LE_NGOAI, pady=(0, 8))
 
+    # ---------------------------------------------------------- THANH DAU
+
+    def _thanh_dau(self) -> None:
+        """THANH DAU 64px (MASTER.md muc 5).
+
+        TRAI  : icon app + ten app (23px bold) + phien ban nho mau `chu_phu`.
+        PHAI  : nut doi ngon ngu + nut DUNG + nut hanh dong chinh (BAT DAU).
+        Nut dung / bat dau nam o day (khong phai cuoi cot trai) de nguoi dung
+        luon thay noi "bat dau" o mot cho du co mo rong cua so hay khong.
+        """
+        khung = ctk.CTkFrame(self, fg_color=MAU["the"], corner_radius=0)
+        khung.grid(row=0, column=0, columnspan=3, sticky="ew")
+        khung.grid_propagate(False)
+        khung.configure(height=64)
+        khung.grid_columnconfigure(1, weight=1)      # cot spacer: day phai
+        khung.grid_rowconfigure(0, weight=1)
+
+        # --- TRAI: icon + ten + phien ban ---
+        trai = ctk.CTkFrame(khung, fg_color="transparent")
+        trai.grid(row=0, column=0, sticky="w", padx=(LE_NGOAI, 0))
+        trai.grid_columnconfigure(1, weight=0)
+        cot = 0
+        if self._anh_icon_pil is not None:
+            try:
+                anh = ctk.CTkImage(light_image=self._anh_icon_pil,
+                                   dark_image=self._anh_icon_pil,
+                                   size=(30, 30))
+                ctk.CTkLabel(trai, image=anh, text="", width=30).grid(
+                    row=0, column=0, sticky="w", padx=(0, 10))
+                cot = 1
+            except Exception:                         # noqa: BLE001
+                cot = 0
+        ctk.CTkLabel(trai, text="CamAI", font=self.font_title,
+                     text_color=MAU["chu"], anchor="w").grid(
+            row=0, column=cot, sticky="w",
+            padx=(0 if cot else 0, 8))
+        ctk.CTkLabel(trai, text=f"v{VERSION}", font=self.font_nho,
+                     text_color=MAU["chu_phu"], anchor="w").grid(
+            row=0, column=cot + 1, sticky="w")
+
+        # --- PHAI: nut doi ngon ngu ---
+        self.btn_ngon_ngu = ctk.CTkButton(
+            khung, text="English", width=112, height=KICH_THUOC["cao_nut"],
+            font=self.font_nho, command=self._doi_ngon_ngu,
+            fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
+            text_color=MAU["chu"], border_width=1, border_color=MAU["vien"],
+            corner_radius=BO_GOC_NUT,
+        )
+        self.btn_ngon_ngu._bo_toc_style = True
+        self.btn_ngon_ngu._bo_ngon_ngu = True      # tu quan ly chu rieng
+        self.btn_ngon_ngu.grid(row=0, column=2, sticky="e", padx=(0, 8))
+
+        # --- PHAI: nut DUNG (nút phụ) ---
+        # Icon = PAUSE (2 thanh doc) chu KHONG phai Stop (hinh vuong dac):
+        # hinh vuong doc nho trong nut nho trong y như O VUONG THIEU GLYPH
+        # (tofu) -> nguoi dung tuong lai app loi.
+        self.btn_dung = ctk.CTkButton(
+            khung, text="DỪNG", command=self._dung,
+            height=KICH_THUOC["cao_nut"], width=104,
+            image=self._anh_bieu_tuong("tam_dung", 14, (248, 250, 252, 255)),
+            font=self.font_nut, state="disabled",
+            fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
+            text_color=MAU["chu"], border_width=1, border_color=MAU["vien"],
+            corner_radius=BO_GOC_NUT,
+        )
+        self.btn_dung._bo_toc_style = True
+        self.btn_dung.grid(row=0, column=3, sticky="e", padx=(0, 8))
+
+        # --- PHAI: nut hanh dong chinh (nút chính) ---
+        self.btn_chay = ctk.CTkButton(
+            khung, text="BẮT ĐẦU", command=self._bat_dau,
+            height=KICH_THUOC["cao_nut"], width=136,
+            image=self._anh_bieu_tuong("phat", 14, (5, 46, 22, 255)),
+            font=self.font_nut, fg_color=MAU["nut"], hover_color=MAU["nut_hover"],
+            text_color=MAU["chu_nut"], corner_radius=BO_GOC_NUT,
+        )
+        self.btn_chay._bo_toc_style = True
+        self.btn_chay.grid(row=0, column=4, sticky="e", padx=(0, LE_NGOAI))
+
     # ------------------------------------------------ cot 0: CAI DAT
 
     def _cot_cai_dat(self):
-        """Cot ben trai: chon video + 8 dong tinh nang + nut dieu khien."""
+        """Cot ben trai: chon video + 12 dong tinh nang (cuon duoc).
+
+        Nut BAT DAU / DUNG da len THANH DAU nen cot nay khong con nut dieu
+        khien - người dùng luon thay noi "bat dau" o mot cho.
+        """
         f = ctk.CTkScrollableFrame(
             self, fg_color="transparent", corner_radius=0,
             scrollbar_button_color=MAU["nut_phu"],
@@ -1933,9 +2078,22 @@ class CamAIGui(ctk.CTk):
         )
         f.grid(row=1, column=0, sticky="nsew", padx=(LE_NGOAI, 0), pady=(0, 4))
         f.grid_columnconfigure(0, weight=1)
+        self._nhan_khu_vuc(f, "NGUỒN")
         self._hang_video(f)
+        self._nhan_khu_vuc(f, "PHÂN TÍCH")
         self._khung_tinh_nang(f)
-        self._hang_dieu_khien(f)
+
+    def _nhan_khu_vuc(self, parent, ten: str) -> None:
+        """Tieu de 1 khu vuc trong cot trai: 12px semibold HOA (MASTER.md muc 3).
+
+        `CTkLabel` khong co letter-spacing nen KHONG hack khoang trang vao
+        chu (quy tac: dung font biet truoc, khong hack rác).
+        """
+        ctk.CTkLabel(
+            parent, text=ten, font=self.font_nhan_nhom,
+            text_color=MAU["chu_phu"], anchor="w",
+        ).grid(row=self._dong_moi(parent), column=0, sticky="w",
+               pady=(0, KHOANG_CACH))
 
     # ------------------------------------------------ cot 1: PHAN HIEN THI
 
@@ -2037,15 +2195,28 @@ class CamAIGui(ctk.CTk):
         f.grid_columnconfigure(1, weight=1, minsize=90)
         f.grid_columnconfigure(2, weight=0, minsize=be_tien_trinh)
 
-        # Huyen trang thai: 1 o mau + bieu tu HINH HOC, nhin la biet ngay.
-        self.huyen = ctk.CTkLabel(
-            f, text="", font=self.font_nho_bold, text_color="#FFFFFF",
-            fg_color=MAU_TRANG_THAI["chua_chay"], corner_radius=BO_GOC_THE,
-            width=be_huyen, height=34, anchor="center",
+        # Huyen trang thai: 1 o mau + BIEU TUONG FONT WINDOWS + CHU ngan.
+        # Tk khong ve duoc 2 font trong 1 chuoi -> huyen la 1 khung chua
+        # 1 nhan icon (font Segoe MDL2 Assets) + 1 nhan chu (font Segoe UI).
+        self.huyen = ctk.CTkFrame(
+            f, fg_color=MAU_TRANG_THAI["chua_chay"], corner_radius=BO_GOC_THE,
+            width=be_huyen, height=34,
         )
         self.huyen._bo_toc_style = True
         self.huyen._bo_ngon_ngu = True      # huyen tu quan ly chu rieng
+        self.huyen.pack_propagate(False)
         self.huyen.grid(row=0, column=0, padx=(0, KHOANG_CACH))
+        self.huyen.grid_columnconfigure(1, weight=1)
+        self.huyen_icon = ctk.CTkLabel(
+            self.huyen, text="", font=self.font_bieu_tuong,
+            text_color=MAU["chu"], width=20,
+        )
+        self.huyen_icon.grid(row=0, column=0, padx=(10, 0))
+        self.huyen_chu = ctk.CTkLabel(
+            self.huyen, text="", font=self.font_nho_bold,
+            text_color=MAU["chu"], anchor="w",
+        )
+        self.huyen_chu.grid(row=0, column=1, sticky="w", padx=(6, 10))
 
         self.bar = ctk.CTkProgressBar(f, height=16)
         self.bar.grid(row=0, column=1, sticky="ew", padx=(0, KHOANG_CACH))
@@ -2058,11 +2229,15 @@ class CamAIGui(ctk.CTk):
     # ------------------------------------------------------------ mau sac
 
     def _ap_dung_theme(self, goc=None) -> None:
-        """Gan bang mau chuan cho MOI widget da tao (nut, checkbox, o nhap).
+        """Gan bang mau chuan cho MOI widget da tao (MASTER.md muc 6).
 
-        Chi doi MAU + bo goc, KHONG doi bo cuc (grid/padx/pady) va KHONG
-        dung trong <Configure> nen khong ton hao gi khi rê chuot.
-        Widget co `_bo_toc_style` (nut mui ten, 2 nut dieu khien) duoc bo qua.
+        * Nut phu   : nen `nut_phu`, chu `chu`, vien 1px `vien`, bo goc 8, cao 36.
+        * Checkbox  : `checkmark_color` = `nut`, hover `nut_hover`, nhan 13px `chu`.
+        * O nhap    : nen `the_phu`, chu `chu`, vien 1px `vien`, bo goc 6, cao 32.
+        * Nhat ky   : nen `nen`, chu 12px `chu_phu`, font `Cascadia Mono`.
+        Chi doi MAU + bo goc + kich thuoc, KHONG doi bo cuc (grid/padx/pady) va
+        KHONG dung trong <Configure> nen khong ton hao gi khi rê chuot.
+        Widget co `_bo_toc_style` (nut mui ten, nut tren thanh dau) duoc bo qua.
         """
         goc = self if goc is None else goc
 
@@ -2072,21 +2247,28 @@ class CamAIGui(ctk.CTk):
             elif isinstance(wdg, ctk.CTkButton):
                 wdg.configure(
                     fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
-                    text_color=MAU["chu"], border_width=0,
+                    text_color=MAU["chu"], border_width=1,
+                    border_color=MAU["vien"],
                     corner_radius=BO_GOC_NUT, font=self.font_nut,
+                    height=KICH_THUOC["cao_nut"],
                 )
-                self._vong_focus(wdg, be_rong=0)
+                self._vong_focus(wdg, be_rong=1)
             elif isinstance(wdg, ctk.CTkCheckBox):
                 wdg.configure(
                     fg_color=MAU["nut"], hover_color=MAU["nut_hover"],
-                    border_color=MAU["nut_phu"], checkmark_color=MAU["chu"],
-                    text_color=MAU["chu"],
+                    border_color=MAU["nut_phu"],
+                    # Dau tick ve bang MAU TOI (nen) tren nen o XANH: neu ve
+                    # cung mau nen o thi dau tick khong thay - nguoi dung
+                    # khong biet o da tick hay chua.
+                    checkmark_color=MAU["nen"],
+                    text_color=MAU["chu"], font=self.font_nho,
                 )
             elif isinstance(wdg, ctk.CTkEntry):
                 wdg.configure(
                     fg_color=MAU["the_phu"], border_color=MAU["vien"],
                     border_width=1, text_color=MAU["chu"],
                     corner_radius=BO_GOC_O_NHAP,
+                    height=KICH_THUOC["cao_o_nhap"], font=self.font_nho,
                 )
                 self._vong_focus(wdg)
             elif isinstance(wdg, ctk.CTkOptionMenu):
@@ -2094,14 +2276,53 @@ class CamAIGui(ctk.CTk):
                     fg_color=MAU["the_phu"], button_color=MAU["nut_phu"],
                     button_hover_color=MAU["nut_phu_hover"],
                     text_color=MAU["chu"], corner_radius=BO_GOC_O_NHAP,
+                    height=KICH_THUOC["cao_o_nhap"], font=self.font_nho,
                 )
             elif isinstance(wdg, ctk.CTkProgressBar):
                 wdg.configure(fg_color=MAU["the_phu"], progress_color=MAU["nut"],
                               corner_radius=BO_GOC_NUT)
             elif isinstance(wdg, ctk.CTkTextbox):
-                wdg.configure(fg_color=MAU["the"], border_width=1,
+                wdg.configure(fg_color=MAU["nen"], border_width=1,
                               border_color=MAU["vien"], text_color=MAU["chu_phu"],
-                              corner_radius=BO_GOC_THE)
+                              corner_radius=BO_GOC_THE, font=self.font_code)
+            for con in wdg.winfo_children():
+                quet(con)
+
+        quet(goc)
+        # Dai the video mau (tao SAU `_ap_dung_theme`) + widget sinh tu dong
+        # -> can 1 pass chuan hoa font rieng.
+        self._chuan_hoa_font()
+
+    def _chuan_hoa_font(self, goc=None) -> None:
+        """Gan font Segoe UI cho widget nao customtkinter MAC DINH "Roboto".
+
+        CustomTkinter mac dinh font la "Roboto" - font do KHONG co san tren
+        Windows (app chay 100% offline) nen Tk phai tu tim font thay the.
+        Pass nay gan dung font Segoe UI cho moi widget con sot.
+        """
+        goc = self if goc is None else goc
+
+        def quet(wdg):
+            if isinstance(wdg, (ctk.CTkLabel, ctk.CTkButton, ctk.CTkEntry,
+                                ctk.CTkCheckBox, ctk.CTkOptionMenu)):
+                try:
+                    f = wdg.cget("font")
+                except Exception:                     # noqa: BLE001
+                    f = None
+                can_doi = f is None
+                if not can_doi and hasattr(f, "cget"):
+                    try:
+                        can_doi = str(f.cget("family")) == "Roboto"
+                    except Exception:                 # noqa: BLE001
+                        can_doi = False
+                if can_doi:
+                    try:
+                        if isinstance(wdg, ctk.CTkButton):
+                            wdg.configure(font=self.font_nut)
+                        else:
+                            wdg.configure(font=self.font_nho)
+                    except Exception:                 # noqa: BLE001
+                        pass
             for con in wdg.winfo_children():
                 quet(con)
 
@@ -2134,45 +2355,58 @@ class CamAIGui(ctk.CTk):
     # ---------------------------------------------------------- hang video
 
     def _hang_video(self, parent):
-        """2 khoi chon file (Video + Luu ket qua), xep theo COT HOP de vua
-        khoi cau hinh ben trai khoang 470px.
+        """Khoi CHON NGUON: duong dan video + thu muc luu ket qua.
+
+        Nhan o DONG TREN, o nhap o DONG DUOI (dung rong 288px) - duong dan
+        video thuong dai hon 250px, xep cung hang voi nhan thi bi CAT CHU.
+        Tooltip (`HuongDan`) hien TOAN BO duong dan khi re chuot vao o.
 
         Video mau KHONG nam o day: no la MOT DAI THE ANH XEM TRUOC chay
-        ngang o duoi cua so (`_bang_video_mau`) - 7 the xuong nhau moi
-        kiem duoc 1 hang, con xep doc se day nut BẮT ĐẦU xuống duoi man hình.
+        ngang o duoi cua so (`_bang_video_mau`).
         """
         f = ctk.CTkFrame(parent, fg_color="transparent")
-        f.grid(row=0, column=0, sticky="ew", pady=(0, 2))
-        f.grid_columnconfigure(1, weight=1)
+        f.grid(row=self._dong_moi(parent), column=0, sticky="ew",
+               pady=(0, GD.KHOANG_CACH["lon"]))
+        f.grid_columnconfigure(0, weight=1)
 
         # --- 1. VIDEO ---
-        ctk.CTkLabel(f, text="Video", font=self.font_tieu_de,
-                     text_color=MAU["chu"], anchor="w",
-                     width=110).grid(row=0, column=0, sticky="w", padx=(0, 10))
-        ctk.CTkEntry(f, textvariable=self.v_video).grid(
-            row=0, column=1, sticky="ew", pady=(0, 4))
+        ctk.CTkLabel(f, text="Video", font=self.font_nho,
+                     text_color=MAU["chu"], anchor="w").grid(
+            row=0, column=0, sticky="w")
+        o_video = ctk.CTkEntry(f, textvariable=self.v_video)
+        o_video.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        # Duong dan dai hon o -> tooltip hien day du.
+        HuongDan(o_video, lambda: self.v_video.get(), font=self.font_nho_xam)
+
         f_nut = ctk.CTkFrame(f, fg_color="transparent")
-        f_nut.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, KHOANG_CACH))
+        f_nut.grid(row=2, column=0, sticky="ew",
+                   pady=(GD.KHOANG_CACH["nho"], 0))
         f_nut.grid_columnconfigure(1, weight=1)
-        ctk.CTkButton(f_nut, text="Chọn video…", width=130,
-                      command=self._chon_video).grid(row=0, column=0, sticky="w")
-        ctk.CTkButton(f_nut, text="Mở thư mục clip", width=150,
+        ctk.CTkButton(f_nut, text="Chọn video…", width=120,
+                      command=self._chon_video, anchor="w").grid(
+            row=0, column=0, sticky="w")
+        ctk.CTkButton(f_nut, text="Mở thư mục clip", width=160,
                       fg_color=MAU["nut_phu"], hover_color=MAU["nut_phu_hover"],
                       command=self._mo_thu_muc_clip
-                      ).grid(row=0, column=1, sticky="w", padx=(KHOANG_CACH, 0))
+                      ).grid(row=0, column=1, sticky="w",
+                            padx=(GD.KHOANG_CACH["nho"], 0))
 
         # --- 2. LUU KET QUA ---
-        ctk.CTkLabel(f, text="Lưu kết quả", font=self.font_tieu_de,
-                     text_color=MAU["chu"], anchor="w",
-                     width=110).grid(row=2, column=0, sticky="w", padx=(0, 10))
-        ctk.CTkEntry(f, textvariable=self.v_output).grid(
-            row=2, column=1, sticky="ew")
+        ctk.CTkLabel(f, text="Lưu kết quả", font=self.font_nho,
+                     text_color=MAU["chu"], anchor="w").grid(
+            row=3, column=0, sticky="w", pady=(GD.KHOANG_CACH["vua"], 0))
+        o_output = ctk.CTkEntry(f, textvariable=self.v_output)
+        o_output.grid(row=4, column=0, sticky="ew", pady=(4, 0))
+        HuongDan(o_output, lambda: self.v_output.get(), font=self.font_nho_xam)
+
         f_out = ctk.CTkFrame(f, fg_color="transparent")
-        f_out.grid(row=3, column=0, columnspan=2, sticky="ew")
-        ctk.CTkButton(f_out, text="Chọn…", width=130,
-                      command=self._chon_output).grid(row=0, column=0, sticky="w")
+        f_out.grid(row=5, column=0, sticky="ew",
+                   pady=(GD.KHOANG_CACH["nho"], 0))
+        ctk.CTkButton(f_out, text="Chọn…", width=140,
+                      command=self._chon_output, anchor="w").grid(
+            row=0, column=0, sticky="w")
         # Ghi chu phai nam o HANG RIENG ben duoi nut: dat cung hang voi nut
-        # 130px thi con it chua 130px chu -> bi cat ngang giua dong.
+        # 140px thi con it chua 140px chu -> bi cat ngang giua dong.
         ctk.CTkLabel(f_out,
                      text="Tự thêm đuôi: _ket_qua.mp4 và _bao_cao.csv",
                      font=self.font_nho_xam, text_color=MAU["chu_phu"],
@@ -2183,10 +2417,10 @@ class CamAIGui(ctk.CTk):
     # ---------------------------------------------------- khung tinh nang
 
     def _khung_tinh_nang(self, parent):
-        """10 dong tinh nang. MAC DINH THU GON HET, chi tinh nang anh bat
+        """12 dong tinh nang. MAC DINH THU GON HET, chi tinh nang anh bat
         moi mo. Moi nhom duoc gan vao self.nhom_* de tien kiem chung."""
         b = ctk.CTkFrame(parent, fg_color="transparent")
-        b.grid(row=1, column=0, sticky="ew", pady=(KHOANG_CACH, 2))
+        b.grid(row=self._dong_moi(parent), column=0, sticky="ew", pady=(0, 0))
         b.grid_columnconfigure(0, weight=1)
 
         self.nhom_phat_hien = self._them_nhom(
@@ -2279,7 +2513,8 @@ class CamAIGui(ctk.CTk):
                    co_checkbox=True) -> NhomTinhNang:
         nhom = NhomTinhNang(
             parent, ten, var, lenh=lenh, font=self.font_nhom,
-            font_nho=self.font_nho_xam, mac_dinh=mac_dinh, co_checkbox=co_checkbox,
+            font_nho=self.font_nho_xam, font_bieu_tuong=self.font_bieu_tuong,
+            mac_dinh=mac_dinh, co_checkbox=co_checkbox,
         )
         nhom.grid(row=dong, column=0, sticky="ew", pady=(0, KHOANG_CACH))
         return nhom
@@ -2308,19 +2543,23 @@ class CamAIGui(ctk.CTk):
     def _hang(self, parent, ten: str = "", do_rong: int = LABEL_WIDTH) -> ctk.CTkFrame:
         """1 hang trong khung cau hinh: nhan ben trai + o dieu khien ben phai.
 
+        COT NHAN co be rong CO DINH (`do_rong`) va cot dieu khien nam trong
+        1 COT CO DINH -> moi hang deu thang hang theo cot, khong lech nhau.
         `wraplength = do_rong` rat quan trong: CTkLabel tu do rong theo CHU,
         nen nhan dai ("Danh sách lớp cần nhận") se lon hon cot va TRAN QUA
         sang o dieu khien ben phai, khong con khoang hở nao. Bat wraplength
-        thi chu xuong dong trong dung be 118px -> khong bao gio cham o nhap.
+        thi chu xuong dong trong dung be 124px -> khong bao gio cham o nhap.
         """
         f = ctk.CTkFrame(parent, fg_color="transparent")
         f.grid(row=self._dong_moi(parent), column=0, sticky="ew",
                pady=(KHOANG_CACH, 0))
+        # Cot 0 = NHAN (be rong co dinh), cot 1 = O DIEU KHIEN (phan con lai).
+        f.grid_columnconfigure(0, weight=0, minsize=do_rong)
         f.grid_columnconfigure(1, weight=1)
         if ten:
             ctk.CTkLabel(
                 f, text=ten, anchor="w", width=do_rong, justify="left",
-                font=self.font_nho, text_color=MAU["chu_phu_the"],
+                font=self.font_nho, text_color=MAU["chu"],
                 wraplength=do_rong,
             ).grid(row=0, column=0, sticky="w", padx=(0, 12))
         return f
@@ -2329,13 +2568,13 @@ class CamAIGui(ctk.CTk):
         """Hang cau hinh DUNG rong: nhan o dong TREN, o dieu khien o dong DUOI.
 
         Dung khi 1 hang khong du chua nhan + o nhap + nut: be trong cua nhom
-        chi 232px nen 3 thu tren cung 1 hang se lam o nhap bijep (chi con
+        chi 264px nen 3 thu tren cung 1 hang se lam o nhap bijep (chi con
         ~6px - khong go duoc). O day nhan doc 1 dong rieng, o nhap + nut
         duoc hieu rong cua ca khoi cau hinh.
         """
         ctk.CTkLabel(
             parent, text=ten, anchor="w", justify="left",
-            font=self.font_nho, text_color=MAU["chu_phu_the"],
+            font=self.font_nho, text_color=MAU["chu"],
         ).grid(row=self._dong_moi(parent), column=0, sticky="w")
         f = ctk.CTkFrame(parent, fg_color="transparent")
         f.grid(row=self._dong_moi(parent), column=0, sticky="ew")
@@ -2351,7 +2590,7 @@ class CamAIGui(ctk.CTk):
         """
         ctk.CTkLabel(
             parent, text=text, font=self.font_nho_xam,
-            text_color=MAU["chu_phu_the"],
+            text_color=MAU["chu_phu"],
             anchor="w", wraplength=WRAP_GHI_Y, justify="left",
         ).grid(row=self._dong_moi(parent), column=0, sticky="w",
                padx=(LE_GHI_Y, 0), pady=(2, 0))
@@ -2405,15 +2644,15 @@ class CamAIGui(ctk.CTk):
         f = self._hang(b, "Mô hình nhận diện")
         ctk.CTkOptionMenu(
             f, values=["yolo11n.pt", "yolo11s.pt", "yolo11m.pt", "yolo11l.pt"],
-            variable=self.v_model, width=170,
-        ).grid(row=0, column=1, sticky="w")
+            variable=self.v_model, width=120,
+        ).grid(row=0, column=1, sticky="ew")
         self._ghi_y(b, "yolo11n = nhẹ nhất, chạy nhanh nhất. Không rành thì để yolo11n.")
 
         f = self._hang(b, "Chạy bằng")
         ctk.CTkOptionMenu(
             f, values=list(GIA_TRI_CHE_THIET_BI),
-            variable=self.v_thiet_bi, width=170,
-        ).grid(row=0, column=1, sticky="w")
+            variable=self.v_thiet_bi, width=120,
+        ).grid(row=0, column=1, sticky="ew")
         self._ghi_y(b, "Đo thật trên máy này: card màn hình nhanh hơn CPU "
                        "khoảng 2 lần khi chỉ đếm người, khoảng 2,5 lần khi "
                        "bật nhận diện mặt. Máy không có card thì để "
@@ -2423,14 +2662,19 @@ class CamAIGui(ctk.CTk):
         f = self._hang(b, "Hiển thị trên video")
         # 3 checkbox, MOI CAI 1 DONG RIENG: truoc day 3 cai cung 1 hang
         # thi cai 1 bi ep con 1px (khong bam duoc) va cai 2 bi cat chu.
-        for ten, bien in (("Vẽ khung người", self.v_khung),
-                          ("Vẽ nhãn tên", self.v_nhan),
-                          ("Làm mờ nền, giữ rõ chỗ có người",
-                           self.v_pixelate)):
+        # Moi checkbox span TRON 2 cot (dung rong 264px) + 1 dong ghi chu.
+        for ten, bien, ghi_chu in (
+                ("Vẽ khung người", self.v_khung,
+                 "Vẽ khung quanh mỗi người trong khung hình."),
+                ("Vẽ nhãn tên", self.v_nhan,
+                 "Ghi tên lên khung nếu nhận diện được người quen."),
+                ("Làm mờ nền, giữ rõ chỗ có người", self.v_pixelate,
+                 "Làm mờ nền để dễ nhìn thấy người.")):
             f2 = self._hang(b, "")
             self._checkbox(f2, ten, bien, font=self.font_nho,
                            onvalue="1", offvalue="0").grid(
-                row=0, column=1, sticky="w")
+                row=0, column=0, columnspan=2, sticky="w")
+            self._ghi_y(b, ghi_chu)
 
     # --------------------------------------------------------- nhom 2: mat
 
@@ -2454,22 +2698,16 @@ class CamAIGui(ctk.CTk):
                        "Thấp hơn = dễ không nhận ra người quen. "
                        "Mặc định 0,40.")
 
-        f = self._hang(b, "Bỏ qua mặt nhỏ hơn")
+        f = self._hang(b, "Bỏ qua mặt nhỏ hơn (px)")
         ctk.CTkEntry(f, textvariable=self.v_min_face, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="px", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"],
-                     anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
         self._ghi_y(b, "Mặt nhỏ hơn cỡ này thì bỏ qua, không hỏi ai. Để 0 = không bỏ.")
 
-        f = self._hang(b, "Quét mặt mỗi")
+        f = self._hang(b, "Quét mặt mỗi (khung hình)")
         ctk.CTkEntry(f, textvariable=self.v_face_every, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="khung hình", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"], anchor="w").grid(
-            row=0, column=2, sticky="w", padx=(8, 0))
         self._ghi_y(b, "Đo thật trên video đông người (10 người/khung): "
-                       "1 → 5,2 khung/giây · 2 → 7,6 · 5 → 12,5 · 10 → 23,4. "
+                       "1 -> 5,2 khung/giây · 2 -> 7,6 · 5 -> 12,5 · 10 -> 23,4. "
                        "Đếm người KHÔNG đổi, chỉ giảm số lần quét mặt. "
                        "Máy chấm công (người đứng ở cửa) để 5 là đủ. "
                        "Giám sát người đi qua nhanh thì để 1–2. "
@@ -2478,26 +2716,26 @@ class CamAIGui(ctk.CTk):
         f = self._hang_rong(b, "Thư mục ảnh đã học")
         ctk.CTkEntry(f, textvariable=self.v_faces_dir).grid(
             row=0, column=0, sticky="ew")
-        ctk.CTkButton(f, text="Chọn…", width=70,
+        ctk.CTkButton(f, text="Chọn…", width=80,
                       command=self._chon_faces_dir).grid(
-            row=0, column=1, padx=(6, 0))
+            row=0, column=1, padx=(GD.KHOANG_CACH["nho"], 0))
         self._ghi_y(b, "Cấu trúc: known_faces / <Tên> / *.jpg — mỗi người một thư mục con.")
 
         f = self._hang(b, "")
         self.btn_dang_ky = self._dich_widget(ctk.CTkButton(
-            f, text=self.dich("Đăng ký người quen…"), width=280,
+            f, text=self.dich("Đăng ký người quen…"), width=260,
             command=self._mo_dang_ky_nguoi_quen,
         ), "Đăng ký người quen…")
-        self.btn_dang_ky.grid(row=0, column=1, sticky="w")
+        self.btn_dang_ky.grid(row=0, column=0, columnspan=2, sticky="w")
         self._ghi_y(b, "Chọn 1 ảnh hoặc 1 video có người quen, phần mềm tự "
                        "tìm mặt và lưu vào thư mục của người đó.")
 
         f = self._hang(b, "")
         self.btn_hoc_lai = ctk.CTkButton(
-            f, text="Đọc lại danh sách người đã học", width=280,
+            f, text="Đọc lại danh sách người đã học", width=260,
             command=self._ve_lai_nguoi_hoc,
         )
-        self.btn_hoc_lai.grid(row=0, column=1, sticky="w")
+        self.btn_hoc_lai.grid(row=0, column=0, columnspan=2, sticky="w")
 
     def v_uoi_gioi(self) -> ctk.StringVar:
         """Bien hien thi 'uoc luong tuoi va gioi tinh'.
@@ -2522,64 +2760,57 @@ class CamAIGui(ctk.CTk):
         f = self._hang_rong(b, "File vùng (.txt)")
         ctk.CTkEntry(f, textvariable=self.v_vung_file).grid(
             row=0, column=0, sticky="ew")
-        ctk.CTkButton(f, text="Chọn…", width=70,
+        ctk.CTkButton(f, text="Chọn…", width=80,
                       command=self._chon_vung_file).grid(
-            row=0, column=1, padx=(6, 0))
+            row=0, column=1, padx=(GD.KHOANG_CACH["nho"], 0))
 
         f = self._hang(b, "")
-        ctk.CTkButton(f, text="Vẽ vùng trên video này", width=280,
-                      command=self._mo_ve_vung).grid(row=0, column=1, sticky="w")
+        ctk.CTkButton(f, text="Vẽ vùng trên video này", width=260,
+                      command=self._mo_ve_vung).grid(
+            row=0, column=0, columnspan=2, sticky="w")
         self._ghi_y(b, "Mở cửa sổ riêng: xem video, kéo chuột khoanh vùng, "
                        "lưu lại thành file .txt.")
 
         f = self._hang(b, "")
         self.btn_ve_vung_tai_day = self._dich_widget(ctk.CTkButton(
-            f, text=self.dich("Vẽ vùng ngay tại đây"), width=280,
+            f, text=self.dich("Vẽ vùng ngay tại đây"), width=260,
             command=self._ve_vung_ngay_tai_day,
         ), "Vẽ vùng ngay tại đây")
-        self.btn_ve_vung_tai_day.grid(row=0, column=1, sticky="w")
+        self.btn_ve_vung_tai_day.grid(row=0, column=0, columnspan=2, sticky="w")
         self._ghi_y(b, "Vẽ ngay trong cửa sổ này: kéo chuột khoanh vùng rồi "
                        "bấm Lưu. Cần chọn video trước.")
 
         f = self._hang(b, "")
         self._checkbox(f, "Chỉ cần một phần chân vào vùng là bị báo",
                        self.v_vung_nhay, font=self.font_nho,
-                       onvalue="1", offvalue="0").grid(row=0, column=1, sticky="w")
+                       onvalue="1", offvalue="0").grid(
+            row=0, column=0, columnspan=2, sticky="w")
         self._ghi_y(b, "Tắt = chặt: cả người phải nằm hẳn trong vùng mới báo. "
                        "Bật = nhạy: thân chạm vùng là báo ngay.")
 
-        f = self._hang(b, "Cảnh báo khi vượt quá")
+        f = self._hang(b, "Cảnh báo khi vượt quá (người)")
         ctk.CTkEntry(f, textvariable=self.v_vung_max, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="người", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"],
-                     anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
         self._ghi_y(b, "Nhập 0 để tắt cảnh báo này.")
 
-        f = self._hang(b, "Cảnh báo khi người đứng lâu")
+        f = self._hang(b, "Cảnh báo khi người đứng lâu (giây)")
         ctk.CTkEntry(f, textvariable=self.v_canh_lau, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"],
-                     anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
         self._ghi_y(b, "Nhập 0 để tắt cảnh báo này.")
 
     # -------------------------------------------------------- nhom 5: clip
 
     def _n_clip(self, b):
-        f = self._hang(b, "Tổng thời lượng 1 clip")
+        f = self._hang(b, "Tổng thời lượng 1 clip (giây)")
         ctk.CTkEntry(f, textvariable=self.v_clip_giay, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"],
-                     anchor="w").grid(row=0, column=2, sticky="w", padx=(8, 0))
         self._ghi_y(b, "Chia đôi: một nửa trước sự kiện, một nửa sau sự kiện.")
 
         f = self._hang(b, "")
         ctk.CTkCheckBox(
             f, text="Ghi clip cả khi không bật canh vùng",
             font=self.font_nho, variable=self.v_clip_tat_ca, onvalue="1", offvalue="0"
-        ).grid(row=0, column=1, sticky="w")
+        ).grid(row=0, column=0, columnspan=2, sticky="w")
         self._ghi_y(b, "Mặc định chỉ ghi clip khi có chuyện trong vùng canh. "
                        "Bật ô này thì thấy người là ghi luôn.")
 
@@ -2624,9 +2855,9 @@ class CamAIGui(ctk.CTk):
         o_bien_so.grid(row=0, column=0, sticky="ew")
         # Duong dan thu muc hay DAI hon o -> bi cat chu. Rê chuot vao xem day du.
         HuongDan(o_bien_so, lambda: self.v_bien_so_dir.get(), font=self.font_nho)
-        ctk.CTkButton(f, text="Chọn…", width=70,
+        ctk.CTkButton(f, text="Chọn…", width=80,
                       command=self._chon_bien_so_dir).grid(
-            row=0, column=1, padx=(6, 0))
+            row=0, column=1, padx=(GD.KHOANG_CACH["nho"], 0))
 
         f = self._hang(b, "Vùng cần quét")
         o_vung_bien_so = ctk.CTkEntry(f, textvariable=self.v_bien_so_vung)
@@ -2639,19 +2870,16 @@ class CamAIGui(ctk.CTk):
                                  "để chỉ quét một vùng.",
                  font=self.font_nho)
 
-        f = self._hang(b, "Nghỉ giữa 2 lần")
+        f = self._hang(b, "Nghỉ giữa 2 lần (giây)")
         ctk.CTkEntry(f, textvariable=self.v_bien_so_giay, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"], anchor="w").grid(
-            row=0, column=2, sticky="w", padx=(8, 0))
 
         f = self._hang(b, "")
         self.btn_doc_bien_so_thu = self._dich_widget(ctk.CTkButton(
-            f, text=self.dich("Đọc biển số thử…"), width=280,
+            f, text=self.dich("Đọc biển số thử…"), width=260,
             command=self._mo_doc_bien_so_thu,
         ), "Đọc biển số thử…")
-        self.btn_doc_bien_so_thu.grid(row=0, column=1, sticky="w")
+        self.btn_doc_bien_so_thu.grid(row=0, column=0, columnspan=2, sticky="w")
         self._ghi_y(b, "Thử trên 1 ảnh. Khi chạy video, biển số phải được xác "
                        "nhận qua 2 khung hình liên tiếp mới ghi nhận - nên kết "
                        "quả thử 1 ảnh chưa giống hệt lúc chạy video.")
@@ -2683,16 +2911,13 @@ class CamAIGui(ctk.CTk):
         o_tu_chup.grid(row=0, column=0, sticky="ew")
         # Duong dan thu muc hay DAI hon o -> bi cat chu. Rê chuot vao xem day du.
         HuongDan(o_tu_chup, lambda: self.v_tu_chup_dir.get(), font=self.font_nho)
-        ctk.CTkButton(f, text="Chọn…", width=70,
+        ctk.CTkButton(f, text="Chọn…", width=80,
                       command=self._chon_tu_chup_dir).grid(
-            row=0, column=1, padx=(6, 0))
+            row=0, column=1, padx=(GD.KHOANG_CACH["nho"], 0))
 
-        f = self._hang(b, "Nghỉ giữa 2 lần")
+        f = self._hang(b, "Nghỉ giữa 2 lần (giây)")
         ctk.CTkEntry(f, textvariable=self.v_tu_chup_giay, width=90).grid(
             row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="giây", font=self.font_nho_xam,
-                     text_color=MAU["chu_phu_the"], anchor="w").grid(
-            row=0, column=2, sticky="w", padx=(8, 0))
 
         self._ghi_y(b, "Chụp khi có người đông, vượt vùng canh, thấy người "
                        "quen hoặc có người đứng lâu.")
@@ -2737,31 +2962,26 @@ class CamAIGui(ctk.CTk):
                        "THOẠI ngay trên máy này. Telegram cần có token trong "
                        "file canh_bao.ini.")
 
-        f = self._hang(b, "Gộp tin")
+        f = self._hang(b, "Gộp tin (giây)")
         ctk.CTkEntry(f, textvariable=self.v_cb_go, width=90
                       ).grid(row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="giây", font=self.font_nho,
-                     text_color=MAU["chu_phu_the"], anchor="w").grid(
-            row=0, column=2, sticky="w", padx=(8, 0))
 
-        f = self._hang(b, "Giới hạn")
+        f = self._hang(b, "Giới hạn (tin/phút)")
         ctk.CTkEntry(f, textvariable=self.v_cb_gioi_han, width=90
                      ).grid(row=0, column=1, sticky="w")
-        ctk.CTkLabel(f, text="tin/phút", font=self.font_nho,
-                     text_color=MAU["chu_phu_the"], anchor="w").grid(
-            row=0, column=2, sticky="w", padx=(8, 0))
 
         f = self._hang(b, "")
-        ctk.CTkButton(f, text="Thử gửi 1 cảnh báo", width=220,
-                      command=self._thu_canh_bao).grid(row=0, column=1, sticky="w")
+        ctk.CTkButton(f, text="Thử gửi 1 cảnh báo", width=260,
+                      command=self._thu_canh_bao).grid(
+            row=0, column=0, columnspan=2, sticky="w")
 
     # ------------------------------------------------------ nhom 11: model
 
     def _n_model(self, b):
         f = self._hang(b, "")
-        ctk.CTkButton(f, text="Xem thông tin mô hình AI đang dùng", width=340,
+        ctk.CTkButton(f, text="Xem thông tin mô hình AI đang dùng", width=260,
                       command=self._mo_thong_tin_model).grid(
-            row=0, column=1, sticky="w")
+            row=0, column=0, columnspan=2, sticky="w")
 
     # ----------------------------------------------- nhom 12: thiet bi chay
 
@@ -2789,32 +3009,10 @@ class CamAIGui(ctk.CTk):
         self._ghi_y(b, "Đổi chỗ này ở mục “Phát hiện người”.")
 
     # ---------------------------------------------------------- dieu khien
-
-    def _hang_dieu_khien(self, parent):
-        f = ctk.CTkFrame(parent, fg_color="transparent")
-        f.grid(row=2, column=0, sticky="ew", pady=(KHOANG_CACH, 6))
-        f.grid_columnconfigure(0, weight=1)
-
-        g = ctk.CTkFrame(f, fg_color="transparent")
-        g.grid(row=0, column=0, sticky="ew")
-        g.grid_columnconfigure(0, weight=1)
-        # 2 nut dieu khien XEP DONG (cot cai dat da thu gon ~300px nen khong
-        # the nao cung 1 hang) - moi nut gian het be rong cot nen chu bao gio
-        # bi cat.
-        self.btn_chay = ctk.CTkButton(
-            g, text="▶  BẮT ĐẦU", command=self._bat_dau, height=42,
-            font=self.font_bam, fg_color=MAU["nut"], hover_color=MAU["nut_hover"],
-            corner_radius=BO_GOC_NUT,
-        )
-        self.btn_chay._bo_toc_style = True
-        self.btn_chay.grid(row=0, column=0, sticky="ew", pady=(0, 6))
-        self.btn_dung = ctk.CTkButton(
-            g, text="●  DỪNG", command=self._dung, height=42,
-            font=self.font_bam, state="disabled", fg_color=MAU["nut_phu"],
-            hover_color=MAU["nut_phu_hover"], corner_radius=BO_GOC_NUT,
-        )
-        self.btn_dung._bo_toc_style = True
-        self.btn_dung.grid(row=1, column=0, sticky="ew")
+    #
+    # Nut BAT DAU / DUNG da chuyen len THANH DAU (`_thanh_dau`) nen khong con
+    # khoi dieu khien o cuoi cot trai. `self.btn_chay` / `self.btn_dung` van
+    # ton tai (ten giong het) nen moi thu giu nguyen dung.
 
     # ------------------ KHUNG VIDEO / SO LIEU / THE DOI TUONG / NHAT KY
     # Bo cuc nay da tach sang `_cot_hien_thi` (cot 1) de VIDEO duoc lon nhat.
@@ -2832,7 +3030,7 @@ class CamAIGui(ctk.CTk):
         khung.grid_columnconfigure(1, weight=1)
         khung.grid_rowconfigure(1, weight=1)
 
-        ctk.CTkLabel(khung, text="Xem video", font=self.font_nho_bold,
+        ctk.CTkLabel(khung, text="Xem video", font=self.font_tieu_de,
                      text_color=MAU["chu"], anchor="w").grid(
             row=0, column=0, sticky="w", padx=12, pady=(10, 0))
         self.lbl_khung_hinh = ctk.CTkLabel(
@@ -2841,8 +3039,8 @@ class CamAIGui(ctk.CTk):
         self.lbl_khung_hinh.grid(row=0, column=1, sticky="e", padx=12,
                                  pady=(10, 0))
         self.btn_tam_dung_xem = ctk.CTkButton(
-            khung, text="Tạm dừng", width=120, height=28, state="disabled",
-            command=self._doi_tam_dung_xem,
+            khung, text="Tạm dừng", width=120, height=KICH_THUOC["cao_nut"],
+            state="disabled", command=self._doi_tam_dung_xem,
         )
         # KHONG grid o day: nut "Tam dung" thuoc che do XEM TRUC TIEP.
         # `_cap_nhat_nut_tam_dung_xem` se hien no (dung vi tri grid o day)
@@ -2869,64 +3067,113 @@ class CamAIGui(ctk.CTk):
         hang_duoi = ctk.CTkFrame(khung, fg_color="transparent")
         hang_duoi.grid(row=2, column=0, columnspan=3, sticky="ew", padx=12,
                        pady=(0, 10))
-        hang_duoi.grid_columnconfigure(3, weight=1)
         # v3.3: 2 o xem tach rieng: "Xem truc tiep" va "Xem khung hinh ket qua".
-        # 3 checkbox + 1 dong ghi chu -> ghi chu XUONG HANG RIENG (dong 1) de
-        # khong chu nao bi cat/chong nhau trong be ngang cua so.
-        self.chk_xem_video = self._dich_widget(ctk.CTkCheckBox(
-            hang_duoi, text=self.dich("Xem trực tiếp"), variable=self.v_xem_video,
-            font=self.font_nho_xam, command=self._doi_bat_xem_truc_tiep,
-            onvalue="1", offvalue="0"
-        ), "Xem trực tiếp")
-        self.chk_xem_video.grid(row=0, column=0, sticky="w")
-        self.chk_xem_ket_qua = self._dich_widget(ctk.CTkCheckBox(
-            hang_duoi, text=self.dich("Xem khung hình kết quả"),
-            variable=self.v_xem_ket_qua, font=self.font_nho_xam,
-            command=self._doi_bat_xem_ket_qua, onvalue="1", offvalue="0"
-        ), "Xem khung hình kết quả")
-        self.chk_xem_ket_qua.grid(row=0, column=1, sticky="w", padx=(18, 0))
-        self.chk_nhan_ten = ctk.CTkCheckBox(
-            hang_duoi, text="Nhận diện tên trên ảnh", variable=self.v_nhan_ten,
-            font=self.font_nho_xam, onvalue="1", offvalue="0"
-        )
-        self.chk_nhan_ten.grid(row=0, column=2, sticky="w", padx=(18, 0))
-        self.lbl_goi_y_xem = ctk.CTkLabel(
-            hang_duoi,
-            text="Tên lấy từ bộ nhận diện mặt đang chạy song song. "
-                 "Tắt đi thì nhẹ máy hơn.",
-            font=self.font_nho_xam, text_color=MAU["chu_phu"], anchor="w",
-        )
-        self.lbl_goi_y_xem.grid(row=1, column=0, columnspan=4, sticky="w",
-                                pady=(2, 0))
+        # MOI o xem = 1 KHUNG CON: checkbox o tren, ghi chu 12px ngay duoi,
+        # cung le trai voi CHU cua checkbox (thut vao 24px = be cua o check).
+        # Nhan 13px mau `chu` (MASTER.md muc 6) - de doc hon font 12px xam.
+        #
+        # LUU Y: phai TAO checkbox truc tiep trong khung con `o` (truyen
+        # `master=o`). Tkinter `widget.grid()` luon dua widget vao
+        # `widget.master` (doi so truyen luc TAO), khong phai vao khung
+        # cha hien thi -> neu tao o `hang_duoi` roi grid vao `o` thi 3 o se
+        # CHONG NHAU tren cung 1 cho.
+        o_xem = [
+            (self.dich("Xem trực tiếp"), "Xem trực tiếp", self.v_xem_video,
+             self._doi_bat_xem_truc_tiep,
+             "Xem video ngay khi đang phân tích."),
+            (self.dich("Xem khung hình kết quả"), "Xem khung hình kết quả",
+             self.v_xem_ket_qua, self._doi_bat_xem_ket_qua,
+             "Xem khung hình đã vẽ khung sau khi phân tích."),
+            ("Nhận diện tên trên ảnh", None, self.v_nhan_ten, None,
+             "Tên lấy từ bộ nhận diện mặt đang chạy song song. "
+             "Tắt đi thì nhẹ máy hơn."),
+        ]
+        ds_chk = []
+        for idx, (chuoi, goc, bien, cmd, ghi_chu) in enumerate(o_xem):
+            o = ctk.CTkFrame(hang_duoi, fg_color="transparent")
+            o.grid(row=0, column=idx, sticky="nw",
+                   padx=(0 if idx == 0 else 18, 0))
+            kw = {"variable": bien, "font": self.font_nho,
+                  "onvalue": "1", "offvalue": "0"}
+            if cmd is not None:
+                kw["command"] = cmd
+            chk = ctk.CTkCheckBox(o, text=chuoi, **kw)
+            if goc is not None:
+                chk = self._dich_widget(chk, goc)
+            chk.grid(row=0, column=0, sticky="w")
+            lbl = ctk.CTkLabel(
+                o, text=ghi_chu, font=self.font_nho_xam,
+                text_color=MAU["chu_phu"], anchor="w", justify="left",
+                wraplength=230,
+            )
+            lbl.grid(row=1, column=0, sticky="w", padx=(24, 0), pady=(4, 0))
+            ds_chk.append((chk, lbl))
+        (self.chk_xem_video, lbl1) = ds_chk[0]
+        (self.chk_xem_ket_qua, lbl2) = ds_chk[1]
+        (self.chk_nhan_ten, self.lbl_goi_y_xem) = ds_chk[2]
 
     def _bang_so_lieu_gon(self, parent):
         """Dải số liệu GỌN 1 hàng ngay dưới khung video.
 
-        6 ô nằm ngang, chữ nhỏ - để video (và cột sự kiện) được nhiều chỗ.
-        Không còn panel "đối tượng phát hiện": vai trò đó do DANH SÁCH SỰ
-        KIỆN bên phải đảm nhiệm (có ảnh crop thật + thời gian + tên + tin cậy).
+        6 o nam ngang: nen `the`, bo goc 10, vien 1px `vien`, so 28px bold,
+        nhan 12px `chu_phu`. MAU CUA SO doi theo trang thai (MASTER.md muc 6):
+        `chu` khi chua co du lieu, `nut` khi da co du lieu, `canh_bao` khi
+        dang chay, `loi` khi co loi.
+        Khong con panel "doi tuong phat hien": vai tro do do DANH SACH SU
+        KIEN ben phai dam nhiem (co anh crop that + thoi gian + ten + tin cay).
         """
         s = ctk.CTkFrame(parent, fg_color="transparent")
         s.grid(row=2, column=0, sticky="ew", pady=(0, KHOANG_CACH))
         for col in range(6):
             s.grid_columnconfigure(col, weight=1)
         o_so_lieu = [
-            ("Người", self.v_so_nguoi, MAU["chu"]),
-            ("Mặt", self.v_so_mat, MAU["chu"]),
-            ("Người quen", self.v_so_quen, MAU["nut"]),
-            ("Vào", self.v_so_vao, MAU["chu"]),
-            ("Ra", self.v_so_ra, MAU["chu"]),
-            ("Trong vùng", self.v_so_trong_vung, MAU["chu"]),
+            ("Người", self.v_so_nguoi),
+            ("Mặt", self.v_so_mat),
+            ("Người quen", self.v_so_quen),
+            ("Vào", self.v_so_vao),
+            ("Ra", self.v_so_ra),
+            ("Trong vùng", self.v_so_trong_vung),
         ]
-        for idx, (ten, var, mau) in enumerate(o_so_lieu):
+        self.lbl_so_lieu = []
+        for idx, (ten, var) in enumerate(o_so_lieu):
             cell = ctk.CTkFrame(s, fg_color=MAU["the"], corner_radius=BO_GOC_THE,
                                 border_width=1, border_color=MAU["vien"])
             cell.grid(row=0, column=idx, sticky="ew",
                       padx=(0 if idx == 0 else KHOANG_CACH, 0))
-            ctk.CTkLabel(cell, textvariable=var, font=self.font_stat,
-                         text_color=mau).pack(pady=(2, 0))
+            lbl = ctk.CTkLabel(cell, textvariable=var, font=self.font_stat,
+                               text_color=MAU["chu"])
+            lbl.pack(pady=(6, 0))
+            self.lbl_so_lieu.append(lbl)
             ctk.CTkLabel(cell, text=ten, font=self.font_nho_xam,
-                         text_color=MAU["chu_phu_the"]).pack(pady=(0, 2))
+                         text_color=MAU["chu_phu"]).pack(pady=(0, 6))
+
+    def _cap_nhat_mau_so_lieu(self) -> None:
+        """Mau cua 6 o so lieu theo trang thai hien tai (MASTER.md muc 6).
+
+        `loi` > `canh_bao` (dang chay) > `nut` (da co du lieu) > `chu`.
+        """
+        if not getattr(self, "lbl_so_lieu", None):
+            return
+        if self._mau_trang_thai == "loi":
+            mau = MAU["loi"]
+        elif self.busy:
+            mau = MAU["canh_bao"]
+        else:
+            co_du_lieu = False
+            for var in (self.v_so_nguoi, self.v_so_mat, self.v_so_quen,
+                        self.v_so_vao, self.v_so_ra, self.v_so_trong_vung):
+                try:
+                    if int(var.get() or 0) > 0:
+                        co_du_lieu = True
+                        break
+                except (TypeError, ValueError):
+                    continue
+            mau = MAU["nut"] if co_du_lieu else MAU["chu"]
+        for lbl in self.lbl_so_lieu:
+            try:
+                lbl.configure(text_color=mau)
+            except Exception:                         # noqa: BLE001
+                pass
 
     def _bang_nhat_ky(self, parent):
         f = ctk.CTkFrame(parent, fg_color=MAU["the"], corner_radius=BO_GOC_THE,
@@ -2939,17 +3186,17 @@ class CamAIGui(ctk.CTk):
         f.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(f, text=f"Nhật ký (cuối {MAX_LOG_LINES} dòng)",
-                     font=self.font_nho_bold, text_color=MAU["chu"],
+                     font=self.font_tieu_de, text_color=MAU["chu"],
                      anchor="w").grid(
             row=0, column=0, sticky="w", padx=12, pady=(8, 0))
         self.btn_mo_ket_qua = ctk.CTkButton(
-            f, text="Mở video kết quả", width=175, height=32,
+            f, text="Mở video kết quả", width=175, height=KICH_THUOC["cao_nut"],
             command=self._mo_video_ket_qua, state="disabled",
         )
         self.btn_mo_ket_qua.grid(row=0, column=1, padx=(0, KHOANG_CACH),
                                  pady=(6, 0))
         self.btn_bao_cao = ctk.CTkButton(
-            f, text="Xem báo cáo", width=150, height=32,
+            f, text="Xem báo cáo", width=150, height=KICH_THUOC["cao_nut"],
             command=self._xem_bao_cao,
         )
         self.btn_bao_cao.grid(row=0, column=2, padx=(0, 12), pady=(6, 0))
@@ -4166,7 +4413,7 @@ class CamAIGui(ctk.CTk):
                         ("Trung bình", f"{tb:.1f}"),
                         ("Đỉnh", f"{dinh_vung}"),
                         ("Đáy", f"{day_vung}"),
-                        ("A→B", f"{dem_vao + dem_ra}"),
+                        ("A->B", f"{dem_vao + dem_ra}"),
                     ]
 
                 # ----- PHAT HIEN SU KIEN -> danh sach su kien (co gioi han nhip) -----

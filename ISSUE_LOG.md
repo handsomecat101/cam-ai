@@ -9,6 +9,59 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Dấu ✓ trong ô checkbox biến mất (ô xanh đặc) — CustomTkinter vẽ 2 lớp cùng 1 màu
+
+**Triệu chứng:** sau khi thiết kế lại giao diện, **mọi ô checkbox đã tick hiện thành một ô
+xanh đặc, không thấy dấu ✓** (xem ảnh `_kk_out/agent_g1/v3_cot_trai.png`).
+
+**Nguyên nhân:** CustomTkinter 5.2.2 vẽ checkbox theo **2 lớp màu khác nhau**
+(`windows/widgets/ctk_checkbox.py`, dòng 196–207):
+
+```python
+if self._check_state is True:
+    self._canvas.itemconfig("inner_parts", outline=self._fg_color, fill=self._fg_color)
+    self._canvas.itemconfig("border_parts", outline=self._fg_color, fill=self._fg_color)
+    self._canvas.itemconfig("checkmark", fill=self._checkmark_color)
+```
+
+→ **ô** được tô bằng `fg_color`, **dấu ✓** được vẽ bằng `checkmark_color`.
+Code đặt **cả hai** cùng là `MAU["nut"]` (xanh `#22C55E`) → dấu ✓ nằm trên nền cùng màu
+→ **biến mất hoàn toàn**.
+
+Ngoài ra đây là lỗi **accessibility**: ô tick chỉ khác nhau bằng màu, không có hình dạng để
+nhận biết → người mù màu / màn hình xám không phân biệt được.
+
+**Cách sửa (`VERSION` 3.4):**
+- `fg_color = MAU["nut"]` (giữ — màu ô khi tick)
+- `checkmark_color = MAU["nen"]` (#0F172A, tương phản **≈ 7,7:1** trên nền xanh → dấu ✓ rõ)
+- `border_color = MAU["nut_phu"]`, `hover_color = MAU["nut_hover"]` (giữ)
+
+Sửa ở **cả 2 chỗ** trong `gui.py`: lúc tạo checkbox (khoảng dòng 1360) và lúc gọi lại
+style cho toàn bộ widget (khoảng dòng 2260).
+
+**Bài học:** với CustomTkinter, `fg_color` **không** phải "màu chung" — nó là **màu riêng cho
+từng lớp vẽ**. Đặt 2 tham số cùng giá trị là mất 1 lớp. Kiểm chứng bằng cách **chụp ảnh
+phóng to 3×** chứ không tin nhìn bằng mắt ở kích thước nhỏ.
+
+---
+
+## Icon nút "DỪNG" trông như ô vuông rỗng (tưởng là thiếu glyph)
+
+**Triệu chứng:** nút **DỪNG** hiện `▯ DỪNG` — hình vuông trông **giống hệt ô tofu** của
+font bị thiếu ký tự (xem ảnh phóng 3× `_kk_out/agent_g1/_zoom_nut.png`).
+
+**Nguyên nhân:** dùng icon **Stop = U+E71A** của Segoe MDL2 Assets — glyph này là **một hình
+vuông đặc**. Cùng font đó, **Play = U+E768** là tam giác rỗng nên nhìn ra là "icon", còn hình
+vuông đặc bị đọc nhầm là tofu.
+
+**Cách sửa (`VERSION` 3.4):** đổi sang **Pause = U+E769** (hai thanh dọc) — vừa đúng nghĩa
+"tạm dừng", vừa không giống ô vuông.
+
+**Bài học:** chọn glyph có **hình dạng khác nhau rõ rệt** giữa các trạng thái (play/dừng/xong),
+đừng dùng các hình "đặc" trông giống ô tofu. Và **luôn phóng to ảnh 3×** khi kiểm tra icon.
+
+---
+
 ## Gọi Tk (đọc `StringVar`) từ thread nền → `main thread is not in main loop`
 
 **Triệu chứng:** trong GUI, bấm nút **"Đăng ký người quen…"** → ảnh **được lưu thành

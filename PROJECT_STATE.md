@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 04:50 — bản **3.3** thêm 3 tính năng "dùng tay" vào GUI + sửa 1 lỗi Tk từ thread nền, `VERSION` nay là **3.3**)
+**Ngày cập nhật:** 2026-10-20 (sau 06:45 — bản **3.4** thiết kế lại toàn bộ giao diện theo skill `ui-ux-pro-max` + làm icon app bằng ảnh AI, `VERSION` nay là **3.4**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 **Trạng thái ngắn:** **6 mục nghiệm thu tự đo — CẢ 6 ĐÃ ĐẠT** ở bản 2.8 (đo lại toàn bộ
 sau khi thêm `--tach-o`), mỗi mục có output thật kèm tên file. Mục 7 và 8 **chờ anh tự
@@ -8,7 +8,15 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.3 (mới nhất):** anh chốt hướng **"bộ công cụ AI dùng tay"** — đẩy những thứ
+**Bản 3.4 (mới nhất):** anh yêu cầu thiết kế lại toàn bộ giao diện (vì *"app nhìn cứ phèn
+phèn"*) bằng skill **`ui-ux-pro-max`** + làm lại **icon app bằng ảnh AI** (Nano Banana Pro).
+Sinh `design-system/camai/MASTER.md` làm nguồn sự thật, tách hằng số sang file mới
+`giao_dien.py`, dựng **thanh đầu mới** có icon app, **bỏ hết emoji làm icon** (dùng font
+biểu tượng Windows `Segoe MDL2 Assets`), lên lại typography + component + lưới khoảng cách.
+Coordinator tự mở ảnh và **phát hiện 2 lỗi thị giác thật** (dấu ✓ trong ô checkbox biến
+mất; icon nút DỪNG trông như tofu) → đã sửa. Xem **mục 2.1h**.
+
+**Bản 3.3:** anh chốt hướng **"bộ công cụ AI dùng tay"** — đẩy những thứ
 đã có sẵn ở CLI vào **GUI**. Thêm: (1) tách **2 ô xem video** → **"Xem trực tiếp"** +
 **"Xem khung hình kết quả"** (trước 1 ô mang 2 nghĩa); (2) nút **"Đăng ký người quen…"**
 (lưu vào `known_faces/<Tên>/` ngay trong GUI); (3) nút **"Vẽ vùng ngay tại đây"** (kéo
@@ -401,6 +409,53 @@ Chuyển pixel→tương đối theo kích thước **ảnh gốc** (không ph�
 | **Đăng ký người quen hàng loạt** (nhiều người cùng lúc) | `cluster(max_people=1)` → hiện **1 người / 1 lần**. Muốn nhiều người trong 1 video thì cần tách nhóm nhiều người + giao tên cho từng nhóm |
 | **Mục 7** (kéo cửa sổ) & **mục 8** (độ nhận diện) | Phải do **anh** xác nhận, em không tự đánh dấu đạt |
 | **OCR biển số trên ảnh THẬT** | Vẫn **chưa có ảnh thật** của anh. Bản 3.3 chỉ làm **đường đi ngắn** để anh gửi ảnh → bấm 1 nút → có kết quả ngay |
+
+---
+
+### 2.1h BẢN 3.4 — THIẾT KẾ LẠI TOÀN BỘ GIAO DIỆN + ICON APP DO AI VẼ (2026-10-20)
+
+**Anh yêu cầu:** *"cái lõi app của chúng ta là đẹp hay sao ấy nhỉ mà cái app này nhìn cứ
+phèn phèn sao ấy nhỉ, bạn cho 1 bạn nào dùng skill ui-ux-pro-max thiết kế lại cái app cho
+tôi đi, cả cái icon của app nữa dùng trình tạo ảnh ai"*.
+
+| Việc | Kết quả |
+|---|---|
+| Nguồn thiết kế | Skill **`ui-ux-pro-max`** đã cài sẵn ở `H:\AI Project\.agents\skills\ui-ux-pro-max\`. Chạy `--design-system` + domain `color`/`typography`/`ux` → sinh **`design-system/camai/MASTER.md`** làm **nguồn sự thật** cho giao diện |
+| Icon app | **`Nano Banana Pro`** (Gemini 3 Pro Image) qua connector `matrix/generate_image` — **4 biến thể**, chọn bản "đầu người + ống kính + khung nhận dạng" → `assets/camai.png` 512px + `assets/camai.ico` (16/24/32/48/64/128/256) |
+
+**3 quyết định em tự chỉnh so với output gốc của skill** (ghi rõ lý do trong MASTER.md mục 0):
+1. Skill trả pattern **"Enterprise Gateway"** (landing page + CTA "Contact Sales") → **bỏ**,
+   giữ style Data-Dense Dashboard. CamAI là công cụ desktop local, không bán hàng.
+2. Query "desktop … dark mode" trả **Cyberpunk UI** (đen + xanh neon + glitch) → **bỏ**.
+   Neon trông như tool hacker, tương phản kém, không hợp người dùng không rành kỹ thuật.
+3. Skill gợi ý **Fira Sans / Fira Code / Inter** (Google Fonts) → dùng **font có sẵn trên
+   Windows** (`Segoe UI`, `Segoe UI Semibold`, `Segoe UI Black`, `Cascadia Mono`) vì app chạy
+   **100% offline**.
+
+**Đã thay đổi trong giao diện:**
+
+| Hạng mục | Chi tiết |
+|---|---|
+| Thanh đầu mới | Icon app + "CamAI v3.3" + nút ngôn ngữ + nút DỪNG / BẮT ĐẦU |
+| Icon app | AI vẽ, hiện ở thanh đầu **và** trên thanh tiêu đề cửa sổ Windows |
+| Bỏ emoji làm icon | `▶ ● ✔ ✖ ■` → **Segoe MDL2 Assets** (font biểu tượng có sẵn của Windows) |
+| Typography | Segoe UI family + Cascadia Mono cho số/mã; **không còn chữ < 12px** |
+| Màu | Tách hết sang file mới **`giao_dien.py`**; bổ sung **màu cảnh báo `#F59E0B`** |
+| Component | Bo góc thống nhất, nút 36px, ô nhập 32px, viền 1px, 6 ô số liệu có màu theo trạng thái, mỗi checkbox có ghi chú riêng |
+| Khoảng cách | Lưới 4/8/12/16/24/32; bỏ viền/đường kẻ thừa |
+
+**BUG THẬT — coordinator phát hiện khi tự mở ảnh (không phải agent báo):**
+
+| # | Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|---|
+| 1 | Ô checkbox đã tick = **ô xanh đặc, mất dấu ✓** | CustomTkinter 5.2.2: ô tô bằng `fg_color`, **dấu ✓ vẽ bằng `checkmark_color`** — đặt cả hai cùng xanh | `checkmark_color = MAU["nen"]` (tương phản ≈ 7,7:1) |
+| 2 | Nút **DỪNG** trông như **ô vuông rỗng (tofu)** | Dùng icon Stop (U+E71A) = hình vuông đặc, đọc nhầm là thiếu glyph | Đổi sang **Pause (U+E769)** = hai thanh dọc |
+
+**BÀI HỌC (đã ghi vào mục 6):**
+- `fg_color` của CustomTkinter **không phải "màu chung"** mà là **màu riêng cho từng lớp vẽ**
+  → đặt 2 tham số cùng giá trị là mất 1 lớp.
+- Kiểm tra icon/checkbox phải **chụp ảnh phóng to 3×**, không tin nhìn bằng mắt ở kích thước nhỏ.
+- Chọn glyph **khác hình dạng rõ rệt** giữa các trạng thái (play / dừng / xong).
 
 ---
 
@@ -870,6 +925,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 06:45) | **Bản 3.4 — thiết kế lại toàn bộ giao diện + icon app do AI vẽ.** Anh: *"cái app này nhìn cứ phèn phèn"* → dùng skill **`ui-ux-pro-max`** sinh `design-system/camai/MASTER.md` làm nguồn sự thật; file mới **`giao_dien.py`** chứa hằng số thiết kế (màu + bổ sung **màu cảnh báo `#F59E0B`**, font, khoảng cách, bo góc, biểu tượng); **thanh đầu mới 64px** có icon app; **bỏ hết emoji làm icon** → font biểu tượng Windows `Segoe MDL2 Assets`; typography **Segoe UI + Cascadia Mono** (chỉ font có sẵn — app offline); component + lưới khoảng cách 4/8/12/16/24/32 thống nhất. **Icon app vẽ bằng Nano Banana Pro (Gemini 3 Pro Image)**: 4 biến thể → chọn "đầu người + ống kính + khung nhận dạng" → `assets/camai.png` 512 + `assets/camai.ico` 7 kích thước. Coordinator **tự mở ảnh** và phát hiện **2 lỗi thị giác thật**: (1) dấu ✓ trong ô checkbox **biến mất** vì CustomTkinter vẽ ô bằng `fg_color` còn tick bằng `checkmark_color` — đặt cùng màu; (2) icon nút DỪNG trông như **tofu** vì dùng Stop (hình vuông đặc) → đổi sang Pause (2 thanh). Bump 3.3 → **3.4**. Xem mục **2.1h**. |
 | 2026-10-20 (sau 04:50) | **Bản 3.3 — đẩy 3 tính năng "dùng tay" vào GUI + sửa 1 lỗi thật.** Anh chốt: tách 2 ô xem video (**"Xem trực tiếp"** + **"Xem khung hình kết quả"**) và đi theo hướng **(A) bộ công cụ AI dùng tay**. Thêm trong `gui.py`: nút **"Đăng ký người quen…"** (lưu `known_faces/<Tên>/`, dùng lại `dang_ky_anh.py`), nút **"Đọc biển số thử…"** (đọc 1 ảnh bằng `tim_vung`+`doc_vung`, **không** dùng `doc()` vì cần ≥2 khung hình), nút **"Vẽ vùng ngay tại đây"**; thêm module mới **`ve_vung_gui.py`** (canvas kéo chuột trong chính cửa sổ → tọa độ tương đối 0..1). Coordinator tự chạy và **phát hiện lỗi thật**: đọc `StringVar` từ thread nền → `main thread is not in main loop` → **đã sửa** (đẩy qua hàng đợi, UI thread xử lý) + kiểm chứng độ nhạy (vô hiệu hóa fix → lỗi tái hiện → bật lại → PASS). Kiểm chứng của coordinator: canvas **sai số 0.0000**, GUI **4/4 PASS**, hồi quy batch **PASS** (79 lần hiện khung, 107.129 màu), e2e **7/7 PASS** (28,3 s). Bump 3.2 → **3.3**. Xem mục **2.1g**. |
 | 2026-10-20 (sau 01:30) | **Bản 3.2 — sửa panel "Xem video" đen khi chạy phân tích theo lô.** `run_analysis()` nhận thêm `frame_cb` + `frame_cb_interval` (khung **đã có overlay**; `None` → chi phí 0; callback lỗi không làm chết pipeline). GUI nhận khung qua **hộp thư 1 ô** (tránh phình bộ nhớ), giới hạn **10 fps**, ẩn nút "Tạm dừng" ở chế độ lô. Kiểm chứng: **7/7 PASS**, vùng panel **118.735 màu / sáng TB 73,95** (trước là đen), coordinator **tự xem ảnh** thấy khung người + nhãn **An**/**Binh**. Chi phí đo thật: **3–8%** (nhiễu ~3–4%), encode **2,80 ms/khung**. Bump 3.1 → **3.2**. Xem mục **2.1f**. |
 | 2026-10-20 (sau 00:40) | **Bản 3.1 — rà toàn bộ bản PC.** Coordinator tự chạy **32 cờ CLI** (26/26 EXIT=0) + **6 script OCR** (6/6 PASS) + **GUI end-to-end** (tự xem ảnh) → phát hiện và sửa **3 lỗi chết app**: (1) đường dẫn tương đối phân giải theo CWD → app chết khi chạy ngoài thư mục dự án (thêm file mới `duong_dan.py` làm nguồn sự thật); (2) app không tự tạo thư mục output; (3) `--tu-luu-clip` cùng thư mục với video kết quả → **xoá mất video kết quả nhưng exit 0** (thêm `giu=` + registry `_FILE_DANG_GHI`). Phát hiện thêm **1 lỗi hiển thị** (panel "Xem video" đen khi chạy lô) → **đã sửa ở bản 3.2**. Bump 3.0 → **3.1**. Xem mục **2.1e**. |

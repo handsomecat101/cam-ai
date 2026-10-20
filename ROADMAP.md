@@ -88,6 +88,19 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       (79 lần hiện khung, 107.129 màu); hồi quy e2e **7/7 PASS** (28,3 s); tiếng Anh
       dịch đủ **5/5** chuỗi mới (test vòng VI→EN→VI)
 
+- [x] **Bản 3.4 — thiết kế lại toàn bộ giao diện** (anh yêu cầu vì "app nhìn cứ phèn phèn"):
+      dùng skill **`ui-ux-pro-max`** → sinh `design-system/camai/MASTER.md` làm nguồn sự thật;
+      file mới `giao_dien.py` chứa toàn bộ hằng số thiết kế; **thanh đầu mới** + icon app;
+      **bỏ hết emoji làm icon** (dùng Segoe MDL2 Assets của Windows); typography Segoe UI +
+      Cascadia Mono; bổ sung màu cảnh báo hổ phách; component + lưới khoảng cách thống nhất
+- [x] **Icon app do AI vẽ** (Nano Banana Pro / Gemini 3 Pro Image): 4 biến thể → chọn bản
+      "đầu người + ống kính + khung nhận dạng" (3 hình đơn giản → vẫn rõ ở 16×16px) →
+      `assets/camai.png` 512px + `assets/camai.ico` 7 kích thước, hiện ở thanh đầu **và** trên
+      thanh tiêu đề cửa sổ Windows
+- [x] **Sửa 2 lỗi thị giác** do coordinator phát hiện khi tự mở ảnh: dấu ✓ trong ô checkbox
+      biến mất (`fg_color` = `checkmark_color` cùng màu) → tick đổi sang màu nền tối; icon
+      nút DỪNG trông như tofu (dùng Stop = hình vuông đặc) → đổi sang Pause
+
 ## Đang làm
 
 - [ ] **Chờ anh xác nhận mục 7** — kéo cửa sổ, còn giật hay không (chỉ có số đo)

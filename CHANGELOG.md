@@ -2,6 +2,54 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.4] — 2026-10-20 (sau 06:40)
+
+`VERSION` trong `cam_ai_core.py` = **3.4**.
+
+Bản này **KHÔNG thêm tính năng mới** — nó **thiết kế lại toàn bộ giao diện** theo yêu cầu
+*"cái app này nhìn cứ phèn phèn"*, đồng thời **làm lại icon app bằng ảnh AI**.
+
+### Nguồn thiết kế
+
+| Tài liệu | Vai trò |
+|---|---|
+| `design-system/camai/MASTER.md` | **Nguồn sự thật** cho toàn bộ giao diện: bảng màu, typography, lưới khoảng cách, layout, component, checklist. Sinh từ skill `ui-ux-pro-max` (`--design-system` + domain `color`/`typography`/`ux`) rồi **chỉnh cho đúng bản chất sản phẩm** (app desktop nền tối, người dùng không rành kỹ thuật) |
+| `giao_dien.py` (file mới) | Hằng số thiết kế + hàm trợ giúp: màu, font, khoảng cách, bo góc, kích thước, biểu tượng Windows. Tách ra để `gui.py` không còn chôn vùi số hex |
+
+**3 quyết định sửa so với output gốc của skill** (đều ghi rõ lý do ở MASTER.md mục 0):
+1. Skill trả pattern **"Enterprise Gateway"** (landing page bán hàng, có CTA "Contact Sales")
+   → **bỏ**, giữ style **Data-Dense Dashboard**. CamAI là công cụ desktop local, không bán hàng.
+2. Query "desktop … dark mode" của skill trả **Cyberpunk UI** (đen + xanh neon + glitch)
+   → **bỏ**, dùng **dark slate + xanh trạng thái**. Neon trông như tool hacker, tương phản kém.
+3. Skill gợi ý font **Fira Sans / Fira Code / Inter** (Google Fonts) → dùng **font có sẵn trên
+   Windows** (`Segoe UI`, `Segoe UI Semibold`, `Segoe UI Black`, `Cascadia Mono`) vì app chạy
+   **100% offline**, không được phụ thuộc tải font ngoài.
+
+### Đã thay đổi
+
+| # | Hạng mục | Chi tiết |
+|---|---|---|
+| 1 | **Thanh đầu mới (64px)** | Icon app + "CamAI v3.3" + phiên bản nhỏ + nút ngôn ngữ + nút **DỪNG** / **BẮT ĐẦU**. Nút chính xanh `nut`, nút phụ có viền |
+| 2 | **Icon app do AI vẽ** | `assets/camai.png` (512px) + `assets/camai.ico` (16/24/32/48/64/128/256). Vẽ bằng **Nano Banana Pro (Gemini 3 Pro Image)**: 4 biến thể, chọn bản "đầu người + ống kính + khung nhận dạng" vì **3 hình đơn giản → vẫn rõ ở 16×16px**. Icon hiện ở thanh đầu **và** trên thanh tiêu đề cửa sổ Windows |
+| 3 | **Bỏ ký hiệu emoji làm icon** | `▶ ● ✔ ✖ ■` → **font biểu tượng Windows `Segoe MDL2 Assets`** (Play / Pause / Stop / CheckMark / Error / Chevron…). Font có sẵn ở `C:\Windows\Fonts\segmdl2.ttf`, không cần tải gì |
+| 4 | **Typography** | Segoe UI (thường/Semibold/Black) + Cascadia Mono cho số & mã. Tiêu đề 23px, tiêu đề khu vực 14–15, nhãn 13, ghi chú 12, số liệu 28 — **không còn chữ < 12px** |
+| 5 | **Màu** | Tách hết sang `giao_dien.py`; **bổ sung màu cảnh báo `#F59E0B`** (skill yêu cầu trạng thái xanh / hổ phách / đỏ — bản 3.3 thiếu hổ phách) |
+| 6 | **Component** | Bo góc thống nhất (nút 8 / ô nhập 6 / thẻ 10), nút cao 36px, ô nhập cao 32px, viền 1px, 6 ô số liệu có màu theo trạng thái, checkbox có **ghi chú riêng dưới từng ô** |
+| 7 | **Lưới khoảng cách** | 4 / 8 / 12 / 16 / 24 / 32 px — cùng vai trò luôn dùng đúng một giá trị; bỏ viền/đường kẻ thừa |
+
+### BUG THẬT — coordinator phát hiện khi tự mở ảnh xem
+
+| # | Triệu chứng | Nguyên nhân | Cách sửa |
+|---|---|---|---|
+| 1 | Ô checkbox đã tick hiện là **một ô xanh đặc, không thấy dấu ✓** | CustomTkinter 5.2.2 (`ctk_checkbox.py` dòng 196–207): khi tick, **ô được tô bằng `fg_color`**, **dấu ✓ được vẽ bằng `checkmark_color`**. Đặt cả hai cùng xanh → dấu ✓ biến mất | `checkmark_color = MAU["nen"]` (#0F172A, tương phản ≈ 7,7:1 trên nền xanh) |
+| 2 | Nút **DỪNG** hiện `▯ DỪNG` — trông **y như ô vuông thiếu glyph** | Dùng icon **Stop (U+E71A)** = hình vuông đặc, đọc nhầm là tofu | Đổi sang **Pause (U+E769)** = hai thanh dọc |
+
+### CHƯA ĐẠT ở bản 3.4
+
+- **Mục 7** (kéo cửa sổ không giật) và **mục 8** (độ nhận diện trên video thật) — vẫn chờ **anh** xác nhận.
+- **OCR biển số trên ảnh THẬT** — vẫn chưa có ảnh biển số VN thật (bản 3.3 đã có nút "Đọc biển số thử…").
+- **Đăng ký nhiều người cùng lúc** và **nhiều vùng** trong 1 file — bản 3.3 mới làm 1 người / 1 vùng.
+
 ## [3.3] — 2026-10-20 (sau 04:50)
 
 `VERSION` trong `cam_ai_core.py` = **3.3**.

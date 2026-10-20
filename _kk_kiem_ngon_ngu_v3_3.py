@@ -162,12 +162,16 @@ def main() -> int:
             if not dung:
                 loi.append(f"EN: {ten} = {txt!r} (mong doi chua '{mong}')")
 
-        # tieu de
+        # tieu de - lay phien ban tu cam_ai_core de khong bao "cu" khi bump version
         td = app.title()
-        td_ok = "3.3" in td and "CamAI" in td
+        try:
+            from cam_ai_core import VERSION as _VER
+        except Exception:                                     # noqa: BLE001
+            _VER = "?"
+        td_ok = _VER in td and "CamAI" in td
         print(f"  [{'PASS' if td_ok else 'FAIL'}] tieu de                 = {td!r}")
         if not td_ok:
-            loi.append(f"EN: tieu de khong co phien ban 3.3: {td!r}")
+            loi.append(f"EN: tieu de khong co phien ban {_VER}: {td!r}")
 
         # --- buoc 4: doi NGUOC lai tieng Viet (kiem chu goc da ghi nhan dung) ---
         app._doi_ngon_ngu()
