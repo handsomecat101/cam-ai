@@ -70,3 +70,6 @@ secrets.json
 # File nay luu ngon ngu dang chon (vi/en). KHONG duoc commit: neu commit,
 # mot script kiem chung doi sang "en" se lam app cua anh tu mo bang tieng Anh.
 gui_ngon_ngu.json
+
+# Ban sao anh quen de chuyen sang may moi (anh giu o may cu, KHONG commit)
+known_faces_mau.zip

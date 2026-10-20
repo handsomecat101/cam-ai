@@ -1,7 +1,65 @@
-torch==2.14.0+cu126
+# CamAI - chi can chay tren Windows 10/11
+#
+# CAI DAT THU CONG (thu tu dung, 4 lenh):
+#   1) Cai Python 3.13 tu python.org (nhin "Add python.exe to PATH")
+#   2) Tao moi truong ao:
+#        python -m venv .venv
+#   3) Cai torch ban CUDA 12.6 (BAT BUOC - xem muc "TORCH" o cuoi file):
+#        .venv\Scripts\python.exe -m pip install torch==2.14.0 torchvision==0.29.0 --index-url https://download.pytorch.org/whl/cu126
+#   4) Cai phan con lai cua file nay:
+#        .venv\Scripts\python.exe -m pip install -r requirements.txt
+#   5) Mo app: Mo CamAI.vbs
+#
+# GHI CHU: dong "torch" o cuoi file bi COMMENT de lenh
+# "pip install -r requirements.txt" khong that bai tren may moi.
+# Script cai_dat_may_moi.py tu dong lam ca 4 buoc tren.
+
+# --- PHAT HIEN NGUOI / XE / HANG HOA (YOLO11) ---
+# ultralytics: mo model YOLO11, phat hien nguoi - xe - hang hoa
+# supervision: ve khung, ve duong dan, dem so luong theo video
 ultralytics==8.4.177
 supervision==0.30.9
+
+# --- NHAN DIEN KHUON MAT (ArcFace) ---
+# insightface: tai bo model buffalo_l va tao thu muc models/face_core
 insightface==2.1
+# onnxruntime-gpu: chay model ONNX tren GPU NVIDIA
+#   -> Neu may KHONG co GPU NVIDIA: comment dong duoi lai va cai ban CPU:
+#        .venv\Scripts\python.exe -m pip install onnxruntime==1.23.2
 onnxruntime-gpu==1.23.2
+
+# --- XU LY ANH VA VIDEO ---
+# opencv-python: doc / ghi video, xu ly khung hinh
+# numpy: mang so, tinh toan
 opencv-python==5.0.0.93
 numpy==2.5.4
+
+# --- GIAO DIEN (GUI) ---
+# customtkinter: bo khung giao dien cua app (gui.py)
+# pillow: ve nhan tieng Viet len khung hinh (giao_dien.py, bien_so.py)
+customtkinter==5.2.2
+pillow==12.3.0
+
+# --- DOC BIEN SO (OCR) ---
+# rapidocr-onnxruntime: nhan bien so xe tu video (bien_so.py)
+rapidocr-onnxruntime==1.2.3
+
+# --- XUAT BAO CAO ---
+# openpyxl: xuat bao cao .xlsx (bao_cao_tong_ket.py)
+openpyxl==3.1.5
+
+# --- TIEN ICH WINDOWS ---
+# pywin32: dung boi script chup man hinh / kiem chung (vi du _kk_chup_cua_so.py).
+#   App chay KHONG can pywin32 (canh_ao.py dung ctypes + winsound + winreg cua stdlib),
+#   nhung bo kiem chung can - nen van giu trong file nay.
+pywin32==311
+
+# --- TORCH (KHONG cai duoc bang lenh "pip install -r requirements.txt") ---
+# Ban +cu126 chi co tren trang chinh thuc pytorch.org, KHONG co tren PyPI,
+# nen dong duoi duoc comment de lenh cai khong bi fail.
+# Cai rieng truoc bang lenh sau (may co GPU NVIDIA):
+#   .venv\Scripts\python.exe -m pip install torch==2.14.0 torchvision==0.29.0 --index-url https://download.pytorch.org/whl/cu126
+# Neu may khong co GPU NVIDIA, dung ban CPU:
+#   .venv\Scripts\python.exe -m pip install torch==2.14.0 torchvision==0.29.0 --index-url https://download.pytorch.org/whl/cpu
+# Trang chinh thuc: https://pytorch.org/get-started/locally/
+# torch==2.14.0+cu126
