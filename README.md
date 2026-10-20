@@ -1,20 +1,32 @@
 # CamAI
 
-Xem video, tự động đếm người, đếm ra/vào và nhận diện khuôn mặt. Chạy trên GPU RTX 3090.
+App **detect đa thể loại** — chạy **100% local** (không cloud, không gửi ảnh ra ngoài).
+Nhận **3 loại nguồn**: **file video** · **ảnh tĩnh** · **quay video/camera** (webcam `0` hoặc
+camera IP `rtsp://`). Trả về **ảnh đã vẽ khung** + **báo cáo CSV** + số đếm.
 
-Phiên bản hiện tại: **v2.3**.
+Phiên bản hiện tại: **v3.7**.
+
+> **Bạn là AI agent hoặc người mới làm việc với dự án này?** Đọc **`AGENTS.md`** trước —
+> nó gom quy tắc bắt buộc, bất biến không được phá, lệnh kiểm chứng và gotcha đã biết.
+>
+> Chuyển sang máy mới? Đọc **`TAI-MAY-MOI.md`** (clone → `cai_dat_may_moi.bat` → `Mo CamAI.vbs`).
+
+## Cách mở app
+
+Double-click **`Mo CamAI.vbs`** (không hiện cửa sổ lệnh). Không mở được → double-click
+`Mo CamAI.bat` để xem lỗi. Chi tiết: `HUONG-DAN-MO-APP.md`.
 
 ## Hai cách chạy
 
 ### 1. Giao diện cửa sổ (cách dễ nhất)
 
-Nhấp đúp `chay_gui.bat`. Hoặc:
+Nhấp đúp `Mo CamAI.vbs`. Hoặc:
 
 ```
 .venv\Scripts\pythonw.exe gui.py
 ```
 
-Mọi tính năng đều nằm trong cửa sổ, tên tiếng Việt, từng nhóm gập/ bung được.
+Mọi tính năng đều nằm trong cửa sổ, tên tiếng Việt, từng nhóm gập/bung được.
 
 ### 2. Web trên máy này
 

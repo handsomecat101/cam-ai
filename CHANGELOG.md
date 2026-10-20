@@ -25,6 +25,7 @@ Bản này **hoàn tất** mục tiêu anh chốt: *CamAI = app detect đa thể
 | 10 | **Bộ cài đặt 1 lệnh cho máy mới** | `cai_dat_may_moi.bat` (double-click) → `cai_dat_may_moi.py`: tạo `.venv`, cài thư viện, tải `yolo11n.pt`, tải model ArcFace (`tai_tao_model.py`), in tổng kết. **Không chết khi 1 bước fail** — bỏ qua bước đó và đi tiếp; exit 0 chỉ khi venv + 2 model đều có |
 | 11 | **`requirements.txt` đầy đủ + đúng** | Bổ sung 5 gói đang thiếu: `customtkinter` (GUI), `pillow` (vẽ nhãn tiếng Việt), `rapidocr-onnxruntime` (OCR biển số), `openpyxl` (báo cáo .xlsx), `pywin32` (script chụp màn hình). Dòng `torch` **cố ý comment** vì bản `+cu126` không có trên PyPI — script cài riêng từ index pytorch.org |
 | 12 | **`TAI-MAY-MOI.md`** | Hướng dẫn đầy đủ cho máy mới: yêu cầu hệ thống, clone (kèm cách dùng PAT), cài đặt, mở app, **bảng "những thứ KHÔNG có trong git"** (models 784 MB, video_mau 507 MB, known_faces) và cách lấy lại từng thứ, quy trình `git pull/push`, gotcha đã biết |
+| 13 | **`AGENTS.md`** | **"Bộ nhớ làm việc" của dự án — nằm trong repo để đi theo code.** Gồm: mục tiêu sản phẩm đã chốt · thứ tự đọc file · **bất biến không được phá** (20 checkbox, 12 nhóm con, 13 thẻ video mẫu, CSV 10→14 cột, 80 lớp COCO, encoding) · 10 quy tắc bắt buộc khi sửa code · lệnh kiểm chứng copy-paste · bản đồ file + **phân chia sở hữu giữa các agent** · 12 gotcha hay gặp · **checklist sau mỗi lần sửa** (bump `VERSION` + 4 file tài liệu + commit + push) · việc chưa làm / chờ anh |
 
 ### BỔ SUNG SAU KHI CHỐT 3.7 — ĐẨY LÊN GITHUB (anh chuyển sang máy khác)
 

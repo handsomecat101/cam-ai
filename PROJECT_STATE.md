@@ -770,6 +770,7 @@ Anh báo: *"đẩy dự án này lên git để tôi làm tiếp ở máy khác,
 | Hạng mục | Kết quả |
 |---|---|
 | **Repo** | `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử** đã lên (`bb52c18` bản 3.5 → `7ebe43b`). Kích thước **~3 MB** |
+| **`AGENTS.md`** (file mới) | **"Bộ nhớ làm việc" của dự án, nằm trong repo để đi theo code**: mục tiêu sản phẩm đã chốt · thứ tự đọc file · **bất biến không được phá** (20 checkbox, 12 nhóm con, 13 thẻ, 10→14 cột CSV, 80 lớp COCO, encoding) · 10 quy tắc bắt buộc khi sửa code · lệnh kiểm chứng copy-paste · bản đồ file + phân chia sở hữu giữa agent · 12 gotcha hay gặp · **checklist sau mỗi lần sửa** (bump VERSION + 4 file tài liệu + commit) · việc chưa làm / chờ anh |
 | **Cách tạo repo** | Không có `gh` CLI → lấy OAuth token của GCM (Credential Manager, tài khoản `handsomecat101`) → `POST /user/repos` với `private=true`. Token **không** in ra log, không lưu trong repo |
 | **Cố ý KHÔNG commit** | `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` · `*.pt`/`*.onnx` · file kết quả chạy. GitHub giới hạn 100 MB/file; model tải lại được bằng 1 lệnh |
 | **Giữ lại attribution** | `video_mau/moi/NGUON_LICENSE_NGUOI.md` vẫn được commit — CC BY / CC BY-SA **bắt buộc** phải có |
