@@ -451,6 +451,22 @@ tôi đi, cả cái icon của app nữa dùng trình tạo ảnh ai"*.
 | 1 | Ô checkbox đã tick = **ô xanh đặc, mất dấu ✓** | CustomTkinter 5.2.2: ô tô bằng `fg_color`, **dấu ✓ vẽ bằng `checkmark_color`** — đặt cả hai cùng xanh | `checkmark_color = MAU["nen"]` (tương phản ≈ 7,7:1) |
 | 2 | Nút **DỪNG** trông như **ô vuông rỗng (tofu)** | Dùng icon Stop (U+E71A) = hình vuông đặc, đọc nhầm là thiếu glyph | Đổi sang **Pause (U+E769)** = hai thanh dọc |
 
+**BẰNG CHỨNG — coordinator tự chạy 6 bộ kiểm chứng trên code cuối (sau khi sửa 2 lỗi):**
+
+| Bộ kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_gui_chay_thuc.py` (e2e 7 mục) | **7/7 PASS** — `tieu de='CamAI v3.4 — Phân tích video giám sát'`, `VERSION=3.4`, cửa sổ 1610×980; video `h264,960,540,25/1,250 frame`; CSV **251 dòng × 10 cột**; vùng panel **89.095 màu / sáng TB 62,21** → không đen; 36,3 s |
+| `_kk_kiem_gui_b3.py` (4 tính năng bản 3.3) | **4/4 PASS** — 2 ô xem video / đăng ký người quen / đọc biển số thử / vẽ vùng |
+| `_kk_kiem_gui_batch_preview.py` | **PASS** — khung hình hiện panel **84 lần**, vùng **90.477 màu** → không đen |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** — 5 chuỗi mới có bản dịch Anh + tiêu đề `CamAI v3.4 — Video surveillance analysis`; quay lại tiếng Việt vẫn đủ dấu |
+| `_kk_kiem_giao_dien.py` (**mới**, kiểm tra thẩm mỹ) | **7/7 PASS** — không còn emoji làm icon; font dùng: `Segoe UI` 182, `Segoe UI Semibold` 34, `Segoe MDL2 Assets` 13, `Cascadia Mono` 1, `TkDefaultFont` 2 → **tất cả có thật trên máy**; **chữ nhỏ nhất 12px**; icon app có + app giữ icon; tương phản chữ **≥ 4,5:1** cho mọi cặp nền/chữ; khung video **75,5%** bề ngang (video 947px / cột sự kiện 307px) → **không xấu hơn bản 3.3**; **0 chữ bị cắt** (đã mở hết 12 nhóm rồi đo) |
+| `_kk_kiem_canvas_vung.py` | **PASS** — sai số **0.0000** |
+| Encoding mọi file đã sửa | **BOM=False, CR=0** |
+
+**Ảnh — coordinator tự mở xem:**
+- `_kk_out/kiem_giao_dien/gd_full.png` → thấy **thanh đầu** (icon app AI + "CamAI v3.4" + English + ‖ DỪNG + ▷ BẮT ĐẦU), icon cũng có ở **thanh tiêu đề cửa sổ Windows**, 3 ô xem video có **dấu ✓ nhìn rõ**, mỗi ô có ghi chú riêng, 6 ô số liệu, 13 thẻ video mẫu, cột sự kiện bên phải.
+- `_kk_out/agent_g1/v3_cot_trai.png` → đường dẫn video hiện **trọn vẹn**, không cắt.
+
 **BÀI HỌC (đã ghi vào mục 6):**
 - `fg_color` của CustomTkinter **không phải "màu chung"** mà là **màu riêng cho từng lớp vẽ**
   → đặt 2 tham số cùng giá trị là mất 1 lớp.
@@ -813,6 +829,17 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
    (bản 3.3 đã dính: xem `ISSUE_LOG.md`). Việc nặng → thread nền → **chỉ** giao tiếp qua
    hàng đợi; giá trị cần đọc từ Tk thì **đọc ở UI thread rồi truyền vào**.
    `self.dich()` thì an toàn vì `self.ngon_ngu` là thuộc tính Python thuần.
+9c. **CustomTkinter: `fg_color` KHÔNG phải "màu chung"** — nó là màu **riêng cho từng lớp
+   vẽ**. Với `CTkCheckBox`: ô được tô bằng `fg_color`, **dấu ✓ vẽ bằng `checkmark_color`**.
+   Đặt hai tham số cùng giá trị → dấu ✓ **biến mất hoàn toàn** (bản 3.4 đã dính).
+9d. **Tkinter `widget.grid()` luôn đưa widget vào `widget.master`** (đối số lúc *tạo*), KHÔNG
+   phải khung cha hiển thị. Tạo widget ở khung A rồi `grid()` vào khung B → nó **chồng lên
+   khung A**, không nằm ở khung B. Phải tạo widget trực tiếp trong khung cha muốn đặt.
+9e. **Font mặc định của CustomTkinter là "Roboto" — KHÔNG có trên Windows.** Mọi widget không
+   khai báo font sẽ rơi về font mặc định của hệ điều hành. Phải ép lại về font có sẵn.
+9f. **Kiểm tra icon/checkbox phải chụp ảnh phóng to 3×.** Ở kích thước thật, dấu ✓ màu
+   tối trên ô xanh và icon hình vuông đặc đều trông như lỗi/tofu. Không tin nhìn bằng mắt
+   ở kích thước nhỏ.
 10. **`cv2.putText` không hiển thị tiếng Việt có dấu.** Mọi overlay vẽ bằng PIL/Pillow.
 11. **Log `nhan_dien` của pipeline chính không tự đẩy tên xuống overlay live-view.**
     Live-view chạy YOLO + ArcFace riêng; phải tự quét tên theo track ID.
