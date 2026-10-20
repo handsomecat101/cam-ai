@@ -1,10 +1,17 @@
 """
-CamAI - phan tich video: phat hien nguoi, dem nguoi ra/vào, nhan dien khuon mat, canh vung.
+CamAI - phan tich video/anh: phat hien nguoi, dem nguoi ra/vào, nhan dien khuon mat, canh vung.
 
 Chay:
     .venv\\Scripts\\python.exe app.py --input video.mp4
     .venv\\Scripts\\python.exe app.py --input 0            (webcam)
     .venv\\Scripts\\python.exe app.py --input a.mp4 --pixelate
+
+Nguon vao (4 kieu - cung 1 pipeline):
+    .venv\\Scripts\\python.exe app.py --input video.mp4        (file video)
+    .venv\\Scripts\\python.exe app.py --input anh.jpg          (anh tinh -> 1 khung hinh)
+    .venv\\Scripts\\python.exe app.py --input 0               (webcam may)
+    .venv\\Scripts\\python.exe app.py --input rtsp://...       (camera IP)
+    .venv\\Scripts\\python.exe app.py --list-camera            (liet ke camera)
 
 Doc bien so Viet Nam (chay 100% tren may, khong gui anh ra ngoai):
     .venv\\Scripts\\python.exe app.py --input video.mp4 --doc-bien-so
@@ -20,6 +27,7 @@ Canh vung (khoanh 1 lan, dung lai cho moi video):
 
 Nhan dien "day la ai": bo anh vao known_faces/<Ten>/, hoac chay dang_ky_anh.py.
 Ket qua ghi ra <ten>_ket_qua.mp4 va <ten>_bao_cao.csv.
+Che do anh: ket qua la 1 anh <ten_anh>_ket_qua.jpg (da ve khung) dat canh file CSV.
 
 Giao dien do hoa (de khong phai go lenh):
     chay_gui.bat   hoac   .venv\\Scripts\\python.exe gui.py
@@ -33,8 +41,9 @@ import os
 import re
 import sys
 
-from cam_ai_core import (AnalysisConfig, CamAIError, THIET_BI_CHON,
-                         THIET_BI_MAC_DINH, VERSION, run_analysis)
+from cam_ai_core import (AnalysisConfig, CamAIError, LOAI_ANH, LOAI_MANG,
+                         THIET_BI_CHON, THIET_BI_MAC_DINH, VERSION,
+                         loai_nguon, quet_camera, run_analysis)
 from duong_dan import APP_DIR, chuan_hoa_duong_dan
 
 __all__ = ["VERSION", "parse_args", "main"]
@@ -142,6 +151,12 @@ class _LogCLI:
                 pass
         except Exception:                                    # noqa: BLE001
             pass
+        # Flush de log khong bi dem lai khi stdout bi dem (pipe/file) - giup
+        # thu tu log + loi len dung nhau tren console.
+        try:
+            sys.stdout.flush()
+        except Exception:                                    # noqa: BLE001
+            pass
 
     def _dong_bien_so(self, dong_loi: str) -> str:
         cfg = self.cfg
@@ -165,15 +180,20 @@ class _LogCLI:
         )
 
 def _kiem_tra_input(duong_dan: str) -> None:
-    """Kiem tra file video co ton tai khong.
+    """Kiem tra file nguon co ton tai khong.
 
     Sai -> bao loi tieng Viet co dau roi thoat ma loi (khong bao gio vong
-    traceback). '0' = webcam nen khong kiem tra.
+    traceback). '0' = webcam nen khong kiem tra. Duong dan mang (rtsp://,
+    http://) khong phai file nen cung khong kiem tra.
     """
     goc = str(duong_dan or "").strip()
     if not goc or goc == "0":
         return
+    if loai_nguon(goc) == LOAI_MANG:
+        return
     if not os.path.isfile(goc):
+        if loai_nguon(goc) == LOAI_ANH:
+            raise SystemExit(f"[lỗi] không tìm thấy ảnh: {goc}")
         raise SystemExit(f"[lỗi] không tìm thấy file video: {goc}")
 
 
@@ -182,11 +202,44 @@ def _chuan_hoa_input(input_path: str) -> str:
 
     Duong dan tuong duong -> chuan hoa theo quy tac: ban trong CWD truoc,
     chua co thi dung ban trong thu muc goc du an (APP_DIR).
+    Duong dan mang (rtsp://, http://) -> giu nguyen (khong phai duong dan file).
     """
     goc = str(input_path or "").strip()
     if not goc or goc == "0":
         return goc
+    if loai_nguon(goc) == LOAI_MANG:
+        return goc
     return chuan_hoa_duong_dan(goc)
+
+
+def _liet_ke_camera() -> None:
+    """In danh sach camera tren may nay (--list-camera).
+
+    Khong tim thay camera nao -> in ro rang roi thoat ma 0 (day la lenh
+    Liet ke, khong phai loi).
+    """
+    print("=== CAMERA tren may nay ===")
+    danh_sach = quet_camera(5)
+    co_nao = False
+    for muc in danh_sach:
+        idx = muc["index"]
+        if muc["mo_duoc"]:
+            co_nao = True
+            ten = f" | {muc['ten']}" if muc["ten"] else ""
+            print(
+                f"[{idx}] MO DUOC | {muc['width']}x{muc['height']}"
+                f" | {muc['fps']:.0f}fps{ten}"
+            )
+        else:
+            print(f"[{idx}] khong mo duoc")
+    if not co_nao:
+        print("")
+        print("Không tìm thấy camera nào trên máy này.")
+        print("Nếu máy có camera: mở app Camera của Windows để kiểm tra, tắt các")
+        print("ứng dụng đang chiếm camera (Zoom/Teams/Chrome), rồi thử lại.")
+    else:
+        print("")
+        print("Dùng camera: --input 0 (camera đầu tiên trong danh sách)")
 
 
 def _chuan_hoa_output(output: str | None) -> str:
@@ -207,7 +260,20 @@ def _chuan_hoa_output(output: str | None) -> str:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="CamAI - phan tich video")
-    parser.add_argument("--input", required=True, help="duong dan video, hoac 0 = webcam")
+    # --input KHONG bat buoc o argparse: '--list-camera' chay duoc khong can
+    # nguon. Khi khong co --list-camera ma thieu --input -> bao loi giong het
+    # argparse cu (xem cuoi ham nay).
+    parser.add_argument(
+        "--input",
+        default=None,
+        help="duong dan video, duong dan anh (.jpg/.png/...), "
+             "0 = webcam, hoac rtsp://... (camera IP)",
+    )
+    parser.add_argument(
+        "--list-camera",
+        action="store_true",
+        help="liet ke cac camera tren may nay roi thoat (khong can --input)",
+    )
     # default=None de phan biet "nguoi dung khong truyen --output" voi
     # "nguoi dung truyen duong dan tuong doi" (xem _chuan_hoa_output).
     parser.add_argument(
@@ -387,11 +453,24 @@ def parse_args():
         default=10.0,
         help="mỗi loại sự kiện chỉ chụp 1 lần trong N giây (mặc định: 10)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.list_camera and not args.input:
+        # Giu nguyen hanh vi cu cua argparse: thieu --input -> exit ma 2.
+        parser.error("the following arguments are required: --input")
+    return args
 
 
 def main() -> None:
+    # Console Windows mac dinh la cp1252 -> ep UTF-8 TRUOC KHI in, neu khong
+    # thi moi loi (SystemExit -> stderr) se bi escape thanh \uXXXX va mat
+    # tieng Viet co dau.
+    _chuan_hoa_console()
     args = parse_args()
+
+    # --- lenh liet ke camera: in danh sach roi thoat ma 0 (khong phai loi).
+    if args.list_camera:
+        _liet_ke_camera()
+        return
 
     # --- duong dan: chuan hoa theo thu muc goc du an (xem duong_dan.py).
     # Quan trong: app.py chay tu thu muc khac (double-click tu Explorer,

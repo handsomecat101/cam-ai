@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 14:20 — **định hướng sản phẩm đã chốt** (CamAI = app detect đa thể loại; app chấm công tách riêng; đổi nền tảng để sau) + bản **3.5** sửa giật kéo cửa sổ (lần kéo đầu: 984 ms → **19,4 ms**) + **launcher 1-click**, `VERSION` nay là **3.5**)
+**Ngày cập nhật:** 2026-10-20 (sau 15:30 — bản **3.6**: bám theo **định hướng sản phẩm đã chốt** (CamAI = app detect đa thể loại; app chấm công tách riêng; đổi nền tảng để sau) → **4 mục cấu hình lớn** thay cho 12 mục rời rạc + **2 nguồn mới: ẢNH & CAMERA** + `--list-camera`; `VERSION` nay là **3.6**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 
 > # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
@@ -29,7 +29,16 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.5 (mới nhất):** anh dùng thật và báo **"kéo cửa sổ bị giật lắm"** + **"chả bao giờ chỉ
+**Bản 3.6 (mới nhất):** bản đầu tiên làm theo **định hướng mới anh chốt** (mục 0 đầu file).
+(1) **Gom 12 nhóm cấu hình → 4 mục lớn**: NGUỒN (mở sẵn) · PHÂN TÍCH · BIỂN SỐ & ẢNH ·
+CẢNH BÁO & MÔ HÌNH — mỗi mục có 1 dòng mô tả, chỉ 1 mục mở tại một lúc, mũi tên
+Segoe MDL2 xoay thật. Dải "Video mẫu dùng thử" **212px → 125px**. (2) **2 nguồn mới**:
+**ẢNH tĩnh** (`--input <ảnh>`, xuất ảnh đã vẽ khung + CSV) và **CAMERA** (webcam `0`,
+camera IP `rtsp://`/`http://`, có ngân sách thời gian không treo, nhấn `q` để dừng) +
+lệnh **`--list-camera`**. (3) Sửa lỗi repo: `gui_ngon_ngu.json` (lựa chọn cá nhân) bị git
+theo dõi → đã bỏ track. Xem **mục 2.1j**.
+
+**Bản 3.5:** anh dùng thật và báo **"kéo cửa sổ bị giật lắm"** + **"chả bao giờ chỉ
 tôi cách mở app"**. → (1) **Sửa giật**: tìm ra `CTkScrollbar._draw()` gọi `update_idletasks()` →
 xả hết hàng đợi idle của **toàn bộ app** → vẽ lại 851 widget → tre 600–900 ms ở **lần kéo
 đầu tiên**. Đã sửa + **khởi động ấm** → lần kéo đầu còn **19,4 ms, 0 lần tre**. (2) **Launcher
@@ -587,6 +596,85 @@ chỉ thanh cuộn) → kéo cửa sổ lần đầu ⇒ vẽ lại **851 widget
 
 ---
 
+### 2.1j BẢN 3.6 — 4 NHÓM CẤU HÌNH + NGUỒN "ẢNH" & "CAMERA" (2026-10-20)
+
+Đây là bản đầu tiên làm theo **định hướng mới anh chốt** (mục 0 đầu file): *CamAI = app
+detect đa thể loại, chạy được trên **file video + ảnh + quay video**; app chấm công tách
+riêng; đổi nền tảng để sau.*
+
+#### A. Gom 12 nhóm cấu hình → 4 mục lớn (`gui.py`)
+
+| Mục lớn | Mở sẵn | Mục con bên trong (giữ nguyên 100%) |
+|---|---|---|
+| **NGUỒN** | có | Chọn video · Lưu kết quả |
+| **PHÂN TÍCH** | không | Phát hiện người · Nhận diện khuôn mặt · Đếm ra vào · Canh vùng · Lưu clip khi có sự kiện · Thêm vật thể khác · Nhận người ở xa (chậm hơn) |
+| **BIỂN SỐ & ẢNH** | không | Đọc biển số xe (kèm nút "Đọc biển số thử…") · Tự chụp ảnh khi có sự kiện |
+| **CẢNH BÁO & MÔ HÌNH** | không | Cảnh báo (gửi tin ra ngoài) · Thông tin mô hình AI · Máy này chạy bằng gì |
+
+- Mỗi mục lớn có **tiêu đề viết HOA + 1 dòng mô tả** giải thích nó làm gì; chỉ **1 mục
+  lớn mở tại một lúc** → cột trái luôn gọn, không phải cuộn nhiều.
+- Mũi tên dùng font biểu tượng Windows `Segoe MDL2 Assets` (E76C ↔ E70D), **xoay thật**,
+  không dùng ký tự ▶/▼.
+- Mở 1 mục con sẽ **mở luôn mục lớn cha** — nếu không thì mục con "mở" mà nằm trong thẻ
+  đang thu gọn thì người dùng không thấy gì.
+- **Dải "Video mẫu dùng thử"**: thẻ chuyển sang bố cục **ngang** (ảnh 84×47 + tên + mô tả)
+  → 1 thẻ cao 55px thay vì 137px, cả khối **212px → 125px** (đo thật).
+
+**Chứng minh KHÔNG mất tính năng** (script `_kk_kiem_khong_mat_tinh_nang.py` so trước/sau):
+
+| Nhóm | Trước | Sau | Kết luận |
+|---|---|---|---|
+| Checkbox | 20 | 20 | **giống hệt** (text + biến + mặc định) |
+| Nút chức năng | 21 | 21 | **giống hệt** (text + lệnh) |
+| Nhóm tính năng con | 12 | 12 | **giống hệt** |
+| Thẻ video mẫu | 13 | 13 | **giống hệt** |
+| Nút mũi tên mới | 0 | 4 | cấu trúc mới (mở/đóng 4 mục lớn) |
+
+#### B. Nguồn mới: **ẢNH** và **CAMERA** (`cam_ai_core.py` + `app.py`)
+
+| Hạng mục | Kết quả đo thật |
+|---|---|
+| **Chế độ ảnh** | `--input <ảnh>` → phát hiện **4 người, 2 mặt**, nhận đúng **"An"** và **"Binh"**, ảnh kết quả (khung người + khung mặt + tên) **199.956 B**, CSV 1 dòng dữ liệu, `EXIT=0` |
+| **Tiến trình ảnh** | `frame 0/1`, `total_frames=1`, `percent=100` (không phải thanh không xác định) |
+| **`--list-camera`** | `EXIT=0`, in danh sách camera; máy này **không có camera** → in rõ "Không tìm thấy camera nào trên máy này." + hướng dẫn |
+| **`--input 0`** (webcam) | Lỗi rõ ràng, **không treo** (~10 s) |
+| **`--input rtsp://...`** (camera IP) | Lỗi rõ ràng, **không treo** (~12 s, có ngân sách thời gian) |
+| **Camera IP thật** | Dựng **camera IP giả** (HTTP server stream MJPEG, đúng cách camera IP thật hoạt động) → mở được, đọc khung, thanh tiến trình **không xác định**, ghi CSV + MP4; nhấn `q` → dừng ngay |
+| **Hồi quy video** | CSV **SHA256 giống hệt** bản gốc (251 dòng), H.264 960×540, thời gian **−5,4% … +0,1%** (chỉ nhiễu) → **không hồi quy** |
+
+Cùng một đường pipeline cho cả 3 loại nguồn (không viết nhánh ảnh riêng "chép" logic).
+
+#### C. Lỗi repo phát hiện khi kiểm chứng (đã sửa)
+
+`gui_ngon_ngu.json` — file lưu **lựa chọn ngôn ngữ của người dùng** — đang **bị git theo dõi**.
+Một script kiểm chứng đổi sang "en" rồi **file bị "dính" ở trạng thái English** →
+app của anh sẽ **tự mở bằng tiếng Anh**, và bộ kiểm chứng e2e **FAIL** vì nó chỉ tìm
+chuỗi tiếng Việt.
+→ Đã sửa: (1) `git rm --cached gui_ngon_ngu.json` + thêm vào `.gitignore` (lựa chọn cá
+nhân **không** được commit); (2) reset file về `"vi"`; (3) bộ e2e **không còn phụ thuộc
+ngôn ngữ** (nhận cả `Kết quả:`/`Result:` và `Báo cáo:`/`Report:`).
+
+#### D. BẰNG CHỨNG — coordinator tự chạy lại trên code cuối
+
+| Bộ kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_gui_chay_thuc.py` (e2e 7 mục) | **7/7 PASS** — 37,9 s |
+| `_kk_kiem_gui_b3.py` (4 tính năng bản 3.3) | **4/4 PASS** |
+| `_kk_kiem_giao_dien.py` (7 mục thẩm mỹ) | **7/7 PASS** |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** |
+| `_kk_kiem_canvas_vung.py` | **PASS** — sai số 0,0000 |
+| Chế độ ảnh (chạy tay) | **EXIT=0** — 4 người, 2 mặt, An/Binh, ảnh kết quả 199.956 B |
+| `--list-camera` | **EXIT=0** — máy này không có camera, thông báo rõ |
+| Hồi quy video | CSV 251 dòng, SHA256 giống hệt bản gốc |
+| Encoding mọi file đã sửa | **BOM=False, CR=0** |
+
+**Còn lại ở bản 3.6 (cần làm tiếp):** phần **GUI** chưa nối vào 2 nguồn mới (chọn ảnh,
+chọn camera) — `cam_ai_core` đã xuất `loai_nguon()` / `quet_camera()` để GUI dùng ngay.
+Và **camera thật chưa kiểm chứng được** vì máy này không có camera (đã kiểm chứng đường
+đi live qua camera IP giả).
+
+---
+
 ### 2.2 CHƯA ĐẠT — chờ anh
 
 | Hạng mục | Vì sao chưa đạt | Việc cần làm |
@@ -1082,6 +1170,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 15:30) | **Bản 3.6 — 4 mục cấu hình lớn + nguồn ẢNH & nguồn CAMERA.** Bản đầu tiên làm theo **định hướng anh chốt** (CamAI = app detect đa thể loại trên **3 nguồn**; app chấm công tách riêng; đổi nền tảng để sau). **Agent 1 — `gui.py`:** lớp `NhomLon` 12 nhóm rời rạc → **4 mục lớn** (NGUỒN mở sẵn / PHÂN TÍCH / BIỂN SỐ & ẢNH / CẢNH BÁO & MÔ HÌNH), mỗi mục có 1 dòng mô tả, chỉ 1 mục mở tại một lúc, mũi tên `Segoe MDL2 Assets` E76C↔E70D xoay thật, mở mục con sẽ mở luôn mục lớn cha; dải "Video mẫu dùng thử" chuyển bố cục ngang **212px → 125px**. Script `_kk_kiem_khong_mat_tinh_nang.py` chứng minh **20 checkbox + 21 nút + 12 nhóm con + 13 thẻ video mẫu giống hệt trước/sau** (không mất tính năng). **Agent 2 — `cam_ai_core.py` + `app.py`:** chế độ **ẢNH** (`loai_nguon`, `la_live`, xuất `<ten>_ket_qua.jpg`) + chế độ **CAMERA** (webcam `0`, `rtsp://`/`http://`, ngân sách thời gian không treo, `q` để dừng, tiến trình indeterminate) + lệnh **`--list-camera`** + gọi thật `_chuan_hoa_console()`. **Coordinator verify (tự chạy lại):** chế độ ảnh **EXIT=0** (4 người, 2 mặt, nhận đúng "An"/"Binh", ảnh kết quả 199.956 B, CSV 1 dòng); `--list-camera` **EXIT=0** (máy này **không có camera**); e2e **7/7 PASS** (37,9 s); b3 **4/4**; giao diện **7/7**; ngôn ngữ **5/5**; canvas **PASS** (sai số 0,0000); hồi quy video CSV **251 dòng**, SHA256 **giống hệt** bản gốc. **Sửa lỗi repo do coordinator phát hiện:** `gui_ngon_ngu.json` (lựa chọn ngôn ngữ cá nhân) bị git theo dõi → script test để lại "en" ⇒ app của anh tự mở tiếng Anh + e2e FAIL → đã `git rm --cached` + `.gitignore` + reset `"vi"`, và sửa `_kk_kiem_gui_chay_thuc.py` **không còn phụ thuộc ngôn ngữ**. Bump 3.5 → **3.6**. Xem mục **2.1j**. |
 | 2026-10-20 (sau 14:20) | **ĐỊNH HƯỚNG SẢN PHẨM — anh chốt.** (1) **CamAI = app "detect đa thể loại"**, chạy trên **3 nguồn: file video ✅ · ảnh tĩnh (đang làm) · quay video/camera (webcam `0`, camera IP `rtsp://`, đang làm)**; mục tiêu **detect càng nhiều thể loại càng tốt**. (2) **Ứng dụng chấm công → TÁCH RA APP RIÊNG** (cần CSDL khuôn mặt riêng), dùng **chung** `face_engine.py` + `known_faces/`; nguyên tắc **CamAI lo detect, app kia lo nghiệp vụ + dữ liệu**. (3) **Đổi nền tảng (PySide6/Qt) → LÀM SAU**, khi đã chốt phạm vi tính năng để một lần viết lại cho đủ. Đã ghi đầy đủ vào `USE_CASE.md` mục 0 (định hướng) + mục 3.1 (bảng thể loại detect P0→P4), `PROJECT_STATE.md` mục 0 (đầu file) + mục 6 (gotcha 9g/9h/9i) + `ROADMAP.md`. Bài học: chọn nền tảng phải **nói giới hạn + hỏi ưu tiên "đẹp hay nhẹ"** trước, và **luôn có launcher 1-click + hướng dẫn mở app**. |
 | 2026-10-20 (sau 09:50) | **Bản 3.5 — sửa giật kéo cửa sổ + launcher 1-click.** Anh báo thật: *"kéo cửa sổ bị giật lắm"* + *"chả bao giờ chỉ tôi cách mở app"*. **Chẩn đoán bằng số đo** (loại 3 giả thuyết sai: tooltip, vẽ lại, app chạy nền): giật **chỉ ở lần kéo ĐẦU TIÊN** (859–984 ms; lần 2 = 20 ms; cửa sổ rỗng không bị; bỏ scrollbar → còn 144 ms) → thủ phạm là `CTkScrollbar._draw()` gọi **`update_idletasks()`** = xả hết hàng đợi idle **của toàn bộ app** → vẽ lại 851 widget. **Đã sửa + khởi động ấm + tooltip dùng 1 cửa sổ duy nhất, trì hoãn 450 ms** → lần kéo đầu còn **19,4 ms, 0 lần tre**, mở app **không chậm hơn** (13,3 s → 12,5 s). Thêm **`Mo CamAI.vbs`** (launcher 1-click, đã test thật) + **`Mo CamAI.bat`** + **`HUONG-DAN-MO-APP.md`**. 5 bộ kiểm chứng của coordinator PASS hết (e2e 7/7, 3.3 4/4, preview, ngôn ngữ 5/5, thiết kế 7/7). Bump 3.4 → **3.5**. Xem mục **2.1i**. |
 | 2026-10-20 (sau 06:45) | **Bản 3.4 — thiết kế lại toàn bộ giao diện + icon app do AI vẽ.** Anh: *"cái app này nhìn cứ phèn phèn"* → dùng skill **`ui-ux-pro-max`** sinh `design-system/camai/MASTER.md` làm nguồn sự thật; file mới **`giao_dien.py`** chứa hằng số thiết kế (màu + bổ sung **màu cảnh báo `#F59E0B`**, font, khoảng cách, bo góc, biểu tượng); **thanh đầu mới 64px** có icon app; **bỏ hết emoji làm icon** → font biểu tượng Windows `Segoe MDL2 Assets`; typography **Segoe UI + Cascadia Mono** (chỉ font có sẵn — app offline); component + lưới khoảng cách 4/8/12/16/24/32 thống nhất. **Icon app vẽ bằng Nano Banana Pro (Gemini 3 Pro Image)**: 4 biến thể → chọn "đầu người + ống kính + khung nhận dạng" → `assets/camai.png` 512 + `assets/camai.ico` 7 kích thước. Coordinator **tự mở ảnh** và phát hiện **2 lỗi thị giác thật**: (1) dấu ✓ trong ô checkbox **biến mất** vì CustomTkinter vẽ ô bằng `fg_color` còn tick bằng `checkmark_color` — đặt cùng màu; (2) icon nút DỪNG trông như **tofu** vì dùng Stop (hình vuông đặc) → đổi sang Pause (2 thanh). Bump 3.3 → **3.4**. Xem mục **2.1h**. |

@@ -212,13 +212,16 @@ def kt_1_gui_khoi_dong(app, version):
 
 def kt_2_pipeline_chay_xong(app, dong_log):
     ket_qua = app.result
-    co_log_ket_qua = any("Kết quả:" in d for d in dong_log)
-    co_log_bao_cao = any("Báo cáo:" in d for d in dong_log)
+    # KHONG phu thuoc ngon ngu dang chay: app ghi nhat ky theo ngon ngu dang
+    # chon (file `gui_ngon_ngu.json` - lua chon cua nguoi dung). Neu nguoi dung
+    # da chuyen sang English thi dong la "Result:" / "Report:".
+    co_log_ket_qua = any(("Kết quả:" in d) or ("Result:" in d) for d in dong_log)
+    co_log_bao_cao = any(("Báo cáo:" in d) or ("Report:" in d) for d in dong_log)
     ok = (app.busy is False) and (ket_qua is not None) and co_log_ket_qua
     do_so = (f"app.busy={app.busy} | app.result={type(ket_qua).__name__} | "
              f"so dong nhat ky GUI={len(dong_log)} | "
-             f"co dong 'Kết quả:'={co_log_ket_qua} | "
-             f"co dong 'Báo cáo:'={co_log_bao_cao} | "
+             f"co dong 'Ket qua:/Result:'={co_log_ket_qua} | "
+             f"co dong 'Bao cao:/Report:'={co_log_bao_cao} | "
              f"hang doi con lai={app.queue.qsize()} muc")
     return ok, do_so
 

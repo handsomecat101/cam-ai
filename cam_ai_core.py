@@ -34,6 +34,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Callable, Iterator
 
+# Moc thoi gian bat dau chay module (dung de tinh budget mo camera IP).
+# PHAI dat TRUOC khi import nang (torch/ultralytics ton ~8 giay) neu khong
+# se tinh sai thoi gian da qua.
+_BAT_DAU = time.monotonic()
+
 import cv2
 import numpy as np
 import supervision as sv
@@ -44,7 +49,7 @@ from duong_dan import chuan_hoa_duong_dan
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 PERSON_CLASS_ID = 0
-VERSION = "3.5"
+VERSION = "3.6"
 
 # --- v3.2: chat luong JPEG cua khung hinh gui ra GUI (che do phan tich theo lo)
 JPEG_CHAT_LUONG = 80                    # 0-100; 80 = rat kho cho mat, nho hon 85
@@ -133,6 +138,55 @@ TEN_VAT_THE = {
 }
 
 
+# ------------------------------------------------------- nguon vao (anh / camera)
+
+# Duoi file duoc coi la ANH TINH (1 khung hinh, khong co fps).
+DUOI_ANH = (".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff")
+
+# Loai nguon (xem loai_nguon) - dung chung cho CLI va GUI.
+LOAI_ANH = "anh"
+LOAI_CAMERA = "camera"
+LOAI_MANG = "mang"
+LOAI_VIDEO = "video"
+
+# Camera IP: gioi han thoi gian mo (giay) -> app KHONG treo vo han.
+TIMEOUT_MO_MANG_GIAY = 10.0
+# Tong thoi gian cho ca viec mo camera IP (tinh tu luc bat dau chay app).
+# Import model (torch/ultralytics) ton ~8s, nen timeout mo duoc cat theo
+# thoi gian DA QUA de tong thoi gian chay len luon <= ~12 giay.
+TONG_BUDGET_MANG_GIAY = 10.0
+TIMEOUT_MO_MANG_MIN_GIAY = 3.0
+
+# So index camera quet khi goi --list-camera.
+SO_INDEX_CAMERA_QUET = 5
+
+
+def loai_nguon(input_str) -> str:
+    """Loai nguon vao cua app: 'anh' | 'camera' | 'mang' | 'video'.
+
+    - 'anh'    : file anh tinh (.jpg/.png/...) -> phan tich DUNG 1 khung hinh
+    - 'camera' : '0' -> webcam may (index camera)
+    - 'mang'   : rtsp://... hoac http://... -> camera IP / luu trucuyen
+    - 'video'  : file video (mp4/avi/...)
+    """
+    goc = str(input_str or "").strip()
+    if not goc:
+        return LOAI_VIDEO
+    if goc == "0":
+        return LOAI_CAMERA
+    low = goc.lower()
+    if low.startswith(("rtsp://", "rtmp://", "http://", "https://")):
+        return LOAI_MANG
+    if os.path.splitext(low)[1] in DUOI_ANH:
+        return LOAI_ANH
+    return LOAI_VIDEO
+
+
+def la_live(input_str) -> bool:
+    """True neu nguon la camera (may hoac IP) -> chay lien tuc, tong frame = 0."""
+    return loai_nguon(input_str) in (LOAI_CAMERA, LOAI_MANG)
+
+
 class CamAIError(Exception):
     """Loi co kiem soat: GUI hien thi len man hinh, CLI in ra roi dung.
 
@@ -212,6 +266,19 @@ class AnalysisConfig:
         """
         self.faces_dir = chuan_hoa_duong_dan(self.faces_dir)
         self.model = chuan_hoa_duong_dan(self.model)
+
+    @property
+    def loai_nguon(self) -> str:
+        """Loai nguon cua lan phan tich nay: 'anh' | 'camera' | 'mang' | 'video'.
+
+        Dung chung cho CLI va GUI (log, thanh tien trinh, ten file ket qua).
+        """
+        return loai_nguon(self.input)
+
+    @property
+    def la_live(self) -> bool:
+        """True neu nguon la camera (may hoac IP) -> chay lien tuc."""
+        return la_live(self.input)
 
 
 @dataclass
@@ -918,6 +985,254 @@ def chon_providers(che: str) -> list[str] | None:
     return None
 
 
+# --------------------------------------------------------- mo nguon / doc khung
+
+class _CapGia:
+    """VideoCapture 'gia' cho che do ANH: 1 khung hinh doc san, khong co video.
+
+    Chi de moi noi goi cap.release() khong loi (nhom loi cua run_analysis).
+    """
+
+    def isOpened(self) -> bool:
+        return False
+
+    def read(self):
+        return False, None
+
+    def get(self, _prop=None):
+        return 0.0
+
+    def release(self) -> None:
+        pass
+
+
+def _khung_hinh_nguon(cap, khung_anh, khung_dau=None):
+    """Sinh khung hinh theo thu tu tu nguon (1 nguon duy nhat cho 1 lan chay).
+
+    - Anh tinh : tra ve DUNG 1 khung hinh (da doc san bang cv2.imread).
+    - Video / camera : doc lien tuc tu VideoCapture, dung khi het khung hinh
+      hoac VideoCapture dong lai. `khung_dau` = khung hinh da doc san (dung
+      khi nguon live chi biet kich thuoc sau khi doc khung hinh dau).
+    """
+    if khung_anh is not None:
+        yield khung_anh
+        return
+    if khung_dau is not None:
+        yield khung_dau
+    if cap is None:
+        return
+    while cap.isOpened():
+        ok, frame = cap.read()
+        if not ok:
+            break
+        yield frame
+
+
+def _phim_q_dung() -> bool:
+    """True neu nguoi dung nhan phim 'q' (chi dung o che do camera/live).
+
+    cv2.waitKey can GUI co san o may - khong co thi tra -1 (khong phai loi).
+    """
+    try:
+        return (cv2.waitKey(1) & 0xFF) == ord("q")
+    except Exception:                                # noqa: BLE001
+        return False
+
+
+def _mo_cap_camera(index: int = 0):
+    """Mo webcam may (index camera). Tra ve (cap, loi).
+
+    Thu backend mac dinh (MSMF) TRUOC - giu nguyen hanh vi cu - sau do moi
+    thu DSHOW (Windows) phu thuoc may. Backend nao mo duoc nhung khong co
+    khung hinh (0x0) thi bo qua, thu backend tiep theo.
+    """
+    for api in (cv2.CAP_ANY, cv2.CAP_DSHOW):
+        cap = None
+        try:
+            cap = cv2.VideoCapture(index, api)
+        except Exception:                            # noqa: BLE001
+            cap = None
+        if cap is not None and cap.isOpened():
+            rong = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0) > 0 and \
+                int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0) > 0
+            if rong:
+                return cap, ""
+        if cap is not None:
+            try:
+                cap.release()
+            except Exception:                        # noqa: BLE001
+                pass
+    return None, "khong mo duoc"
+
+
+def _mo_cap_mang(url: str):
+    """Mo nguon mang (camera IP / luu trucuyen) voi TIMEOUT -> khong treo vo han.
+
+    FFmpeg (OpenCV) duoc gan 'stimeout' (micro giay) de khong treo khi URL sai
+    hoac camera IP khong phan hoi. Timeout duoc cat theo TONG BUDGET (thoi gian
+    da qua tu luc bat dau app) nen app khong bao gio treo lau. Tra ve (cap, loi).
+    """
+    da_qua = time.monotonic() - _BAT_DAU
+    timeout_giay = max(
+        TIMEOUT_MO_MANG_MIN_GIAY,
+        min(TIMEOUT_MO_MANG_GIAY, TONG_BUDGET_MANG_GIAY - da_qua),
+    )
+    timeout_ms = int(timeout_giay * 1000)
+    truoc = os.environ.get("OPENCV_FFMPEG_CAPTURE_OPTIONS")
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+        f"rtsp_transport;tcp|stimeout;{int(timeout_giay * 1000000)}"
+    )
+    t0 = time.monotonic()
+    cap = None
+    try:
+        cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG, [
+            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms,
+            cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms,
+        ])
+    except Exception:                                # noqa: BLE001
+        cap = None
+    finally:
+        if truoc is None:
+            os.environ.pop("OPENCV_FFMPEG_CAPTURE_OPTIONS", None)
+        else:
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = truoc
+    if cap is not None and cap.isOpened():
+        return cap, ""
+    if cap is not None:
+        try:
+            cap.release()
+        except Exception:                            # noqa: BLE001
+            pass
+        cap = None
+    # Lan 1 da cho het timeout -> BO QUA backend thu 2 (de app khong cho 2 lan,
+    # tong thoi gian van <= timeout da cat).
+    if time.monotonic() - t0 >= timeout_giay * 0.5:
+        return None, (
+            f"không kết nối được trong {timeout_giay:.0f} giây"
+        )
+    # Thu lai voi backend mac dinh (co the backend khac doc duoc URL nay).
+    try:
+        cap = cv2.VideoCapture(url, cv2.CAP_ANY, [
+            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms,
+            cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms,
+        ])
+    except Exception:                                # noqa: BLE001
+        cap = None
+    if cap is not None and cap.isOpened():
+        return cap, ""
+    if cap is not None:
+        try:
+            cap.release()
+        except Exception:                            # noqa: BLE001
+            pass
+        cap = None
+    return None, (
+        f"không kết nối được trong {timeout_giay:.0f} giây"
+    )
+
+
+def _ten_camera_windows() -> list[str]:
+    """Ten (FriendlyName) cac camera tren Windows, lay tu registry (winreg).
+
+    Thu tu thu vien chuan cua Windows - KHONG them dependency moi. Windows
+    khong co -> tra ve danh sach rong (khong phai loi).
+    """
+    ten: list[str] = []
+    try:
+        import winreg
+    except Exception:                                # noqa: BLE001
+        return ten
+    khoa = (
+        r"SYSTEM\CurrentControlSet\Control\Class"
+        r"\{4d36e965-e325-11ce-bfc1-08002be10318}"
+    )
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, khoa) as cha:
+            for i in range(0, 40):
+                try:
+                    with winreg.OpenKey(cha, f"{i:04d}") as con:
+                        ten.append(str(winreg.QueryValueEx(con, "FriendlyName")[0]))
+                except OSError:
+                    continue
+    except OSError:
+        return ten
+    return ten
+
+
+def _tat_log_opencv():
+    """Tat log noi bo cua OpenCV (tra ve muc cu de khoi phuc lai)."""
+    try:
+        muc = cv2.utils.logging.getLogLevel()
+        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_SILENT)
+        return muc
+    except Exception:                                # noqa: BLE001
+        return None
+
+
+def _bat_log_opencv(muc) -> None:
+    """Khoi phuc muc log cua OpenCV (xem _tat_log_opencv)."""
+    if muc is None:
+        return
+    try:
+        cv2.utils.logging.setLogLevel(muc)
+    except Exception:                                # noqa: BLE001
+        pass
+
+
+def quet_camera(so_index: int = SO_INDEX_CAMERA_QUET) -> list[dict]:
+    """Quet cac index camera (0..so_index-1) de biet may nao co camera.
+
+    Windows: thu CAP_DSHOW truoc (nhanh, khong treo), sau do backend mac dinh.
+    Tra ve danh sach dict: index / mo_duoc / ten / width / height / fps /
+    backend. Moi muc tra ve 1 lan - goi tu GUI cung duoc.
+    """
+    ten_ds = _ten_camera_windows()
+    ket_qua: list[dict] = []
+    # OpenCV hay in loi noi bo (VD "Camera index out of range") ra stderr ->
+    # tat trong luc quet cho output sach, tra ve muc do sau.
+    muc_log = _tat_log_opencv()
+    try:
+        for i in range(max(1, int(so_index))):
+            cap = None
+            backend = ""
+            for api, ten_api in ((cv2.CAP_DSHOW, "DSHOW"), (cv2.CAP_ANY, "mac dinh")):
+                try:
+                    cap = cv2.VideoCapture(i, api)
+                except Exception:                    # noqa: BLE001
+                    cap = None
+                if cap is not None and cap.isOpened():
+                    backend = ten_api
+                    break
+                if cap is not None:
+                    try:
+                        cap.release()
+                    except Exception:                # noqa: BLE001
+                        pass
+                    cap = None
+            muc = {
+                "index": i,
+                "mo_duoc": False,
+                "ten": ten_ds[i] if i < len(ten_ds) else "",
+                "width": 0,
+                "height": 0,
+                "fps": 0.0,
+                "backend": backend,
+            }
+            if cap is not None:
+                muc["mo_duoc"] = True
+                muc["width"] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+                muc["height"] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+                muc["fps"] = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+                try:
+                    cap.release()
+                except Exception:                    # noqa: BLE001
+                    pass
+            ket_qua.append(muc)
+    finally:
+        _bat_log_opencv(muc_log)
+    return ket_qua
+
+
 # --------------------------------------------------------------------- chay
 
 def run_analysis(
@@ -941,6 +1256,15 @@ def run_analysis(
         encode JPEG q=80 = 2.80 ms/khung (117 KB/khung).
         frame_cb_interval=0   -> +2.81 ms/khung (~+5% so voi pipeline).
         frame_cb_interval=0.1 -> +1.07 ms/khung (~+2%) -> GUI dung muc nay.
+
+    NGUON VAO (4 kieu, cung 1 pipeline):
+        video  : file video (mp4/avi)            -> total_frames = so frame
+        anh    : file anh tinh (.jpg/.png/...)   -> total_frames = 1, ket qua
+                  la 1 ANH da ve khung (.jpg) canh file CSV
+        camera : '0' (webcam may)                -> total_frames = 0 (khong
+                  xac dinh), nhan phim 'q' de dung
+        mang   : rtsp://... / http://...         -> total_frames = 0, co timeout
+                  10s khi mo (khong treo vo han)
     """
     log(HEADER.format(VERSION))
 
@@ -957,15 +1281,91 @@ def run_analysis(
         )
 
     source = 0 if str(cfg.input).strip() == "0" else cfg.input
-    cap = cv2.VideoCapture(source)
-    if not cap.isOpened():
-        raise CamAIError(f"[loi] khong mo duoc video: {cfg.input}")
+    loai = loai_nguon(cfg.input)
+    khung_anh = None          # khung hinh tinh (che do anh)
+    khung_dau = None          # khung hinh dau da doc san (nguon live)
+    cap = None                # VideoCapture (video file / camera)
+    la_live_nguon = la_live(cfg.input)
 
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-    log(f"[video] {width}x{height} @ {fps:.0f}fps, {total_frames} frame")
+    # --- MO NGUON: 4 kieu khac nhau, deu vao CHUNG 1 pipeline phia duoi.
+    if loai == LOAI_ANH:
+        # ANH TINH: doc 1 khung hinh roi xu ly nhu 1 khung hinh cua video.
+        khung_anh = cv2.imread(cfg.input, cv2.IMREAD_COLOR)
+        if khung_anh is None:
+            raise CamAIError(
+                f"[lỗi] không đọc được ảnh: {cfg.input}\n"
+                "       File không tồn tại, bị hỏng, hoặc không phải ảnh. "
+                "Định dạng hỗ trợ: " + ", ".join(DUOI_ANH)
+            )
+        height, width = khung_anh.shape[:2]
+        fps = 1.0                    # anh tinh: 1 khung hinh, khong co fps
+        total_frames = 1
+        cap = _CapGia()              # khong co video -> release() la no-op
+        log(f"[nguon] ANH: {cfg.input} (1 khung hinh)")
+        log(f"[anh] {width}x{height} | 1 khung hinh | ảnh tĩnh (không có fps)")
+    elif loai == LOAI_CAMERA:
+        cap, _loi = _mo_cap_camera(int(source) if str(source).isdigit() else 0)
+        if cap is None:
+            raise CamAIError(
+                f"[lỗi] không mở được camera {source} trên máy này.\n"
+                "       Chạy 'app.py --list-camera' để xem máy có camera nào "
+                "không, và tắt các ứng dụng đang chiếm camera (Zoom/Teams/Chrome)."
+            )
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        if width <= 0 or height <= 0:
+            # Mot so nguon chi biet kich thuoc sau khi doc khung hinh dau.
+            ok_kh, khung = cap.read()
+            if ok_kh and khung is not None:
+                height, width = khung.shape[:2]
+                khung_dau = khung
+        if width <= 0 or height <= 0:
+            cap.release()
+            raise CamAIError(
+                f"[lỗi] camera {source} mở được nhưng không trả về hình ảnh "
+                f"(kích thước {width}x{height})."
+            )
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_frames = 0             # camera: khong biet truoc so khung hinh
+        log(f"[nguon] CAMERA: index {source} | {width}x{height} @ {fps:.0f}fps")
+        log("[nguon] nhấn phím 'q' để dừng phân tích")
+    elif loai == LOAI_MANG:
+        cap, loi = _mo_cap_mang(str(source))
+        if cap is None:
+            raise CamAIError(
+                f"[lỗi] không kết nối được camera IP: {cfg.input}\n"
+                f"       {loi}.\n"
+                "       Kiểm tra: URL đúng (rtsp://... hoặc http://...), camera IP "
+                "còn bật, tài khoản/mật khẩu đúng, máy thông mạng với camera, "
+                "và máy này có FFmpeg (OpenCV đã đóng gói sẵn FFmpeg)."
+            )
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        if width <= 0 or height <= 0:
+            # Nguon HTTP/RTSP chi biet kich thuoc sau khi doc khung hinh dau.
+            ok_kh, khung = cap.read()
+            if ok_kh and khung is not None:
+                height, width = khung.shape[:2]
+                khung_dau = khung
+        if width <= 0 or height <= 0:
+            cap.release()
+            raise CamAIError(
+                f"[lỗi] kết nối được {cfg.input} nhưng không nhận được hình ảnh "
+                f"(kích thước {width}x{height})."
+            )
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_frames = 0             # luu trucuyen: khong biet truoc so khung hinh
+        log(f"[nguon] CAMERA IP: {cfg.input} | {width}x{height} @ {fps:.0f}fps")
+        log("[nguon] nhấn phím 'q' để dừng phân tích")
+    else:
+        cap = cv2.VideoCapture(source)
+        if not cap.isOpened():
+            raise CamAIError(f"[loi] khong mo duoc video: {cfg.input}")
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+        log(f"[video] {width}x{height} @ {fps:.0f}fps, {total_frames} frame")
 
     if cfg.tach_o:
         log(
@@ -1071,40 +1471,54 @@ def run_analysis(
     out_path, report_path = output_paths(cfg.output)
     # Tao thu muc cha TRUOC khi mo VideoWriter va truoc khi ghi CSV.
     # VideoWriter khong tu tao thu muc: thieu thu muc thi app chet ngay.
-    thu_muc_video = tao_thu_muc_cha(out_path)
     thu_muc_bao_cao = tao_thu_muc_cha(report_path)
-    # GHI TAM (.part.mp4) -> DOI TEN khi dong video. File .mp4 hong (moov atom
-    # chua ghi xong) thi KHONG bao gio xuat hien voi ten dung.
-    out_path_tam = duong_dan_tam(out_path)
-    if don_file_tam(out_path_tam):
-        log(f"[video] da don file tam cu: {out_path_tam}")
-    fourcc_dung = _fourcc_ket_qua()
-    if fourcc_dung == "avc1":
-        _log_an_toan(
-            log,
-            "[video] codec: H.264 (avc1) - trình duyệt phát được video",
-            "[video] codec: H.264 (avc1) - trinh duyet phat duoc video",
+    writer = None
+    out_path_tam = ""
+    khung_cuoi = None             # khung hinh cuoi da ve overlay (che do anh)
+    if loai == LOAI_ANH:
+        # CHE DO ANH: ket qua la MOT ANH (da ve khung) chu KHONG phai video.
+        # Ten file lay theo ten file anh goc, dat canh file CSV.
+        ten_anh = os.path.splitext(os.path.basename(str(cfg.input)))[0] or "anh"
+        out_path = os.path.join(
+            os.path.dirname(os.path.abspath(report_path)),
+            f"{ten_anh}_ket_qua.jpg",
         )
+        thu_muc_video = tao_thu_muc_cha(out_path)
+        log(f"[anh] kết quả sẽ lưu vào: {out_path}")
     else:
-        _log_an_toan(
-            log,
-            "[video] codec: MPEG-4 Part 2 (mp4v) - máy này không có encoder H.264",
-            "[video] codec: MPEG-4 Part 2 (mp4v) - may nay khong co encoder H.264",
+        thu_muc_video = tao_thu_muc_cha(out_path)
+        # GHI TAM (.part.mp4) -> DOI TEN khi dong video. File .mp4 hong (moov atom
+        # chua ghi xong) thi KHONG bao gio xuat hien voi ten dung.
+        out_path_tam = duong_dan_tam(out_path)
+        if don_file_tam(out_path_tam):
+            log(f"[video] da don file tam cu: {out_path_tam}")
+        fourcc_dung = _fourcc_ket_qua()
+        if fourcc_dung == "avc1":
+            _log_an_toan(
+                log,
+                "[video] codec: H.264 (avc1) - trình duyệt phát được video",
+                "[video] codec: H.264 (avc1) - trinh duyet phat duoc video",
+            )
+        else:
+            _log_an_toan(
+                log,
+                "[video] codec: MPEG-4 Part 2 (mp4v) - máy này không có encoder H.264",
+                "[video] codec: MPEG-4 Part 2 (mp4v) - may nay khong co encoder H.264",
+            )
+        writer = cv2.VideoWriter(
+            out_path_tam, cv2.VideoWriter_fourcc(*fourcc_dung), fps, (width, height)
         )
-    writer = cv2.VideoWriter(
-        out_path_tam, cv2.VideoWriter_fourcc(*fourcc_dung), fps, (width, height)
-    )
-    if not writer.isOpened():
-        cap.release()
-        don_file_tam(out_path_tam)
-        raise CamAIError(
-            f"[loi] khong gia duoc file video ket qua: {out_path}\n"
-            "       Thu muc cha khong tao duoc hoac khong co quyen ghi: "
-            f"{thu_muc_video or os.path.dirname(os.path.abspath(out_path))}"
-        )
-    # File tam dang duoc ghi -> dang ky vao registry de "don file sot" khong
-    # bao gio xoa nho (xem don_file_tam_trong_thu_muc).
-    dang_ghi_file(out_path_tam)
+        if not writer.isOpened():
+            cap.release()
+            don_file_tam(out_path_tam)
+            raise CamAIError(
+                f"[loi] khong gia duoc file video ket qua: {out_path}\n"
+                "       Thu muc cha khong tao duoc hoac khong co quyen ghi: "
+                f"{thu_muc_video or os.path.dirname(os.path.abspath(out_path))}"
+            )
+        # File tam dang duoc ghi -> dang ky vao registry de "don file sot" khong
+        # bao gio xoa nho (xem don_file_tam_trong_thu_muc).
+        dang_ghi_file(out_path_tam)
 
     # --- VIEC 2: dung mem tren Windows (taskkill KHONG kem /F).
     tin_hieu_dung = cai_tin_hieu_dung()
@@ -1224,9 +1638,13 @@ def run_analysis(
     bao_loi_gui_hinh = False                    # chi bao loi callback 1 lan
 
     try:
-        while cap.isOpened():
-            ok, frame = cap.read()
-            if not ok:
+        # Khung hinh lay tu 1 nguon duy nhat (anh / video / camera) - phan con
+        # lai cua pipeline (ve khung, ghi CSV, su kien...) GIU NGUYEN.
+        for frame in _khung_hinh_nguon(cap, khung_anh, khung_dau):
+            # --- camera/live: nhan phim 'q' de dung ngay
+            if la_live_nguon and _phim_q_dung():
+                stopped = True
+                log("  [dung] nhận phím 'q' -> dừng phân tích")
                 break
 
             # --- nguoi: chay moi khung hinh (YOLO tren GPU, rat nhanh)
@@ -1502,7 +1920,11 @@ def run_analysis(
                 except Exception:                           # noqa: BLE001 - fail-safe
                     pass    # khong ve overlay van chay tiep, khong dung app
 
-            writer.write(frame)
+            if writer is not None:
+                writer.write(frame)
+            # Giu lai khung hinh CUOI da ve overlay (che do anh can no de luu
+            # ra file .jpg).
+            khung_cuoi = frame
 
             # --- v3.2: gui khung hinh cho GUI (che do phan tich theo lo).
             # Khung hinh o day DA CO overlay (khung nguoi, nhan ten, vung canh,
@@ -1585,21 +2007,49 @@ def run_analysis(
                 break
     finally:
         cap.release()
-        writer.release()
+        if writer is not None:
+            writer.release()
         if recorder is not None:
             recorder.ket_thuc()      # dong clip dang ghi + xoa vong dem
         if chup_anh is not None:
             chup_anh.dong()          # ghi CSV bang ke cac lan chup
         canh_bao_noi.dong()
         # Chi sau khi release() (da ghi xong moov atom) moi doi ten that.
-        if not chuyen_ten_sau_khi_dong(out_path_tam, out_path):
-            _log_an_toan(
-                log,
-                f"[video] ⚠ không ghi được video kết quả, xem {out_path_tam}",
-                f"[video] khong gia duoc video ket qua, xem {out_path_tam}",
+        # Che do ANH khong co video -> bo qua (ket qua la file .jpg).
+        if out_path_tam:
+            if not chuyen_ten_sau_khi_dong(out_path_tam, out_path):
+                _log_an_toan(
+                    log,
+                    f"[video] ⚠ không ghi được video kết quả, xem {out_path_tam}",
+                    f"[video] khong gia duoc video ket qua, xem {out_path_tam}",
+                )
+            # Da ghi xong -> bo dang ky, tu lan sau moi duoc don file sot.
+            ngung_ghi_file(out_path_tam)
+
+    # --- CHE DO ANH: luu 1 ANH da ve khung (khong ghi video).
+    # Dung cv2.imencode + ghi bytes (cv2.imwrite that bai voi duong dan co dau).
+    if loai == LOAI_ANH:
+        if khung_cuoi is None:
+            raise CamAIError(
+                "[lỗi] không có khung hình nào để lưu ảnh kết quả "
+                f"({cfg.input})"
             )
-        # Da ghi xong -> bo dang ky, tu lan sau moi duoc don file sot.
-        ngung_ghi_file(out_path_tam)
+        ok_jpg, buf_jpg = cv2.imencode(
+            ".jpg", khung_cuoi, [int(cv2.IMWRITE_JPEG_QUALITY), 92]
+        )
+        if not ok_jpg:
+            raise CamAIError(f"[lỗi] không mã hóa được ảnh kết quả: {out_path}")
+        try:
+            with open(out_path, "wb") as file:
+                file.write(buf_jpg.tobytes())
+        except OSError as exc:
+            raise CamAIError(
+                f"[lỗi] không ghi được ảnh kết quả: {out_path}\n       {exc}"
+            ) from exc
+        log(
+            "[anh] đã lưu ảnh kết quả (khung người + khung mặt + tên + "
+            f"biển số): {out_path}"
+        )
 
     # Bao cao CSV: cung thu muc cha phai co, va loi phai ra ro rang.
     if not thu_muc_bao_cao:
@@ -1625,11 +2075,20 @@ def run_analysis(
     all_females = sum(r["nu"] for r in report_rows)
     all_ages = [r["tuoi_tb"] for r in report_rows if r["tuoi_tb"] != ""]
 
-    duration = timedelta(seconds=len(report_rows) / fps)
+    duration = (
+        timedelta(0) if loai == LOAI_ANH
+        else timedelta(seconds=len(report_rows) / fps)
+    )
     log("\n========== KET QUA ==========")
-    log(f"Video ket qua : {out_path}")
+    if loai == LOAI_ANH:
+        log(f"Anh ket qua   : {out_path}")
+    else:
+        log(f"Video ket qua : {out_path}")
     log(f"Bao cao       : {report_path}")
-    log(f"Do dai        : {duration}")
+    if loai == LOAI_ANH:
+        log("Do dai        : 1 khung hinh (ảnh tĩnh)")
+    else:
+        log(f"Do dai        : {duration}")
     log(f"Nguoi nhieu nhat trong 1 khung hinh: {max_people}")
     if zone_px is not None:
         peak_zone = max((r["trong_vung"] for r in report_rows), default=0)
@@ -1725,7 +2184,7 @@ def run_analysis(
         out_path=out_path,
         report_path=report_path,
         frames=len(report_rows),
-        fps=fps,
+        fps=0.0 if loai == LOAI_ANH else fps,
         duration=duration,
         max_people=max_people,
         max_faces=max_faces,

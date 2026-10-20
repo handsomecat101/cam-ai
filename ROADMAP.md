@@ -127,12 +127,18 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
       hàng đợi idle của cả app) → đã sửa + khởi động ấm → **lần kéo đầu: 984 ms → 19,4 ms,
       0 lần tre**; mở app không chậm hơn. Thêm `Mo CamAI.vbs` + `Mo CamAI.bat` +
       `HUONG-DAN-MO-APP.md`
-- [ ] **P0 — nguồn ảnh tĩnh**: chế độ phân tích 1 ảnh, xuất **ảnh đã vẽ khung** + CSV
-      (đang làm ở tầng lõi/CLI; nối vào GUI sau)
-- [ ] **P0 — nguồn camera**: chọn thiết bị (`--list-camera`), webcam `0`, camera IP `rtsp://`,
-      dừng bằng phím, thanh tiến trình kiểu không xác định (đang làm ở tầng lõi/CLI)
-- [ ] **Gom 12 nhóm cấu hình → 4 mục lớn** (NGUỒN / PHÂN TÍCH / BIỂN SỐ & ẢNH / CẢNH BÁO &
-      MÔ HÌNH), 1 mục mở tại một lúc, mỗi mục có 1 dòng mô tả (đang làm)
+- [x] **Bản 3.6 — 4 nhóm cấu hình + nguồn ẢNH & CAMERA** (làm theo định hướng mới):
+      12 nhóm rời rạc → **4 mục lớn** (NGUỒN / PHÂN TÍCH / BIỂN SỐ & ẢNH / CẢNH BÁO &
+      MÔ HÌNH), mỗi mục 1 dòng mô tả, chỉ 1 mục mở tại một lúc; dải video mẫu 212px →
+      125px. Thêm **chế độ ảnh** (xuất ảnh đã vẽ khung) + **camera** (webcam `0`, camera
+      IP `rtsp://`, dừng bằng `q`) + lệnh `--list-camera`. Kiểm chứng: e2e 7/7, 3.3 4/4,
+      thiết kế 7/7, ngôn ngữ 5/5, canvas PASS; CSV video **SHA256 giống hệt** bản gốc
+- [x] **Sửa lỗi repo**: `gui_ngon_ngu.json` (lựa chọn ngôn ngữ của người dùng) bị git
+      theo dõi → đã `git rm --cached` + `.gitignore`, reset "vi"; bộ e2e không còn phụ thuộc
+      ngôn ngữ
+- [ ] **Nối GUI với 2 nguồn mới**: nút "Chọn ảnh…" (phân tích 1 ảnh, hiện ảnh kết quả
+      trong khung xem) + nút "Chọn camera…" (dùng `quet_camera()`) + thanh tiến trình
+      không xác định khi đang quay
 - [ ] **P1 — chọn lớp vật thể bằng TIẾNG VIỆT**: YOLO11 đã có sẵn 80 lớp COCO nhưng anh
       phải gõ tên lớp tiếng Anh. Cần map sang nhóm tiếng Việt (Phương tiện / An toàn lao
       động / Giao thông / Động vật / Đồ vật…) + ô tick chọn. **Không cần model mới**

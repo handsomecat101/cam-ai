@@ -2,6 +2,53 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.6] — 2026-10-20 (sau 15:30)
+
+`VERSION` trong `cam_ai_core.py` = **3.6**.
+
+Bản đầu tiên làm theo **định hướng mới anh chốt**: *CamAI = app detect đa thể loại, chạy
+được trên **file video + ảnh + quay video**; ứng dụng chấm công tách ra app riêng; đổi nền
+tảng để sau.* Chi tiết định hướng: `USE_CASE.md` mục 0, `PROJECT_STATE.md` mục 0.
+
+### Đã thêm
+
+| # | Hạng mục | Chi tiết |
+|---|---|---|
+| 1 | **4 mục cấu hình lớn** thay cho 12 mục rời rạc | NGUỒN (mở sẵn) · PHÂN TÍCH · BIỂN SỐ & ẢNH · CẢNH BÁO & MÔ HÌNH. Mỗi mục có 1 dòng mô tả, chỉ 1 mục mở tại một lúc, mũi tên Segoe MDL2 xoay thật (E76C ↔ E70D). Mở mục con sẽ mở luôn mục lớn cha |
+| 2 | **Dải "Video mẫu dùng thử" gọn lại** | Thẻ bố cục ngang (ảnh 84×47 + tên + mô tả) → 1 thẻ cao 55px thay vì 137px; cả khối **212px → 125px** (đo thật) |
+| 3 | **Nguồn ẢNH tĩnh** | `--input <ảnh>` → phân tích 1 khung hình qua **cùng một đường pipeline**; xuất **ảnh đã vẽ khung** (người + mặt + tên + biển số) + CSV; tiến trình `frame 0/1`, `percent=100` |
+| 4 | **Nguồn CAMERA** | webcam `0` + camera IP `rtsp://`/`http://`; có **ngân sách thời gian** nên không treo; **nhấn `q` để dừng**; thanh tiến trình kiểu **không xác định** khi không biết tổng số khung |
+| 5 | **Lệnh `--list-camera`** | Quét và in danh sách camera (index, độ phân giải, tên, mở được hay không); không có camera → in rõ + hướng dẫn, **exit 0** |
+| 6 | **`loai_nguon()` / `la_live()`** trong `cam_ai_core` | Hàm dùng chung cho CLI và GUI, để GUI nối vào 2 nguồn mới sau |
+| 7 | **`_chuan_hoa_console()` được gọi thật** trong `app.py` | Trước đó hàm có sẵn nhưng chưa ai gọi → thông báo lỗi tiếng Việt bị escape thành `\u1ed7i` |
+
+### Đã sửa
+
+| Mục | Chi tiết |
+|---|---|
+| **`gui_ngon_ngu.json` bị git theo dõi** | File này lưu **lựa chọn ngôn ngữ của người dùng**. Một script kiểm chứng để lại "en" → app của anh **tự mở bằng tiếng Anh**; bộ e2e **FAIL** vì chỉ tìm chuỗi tiếng Việt. → `git rm --cached` + thêm `.gitignore`, reset về `"vi"`, và bộ e2e **không còn phụ thuộc ngôn ngữ** |
+| Lỗi bố cục lộ ra khi gom nhóm | `_hang()` cho cột điều khiển `minsize=140` — nếu không, các nút rộng 260px bị Tk bóp còn 124px khi mục lớn cha đang thu gọn ⇒ **chữ bị cắt** |
+
+### BẰNG CHỨNG — coordinator tự chạy lại
+
+| Bộ | Kết quả |
+|---|---|
+| `_kk_kiem_gui_chay_thuc.py` | **7/7 PASS** — 37,9 s |
+| `_kk_kiem_gui_b3.py` | **4/4 PASS** |
+| `_kk_kiem_giao_dien.py` | **7/7 PASS** |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** |
+| `_kk_kiem_canvas_vung.py` | **PASS** — sai số 0,0000 |
+| Chế độ ảnh (chạy tay) | **EXIT=0** — 4 người, 2 mặt, nhận "An"/"Binh", ảnh kết quả 199.956 B |
+| `--list-camera` | **EXIT=0** — máy này không có camera → thông báo rõ |
+| Hồi quy video | CSV **251 dòng**, SHA256 **giống hệt** bản gốc, thời gian −5,4%…+0,1% |
+
+### CHƯA ĐẠT ở bản 3.6
+
+- **GUI chưa nối vào 2 nguồn mới** (chọn ảnh / chọn camera) — phần lõi đã xong, còn lớp vỏ.
+- **Camera thật chưa kiểm chứng** (máy này không có camera) — đã kiểm chứng đường đi live
+  qua **camera IP giả** (HTTP MJPEG).
+- **Mục 7 / mục 8** — vẫn chờ **anh** xác nhận.
+
 ## [3.5] — 2026-10-20 (sau 08:40)
 
 `VERSION` trong `cam_ai_core.py` = **3.5**.

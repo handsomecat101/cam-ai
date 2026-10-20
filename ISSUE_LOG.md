@@ -9,6 +9,35 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## File lựa chọn ngôn ngữ bị commit vào git → app của người dùng tự mở tiếng Anh
+
+**Triệu chứng (bản 3.6, coordinator phát hiện khi kiểm chứng):** file `gui_ngon_ngu.json`
+— lưu **lựa chọn ngôn ngữ của người dùng** — đang **bị git theo dõi**. Một script kiểm
+chứng đã đổi nó sang `"en"` và để nguyên ⇒ file bị "dính" ở trạng thái English trong repo.
+
+Hậu quả:
+1. **App của anh tự mở bằng tiếng Anh** — dù code đã sửa hết sang tiếng Việt có dấu.
+2. **Bộ kiểm chứng e2e FAIL** vì nó chỉ tìm chuỗi tiếng Việt (`Kết quả:`, `Báo cáo:`).
+
+Đây là lỗi **loại "trạng thái cá nhân lọt vào repo"** — không phải lỗi code, nhưng làm hỏng
+cả trải nghiệm người dùng lẫn độ tin cậy của bộ test.
+
+**Cách sửa (bản 3.6):**
+1. `git rm --cached gui_ngon_ngu.json` + thêm vào `.gitignore` → lựa chọn cá nhân **không**
+   được commit (giống `known_faces/`, kết quả chạy, cache model).
+2. Reset file về `"vi"`.
+3. Sửa `_kk_kiem_gui_chay_thuc.py` **không còn phụ thuộc ngôn ngữ**: chấp nhận cả
+   `Kết quả:`/`Result:` và `Báo cáo:`/`Report:`.
+
+**Bài học:**
+- **Mọi file lưu lựa chọn/trạng thái của người dùng phải nằm trong `.gitignore`**:
+  `gui_ngon_ngu.json`, `known_faces/`, thư mục output, cache model.
+- **Bộ kiểm chứng không được phụ thuộc ngôn ngữ** — nếu không, chính bộ test sẽ làm hỏng
+  app của người dùng (đây chính là thứ đã xảy ra).
+- Khi commit, phải **kiểm tra `git status` xem có file trạng thái cá nhân nào lọt lên không**.
+
+---
+
 ## Kéo cửa sổ bị giật mạnh — tooltip tạo/huỷ cửa sổ native liên tục
 
 **Triệu chứng:** anh dùng thật thì thấy **kéo cửa sổ bị giật lắm** (mục 7 của bảng nghiệm
