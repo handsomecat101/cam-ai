@@ -30,6 +30,12 @@ _thumb_cache/
 output*.mp4
 output_*.csv
 *.log
+# Ket qua chay tren video mau (ten video + _bao_cao.csv / _ket_qua.mp4 / _tong_ket.xlsx ...)
+*_bao_cao.csv
+*_ket_qua.mp4
+*_tong_ket.xlsx
+*_xem_lai.html
+*_xem_lai.csv
 
 # --- anh phong nghiep ---
 _kiem_chung/**/*.png
