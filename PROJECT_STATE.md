@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-20 (sau 06:45 — bản **3.4** thiết kế lại toàn bộ giao diện theo skill `ui-ux-pro-max` + làm icon app bằng ảnh AI, `VERSION` nay là **3.4**)
+**Ngày cập nhật:** 2026-10-20 (sau 09:50 — bản **3.5** sửa giật kéo cửa sổ (lần kéo đầu: 984 ms → **19,4 ms**) + thêm **launcher 1-click** để anh tự mở app, `VERSION` nay là **3.5**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 **Trạng thái ngắn:** **6 mục nghiệm thu tự đo — CẢ 6 ĐÃ ĐẠT** ở bản 2.8 (đo lại toàn bộ
 sau khi thêm `--tach-o`), mỗi mục có output thật kèm tên file. Mục 7 và 8 **chờ anh tự
@@ -8,8 +8,14 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.4 (mới nhất):** anh yêu cầu thiết kế lại toàn bộ giao diện (vì *"app nhìn cứ phèn
-phèn"*) bằng skill **`ui-ux-pro-max`** + làm lại **icon app bằng ảnh AI** (Nano Banana Pro).
+**Bản 3.5 (mới nhất):** anh dùng thật và báo **"kéo cửa sổ bị giật lắm"** + **"chả bao giờ chỉ
+tôi cách mở app"**. → (1) **Sửa giật**: tìm ra `CTkScrollbar._draw()` gọi `update_idletasks()` →
+xả hết hàng đợi idle của **toàn bộ app** → vẽ lại 851 widget → tre 600–900 ms ở **lần kéo
+đầu tiên**. Đã sửa + **khởi động ấm** → lần kéo đầu còn **19,4 ms, 0 lần tre**. (2) **Launcher
+1-click** `Mo CamAI.vbs` + hướng dẫn `HUONG-DAN-MO-APP.md`. Xem **mục 2.1i**.
+
+**Bản 3.4:** anh yêu cầu thiết kế lại toàn bộ giao diện (vì *"app nhìn cứ phèn phèn"*) bằng skill
+**`ui-ux-pro-max`** + làm lại **icon app bằng ảnh AI** (Nano Banana Pro).
 Sinh `design-system/camai/MASTER.md` làm nguồn sự thật, tách hằng số sang file mới
 `giao_dien.py`, dựng **thanh đầu mới** có icon app, **bỏ hết emoji làm icon** (dùng font
 biểu tượng Windows `Segoe MDL2 Assets`), lên lại typography + component + lưới khoảng cách.
@@ -182,6 +188,8 @@ Phân 3 mức để không nhầm "có code" với "đã chạy thật":
 | **Đăng ký người quen trong GUI** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [2] → **PASS**: nút "Đăng ký người quen…" chạy thật trên `known_faces/An/01.jpg` → tạo `known_faces_test/KiemThuV33/01.jpg`, log `> Tìm thấy 1 khuôn mặt`, `> Số ảnh đã lưu: 1`, `> Đã học được: KiemThuV33` |
 | **Vẽ vùng trong GUI** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [4] + `_kk_kiem_canvas_vung.py` → **PASS**: canvas kéo chuột trả tọa độ **sai số 0.0000**; file vùng ghi đúng `0.2000 0.1500 0.8000 0.9500`; **coordinator tự xem ảnh** thấy hình chữ nhật xanh đúng chỗ kéo |
 | **Đọc biển số thử trong GUI** (bản 3.3) | `_kk_kiem_gui_b3.py` mục [3] → **PASS**: nút "Đọc biển số thử…" đọc ảnh biển số giả 2 hàng → log `Biển số: 30A-12345 \| tin cậy 0.67 \| số hàng: 2`, ảnh crop đã lưu. **Lưu ý: ảnh này là ảnh GIẢ, chưa phải nghiệm thu ảnh thật** |
+| **Kéo cửa sổ không giật** (bản 3.5) | `_kk_do_keo_dau_tien.py` (coordinator tự đo) → lần kéo **ĐẦU TIÊN**: `max` **19,4 ms**, `tb` 14,9 ms, `p90` 17,5 ms, **0 lần tre > 30 ms** (trước: **859–984 ms**, 3–9 lần tre). Thời gian mở app **không chậm hơn** (13,3 s → 12,5 s) |
+| **Launcher 1-click** (bản 3.5) | `Mo CamAI.vbs` — **đã chạy thật**: tiến trình `pythonw.exe ... gui.py` xuất hiện, đóng sạch. Kèm `Mo CamAI.bat` (in lỗi) + `HUONG-DAN-MO-APP.md` |
 
 #### MỨC 2 — đã chạy thật, chưa tự xem bằng mắt (nên mở xem 1 lần rồi đánh dấu)
 
@@ -407,7 +415,7 @@ Chuyển pixel→tương đối theo kích thước **ảnh gốc** (không ph�
 |---|---|
 | **Nhiều vùng** (nhiều vùng cảnh trong 1 file) | Anh chốt hướng A nhưng **"nhiều vùng"** chưa nằm trong yêu cầu cụ thể; bản 3.3 làm **1 vùng** như bản CLI cũ |
 | **Đăng ký người quen hàng loạt** (nhiều người cùng lúc) | `cluster(max_people=1)` → hiện **1 người / 1 lần**. Muốn nhiều người trong 1 video thì cần tách nhóm nhiều người + giao tên cho từng nhóm |
-| **Mục 7** (kéo cửa sổ) & **mục 8** (độ nhận diện) | Phải do **anh** xác nhận, em không tự đánh dấu đạt |
+| **Mục 7** (kéo cửa sổ) & **mục 8** (độ nhận diện) | Phải do **anh** xác nhận, em không tự đánh dấu đạt. **Mục 7: bản 3.5 đã sửa theo số đo (lần kéo đầu 984 ms → 19,4 ms) — xin anh mở app (double-click `Mo CamAI.vbs`) và thử kéo xem còn giật không** |
 | **OCR biển số trên ảnh THẬT** | Vẫn **chưa có ảnh thật** của anh. Bản 3.3 chỉ làm **đường đi ngắn** để anh gửi ảnh → bấm 1 nút → có kết quả ngay |
 
 ---
@@ -472,6 +480,89 @@ tôi đi, cả cái icon của app nữa dùng trình tạo ảnh ai"*.
   → đặt 2 tham số cùng giá trị là mất 1 lớp.
 - Kiểm tra icon/checkbox phải **chụp ảnh phóng to 3×**, không tin nhìn bằng mắt ở kích thước nhỏ.
 - Chọn glyph **khác hình dạng rõ rệt** giữa các trạng thái (play / dừng / xong).
+
+---
+
+### 2.1i BẢN 3.5 — SỬA GIẬT KÉO CỬA SỔ + LAUNCHER 1-CLICK (2026-10-20)
+
+**Anh báo (2026-10-20, ~07:20):** *"với cả cái app tôi dùng kéo cửa số nó vẫn bị giật lắm, bạn
+kiểm tra lại cho tôi nhá, bạn làm mà chả bao giờ chỉ tôi cách mở app gì cả, tôi chỉ dùng được
+lúc các bạn test thôi"*.
+
+→ Đây là **lần đầu mục 7 có xác nhận của người dùng** (trước đó chỉ có số đo của coordinator —
+và đó là thiếu sót: em đã ghi "CHƯA ĐẠT — chờ anh xác nhận" nhưng cũng **chưa chỉ anh cách
+mở app**, nên anh không thể tự dùng để kiểm tra).
+
+### 1. Launcher 1-click (đóng lỗ "chả bao giờ chỉ tôi cách mở app")
+
+| File | Dùng khi nào |
+|---|---|
+| `Mo CamAI.vbs` | **Cách chính** — double-click, app mở, **không** hiện cửa sổ đen |
+| `Mo CamAI.bat` | Khi app không mở — có cửa sổ đen **in lỗi** để chụp màn hình gửi mình |
+| `HUONG-DAN-MO-APP.md` | Hướng dẫn đầy đủ cho người không rành kỹ thuật (kèm cách xử lý khi Windows cảnh báo / file bị chặn, cách đưa shortcut lên desktop) |
+
+**Đã kiểm chứng thật:** chạy `Mo CamAI.vbs` → tiến trình `pythonw.exe ... gui.py` **xuất hiện** →
+đóng lại sạch, không để lại tiến trình rác.
+
+### 2. Sửa giật kéo cửa sổ — đo, không đoán
+
+**Quy trình:** coordinator đo 4 phép độc lập, **loại trừ 3 giả thuyết sai** trước khi kết luận:
+
+| Giả thuyết | Bằng chứng loại trừ |
+|---|---|
+| "Do tooltip tạo/huỷ cửa sổ native" | Trong lúc kéo, con trỏ **không nằm trên app** → `Enter=0`, `Leave=0`, tooltip tạo **0** cửa sổ |
+| "Do vẽ lại nhiều" | Đo riêng thời gian vẽ lại toàn bộ cửa sổ = **0,5 ms** |
+| "Do app chạy nền" | **CPU idle = 0 ms** trong 3 s |
+
+**Cái thật sự (đo được):**
+
+| Bằng chứng | Số đo |
+|---|---|
+| Chỉ lần kéo **ĐẦU TIÊN** bị | lần 1: **859 ms** → lần 2: 20,2 ms → lần 3: 20,9 ms |
+| Cửa sổ **rỗng** không bị | Tk rỗng 21,3 ms · CTk rỗng 18,4 ms · **CamAI đầy đủ 984 ms** |
+| **Bỏ hết scrollbar** | còn **144 ms** → scrollbar chiếm ~85% |
+| Stack lúc đang tre | `CTkScrollbar._draw` (ctk_scrollbar.py:161 → `self._canvas.update_idletasks()`) → `<Configure>` → `set()` → `_draw()` → … |
+
+**Nguyên nhân gốc:** `CTkScrollbar._draw()` kết thúc bằng `self._canvas.update_idletasks()`.
+**`update_idletasks()` là lệnh Tk gốc → nó xả HẾT hàng đợi idle của TOÀN BỘ app** (chứ không
+chỉ thanh cuộn) → kéo cửa sổ lần đầu ⇒ vẽ lại **851 widget** ⇒ tre 600–900 ms.
+
+**Cách sửa:**
+1. `_patch_scrollbar_khong_ep_ve_lai_ca_app()` (`gui.py:272`, gọi ở `gui.py:1681`): bỏ lệnh
+   `update_idletasks()` khỏi `_draw()` của thanh cuộn. Thanh cuộn vẫn được vẽ lại ở vòng idle
+   kế tiếp của Tk, nhưng **không còn ép vẽ lại cả app**.
+2. **Khởi động ấm**: vẽ sẵn cây widget trước khi người dùng kéo lần đầu.
+3. **Tooltip**: tái sử dụng **1 cửa sổ duy nhất** (không tạo/huỷ liên tục), **trì hoãn 450 ms**
+   (chuẩn Windows), đóng cửa sổ tooltip khi app đóng.
+
+**KẾT QUẢ (coordinator tự đo lại trên code cuối):**
+
+| Số đo | Trước | Sau |
+|---|---|---|
+| **Lần kéo đầu tiên — `max`** | **859 – 984 ms** | **19,4 ms** |
+| Lần kéo đầu — số lần tre > 30 ms | 3 – 9 | **0** |
+| Lần kéo đầu — `tb` / `p90` | — | 14,9 / 17,5 ms |
+| Thời gian mở app (tới khi cửa sổ sẵn sàng) | 13,3 s | **12,5 s** (không chậm hơn) |
+
+**BẰNG CHỨNG — 5 bộ kiểm chứng của coordinator chạy trên code cuối:**
+
+| Bộ | Kết quả |
+|---|---|
+| `_kk_kiem_gui_chay_thuc.py` (e2e 7 mục) | **7/7 PASS** — 29,9 s |
+| `_kk_kiem_gui_b3.py` (4 tính năng bản 3.3) | **4/4 PASS** |
+| `_kk_kiem_gui_batch_preview.py` | **PASS** — khung hiện panel **103 lần**, 74.061 màu → không đen |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** (tiêu đề `CamAI v3.4` — bump 3.5 sau) |
+| `_kk_kiem_giao_dien.py` | **7/7 PASS** — 0 emoji, font ≥ 12px, icon app, tương phản ≥ 4,5:1, video 75,5%, 0 chữ bị cắt |
+| Encoding mọi file đã sửa | **BOM=False, CR=0** |
+
+**Bài học (đã ghi vào mục 6):**
+- **Phép đo A/B phải đo lần kéo ĐẦU và các lần sau, không được so sánh 2 lần đo liên tiếp** —
+  lần đo đầu luôn dính "phí khởi tạo hiển thị" → em đã ra kết luận sai một lần.
+- Trong Tkinter, `update_idletasks()` **không** chỉ vẽ widget vừa thay đổi — nó **xả hết hàng
+  đợi idle của cả ứng dụng**. Gọi nó trong handler sự kiện của 1 widget nhỏ (thanh cuộn)
+  có thể kéo theo việc vẽ lại **toàn bộ** cây widget.
+- Với người dùng không rành kỹ thuật, **phải có launcher 1-click + hướng dẫn**; app mà không
+  có đường vào rõ ràng thì mọi số đo của kỹ sư đều vô nghĩa với họ.
 
 ---
 
@@ -952,6 +1043,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-20 (sau 09:50) | **Bản 3.5 — sửa giật kéo cửa sổ + launcher 1-click.** Anh báo thật: *"kéo cửa sổ bị giật lắm"* + *"chả bao giờ chỉ tôi cách mở app"*. **Chẩn đoán bằng số đo** (loại 3 giả thuyết sai: tooltip, vẽ lại, app chạy nền): giật **chỉ ở lần kéo ĐẦU TIÊN** (859–984 ms; lần 2 = 20 ms; cửa sổ rỗng không bị; bỏ scrollbar → còn 144 ms) → thủ phạm là `CTkScrollbar._draw()` gọi **`update_idletasks()`** = xả hết hàng đợi idle **của toàn bộ app** → vẽ lại 851 widget. **Đã sửa + khởi động ấm + tooltip dùng 1 cửa sổ duy nhất, trì hoãn 450 ms** → lần kéo đầu còn **19,4 ms, 0 lần tre**, mở app **không chậm hơn** (13,3 s → 12,5 s). Thêm **`Mo CamAI.vbs`** (launcher 1-click, đã test thật) + **`Mo CamAI.bat`** + **`HUONG-DAN-MO-APP.md`**. 5 bộ kiểm chứng của coordinator PASS hết (e2e 7/7, 3.3 4/4, preview, ngôn ngữ 5/5, thiết kế 7/7). Bump 3.4 → **3.5**. Xem mục **2.1i**. |
 | 2026-10-20 (sau 06:45) | **Bản 3.4 — thiết kế lại toàn bộ giao diện + icon app do AI vẽ.** Anh: *"cái app này nhìn cứ phèn phèn"* → dùng skill **`ui-ux-pro-max`** sinh `design-system/camai/MASTER.md` làm nguồn sự thật; file mới **`giao_dien.py`** chứa hằng số thiết kế (màu + bổ sung **màu cảnh báo `#F59E0B`**, font, khoảng cách, bo góc, biểu tượng); **thanh đầu mới 64px** có icon app; **bỏ hết emoji làm icon** → font biểu tượng Windows `Segoe MDL2 Assets`; typography **Segoe UI + Cascadia Mono** (chỉ font có sẵn — app offline); component + lưới khoảng cách 4/8/12/16/24/32 thống nhất. **Icon app vẽ bằng Nano Banana Pro (Gemini 3 Pro Image)**: 4 biến thể → chọn "đầu người + ống kính + khung nhận dạng" → `assets/camai.png` 512 + `assets/camai.ico` 7 kích thước. Coordinator **tự mở ảnh** và phát hiện **2 lỗi thị giác thật**: (1) dấu ✓ trong ô checkbox **biến mất** vì CustomTkinter vẽ ô bằng `fg_color` còn tick bằng `checkmark_color` — đặt cùng màu; (2) icon nút DỪNG trông như **tofu** vì dùng Stop (hình vuông đặc) → đổi sang Pause (2 thanh). Bump 3.3 → **3.4**. Xem mục **2.1h**. |
 | 2026-10-20 (sau 04:50) | **Bản 3.3 — đẩy 3 tính năng "dùng tay" vào GUI + sửa 1 lỗi thật.** Anh chốt: tách 2 ô xem video (**"Xem trực tiếp"** + **"Xem khung hình kết quả"**) và đi theo hướng **(A) bộ công cụ AI dùng tay**. Thêm trong `gui.py`: nút **"Đăng ký người quen…"** (lưu `known_faces/<Tên>/`, dùng lại `dang_ky_anh.py`), nút **"Đọc biển số thử…"** (đọc 1 ảnh bằng `tim_vung`+`doc_vung`, **không** dùng `doc()` vì cần ≥2 khung hình), nút **"Vẽ vùng ngay tại đây"**; thêm module mới **`ve_vung_gui.py`** (canvas kéo chuột trong chính cửa sổ → tọa độ tương đối 0..1). Coordinator tự chạy và **phát hiện lỗi thật**: đọc `StringVar` từ thread nền → `main thread is not in main loop` → **đã sửa** (đẩy qua hàng đợi, UI thread xử lý) + kiểm chứng độ nhạy (vô hiệu hóa fix → lỗi tái hiện → bật lại → PASS). Kiểm chứng của coordinator: canvas **sai số 0.0000**, GUI **4/4 PASS**, hồi quy batch **PASS** (79 lần hiện khung, 107.129 màu), e2e **7/7 PASS** (28,3 s). Bump 3.2 → **3.3**. Xem mục **2.1g**. |
 | 2026-10-20 (sau 01:30) | **Bản 3.2 — sửa panel "Xem video" đen khi chạy phân tích theo lô.** `run_analysis()` nhận thêm `frame_cb` + `frame_cb_interval` (khung **đã có overlay**; `None` → chi phí 0; callback lỗi không làm chết pipeline). GUI nhận khung qua **hộp thư 1 ô** (tránh phình bộ nhớ), giới hạn **10 fps**, ẩn nút "Tạm dừng" ở chế độ lô. Kiểm chứng: **7/7 PASS**, vùng panel **118.735 màu / sáng TB 73,95** (trước là đen), coordinator **tự xem ảnh** thấy khung người + nhãn **An**/**Binh**. Chi phí đo thật: **3–8%** (nhiễu ~3–4%), encode **2,80 ms/khung**. Bump 3.1 → **3.2**. Xem mục **2.1f**. |

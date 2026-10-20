@@ -2,6 +2,50 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.5] — 2026-10-20 (sau 08:40)
+
+`VERSION` trong `cam_ai_core.py` = **3.5**.
+
+Bản này sinh ra từ **anh dùng thật và báo: "kéo cửa sổ vẫn bị giật lắm"** — đây là **mục 7**
+của bảng nghiệm thu, lần đầu có **xác nhận của người dùng** (trước đó chỉ có số đo của
+coordinator, và đó là điều sai — em đã ghi nhận lỗi này).
+
+### Đã thêm
+
+| # | Hạng mục | Chi tiết |
+|---|---|---|
+| 1 | **Launcher 1-click cho người dùng** | `Mo CamAI.vbs` (không hiện cửa sổ đen) + `Mo CamAI.bat` (có cửa sổ đen để xem lỗi) — trước đó **chưa có cách nào mở app cho người không rành kỹ thuật**. Kèm `HUONG-DAN-MO-APP.md` |
+| 2 | **Sửa tooltip** (giảm tạo/huỷ cửa sổ native) | Tái sử dụng **1 cửa sổ tooltip duy nhất**, **trì hoãn 450 ms** (chuẩn Windows), đóng cửa sổ tooltip khi app đóng |
+| 3 | **Sửa giật lần kéo đầu tiên** | Xem mục "Đã sửa" bên dưới |
+
+### Đã sửa — vấn đề anh báo: kéo cửa sổ bị giật
+
+**Quy trình:** coordinator **đo**, không đoán. 4 phép đo độc lập đã loại trừ 3 giả thuyết sai:
+
+| Giả thuyết bị loại | Bằng chứng |
+|---|---|
+| "Do tooltip tạo/huỷ cửa sổ" | Trong lúc kéo, con trỏ **không nằm trên app** → `Enter=0`, `Leave=0`, **tooltip tạo 0 cửa sổ** |
+| "Do vẽ lại nhiều" | Đo riêng thời gian vẽ lại toàn bộ cửa sổ = **0,5 ms** |
+| "Do app chạy nền" | **CPU idle = 0 ms** trong 3 s |
+
+**Cái thật sự (đo được):** giật **chỉ xảy ra ở lần kéo ĐẦU TIÊN** — lần 1 = **859 ms**,
+lần 2 = 20,2 ms, lần 3 = 20,9 ms. Cửa sổ Tk/CTk **rỗng** không bị (21 ms) nhưng app đầy đủ
+bị (**984 ms**). **Bỏ hết scrollbar → còn 144 ms** ⇒ **5 scrollbar chiếm ~85% chi phí**.
+Stack lúc đang tre cho thấy vòng `CTkScrollbar._draw` → `update_idletasks` → `<Configure>`.
+
+> **Bài học quan trọng:** phép đo A/B đầu tiên của em **ra kết luận sai** vì lần đo đầu
+> luôn dính "phí khởi tạo hiển thị". Phải **đo lần kéo thứ 2, thứ 3** mới thấy ra sự thật.
+
+**Cách sửa:** làm scrollbar nhẹ hơn + **khởi động ấm** (ép cây widget vẽ xong **trước khi
+cửa sổ hiện ra**) để lần kéo đầu tiên của người dùng không phải chịu chi phí này.
+
+### CHƯA ĐẠT ở bản 3.5
+
+- **Mục 7 (kéo cửa sổ không giật)** — đã sửa theo số đo, nhưng **cần anh tự xác nhận** vì
+  chỉ có đo máy, chưa có xác nhận của người dùng.
+- **Mục 8 (độ nhận diện video thật)** — vẫn chờ **anh** (cần video thật của anh).
+- **OCR biển số trên ảnh THẬT** — vẫn chờ ảnh biển số VN thật của anh.
+
 ## [3.4] — 2026-10-20 (sau 06:40)
 
 `VERSION` trong `cam_ai_core.py` = **3.4**.

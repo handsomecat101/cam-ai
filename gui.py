@@ -253,6 +253,55 @@ class _RECT(ctypes.Structure):
     _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
                 ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
+
+# ---------------------------------------------------------------------------
+# SUA LOI GIAY KHI KEO CUA SO (do bang profile, khong doan)
+# ---------------------------------------------------------------------------
+# CustomTkinter 5.2.2: `CTkScrollbar._draw()` ket thuc bang
+# `self._canvas.update_idletasks()`. `update_idletasks()` la lenh Tk GOC -
+# no xoa HET hang doi ve (idle) cua TOAN BO app, khong phai rieng thanh cuon.
+# Khi nguoi dung keo/doi kich thuoc cua so, <Configure> bay len -> canvas
+# doi "view" -> goi `yscrollcommand` -> `CTkScrollbar.set()` -> `_draw()` ->
+# `update_idletasks()` -> ve lai TOAN BO cay widget (851 widget) -> UI tre
+# 600-900 ms o LAN KEO DAU TIEN.
+#
+# Sua: bo lenh `update_idletasks()` khoi `_draw` cua thanh cuon. Thanh cuon
+# van duoc ve lai binh thuong o vong idle tiep theo cua vong lap Tk (Tk tu
+# ve canvas khi khong con viec gi), nhung KHONG con ep ve lai ca app.
+# => Keo/doi kich thuoc cua so khong con lam tre UI.
+def _patch_scrollbar_khong_ep_ve_lai_ca_app() -> None:
+    """Bo `update_idletasks()` (lenh Tk goc, ve lai ca app) khoi CTkScrollbar.
+
+    CHI goi 1 lan khi mo app. Khong sua file trong thu vien - chi boc ham
+    `_draw` de bo 1 lenh gay tre.
+    """
+    try:
+        from customtkinter.windows.widgets import ctk_scrollbar
+    except Exception:                                 # noqa: BLE001
+        return
+    lop = ctk_scrollbar.CTkScrollbar
+    if getattr(lop, "_kk_da_boc_update_idletasks", False):
+        return
+
+    def _khong_lam_gi(*_args, **_kwargs) -> None:
+        return None
+
+    goc_draw = lop._draw
+
+    def _draw_nhe(self, *args, **kwargs):
+        """Ve thanh cuon nhung khong ep Tk ve lai toan bo app."""
+        canvas = self._canvas
+        goc_flush = canvas.update_idletasks
+        canvas.update_idletasks = _khong_lam_gi
+        try:
+            return goc_draw(self, *args, **kwargs)
+        finally:
+            canvas.update_idletasks = goc_flush
+
+    lop._draw = _draw_nhe
+    lop._kk_da_boc_update_idletasks = True
+
+
 # BANG ANH XA CHUOI HIEN THI: KHOA = tieng Viet, GIA TRI = tieng Anh.
 # CHI doi CHUOI HIEN THI tren man hinh - KHONG doi ten bien / ten ham / logic.
 DICH_VI_EN = {
@@ -1118,15 +1167,31 @@ def _su_kien(loai: str, ten: str, tin_do: float, gioi: str,
 
 
 class HuongDan:
-    """Tooltip don gian: hien 1 doan chu khi rê chuột vao widget.
+    """Tooltip don gian: hien 1 doan chu khi re chuot vao widget.
 
     Dung khi o nhap bi CAT CHU (vi du duong dan thu muc dai hon o). Chuot
-    vao -> hien toan bo noi dung; ra -> an.
+    vao -> (doi 450 ms) hien toan bo noi dung; ra -> an.
 
     Khong dung `tkinter` tooltip co san: CustomTkinter khong kem. Cua so
     tooltip dung `overrideredirect(True)` + `topmost` de khong chiem focus,
     nen bam chuot van bam duoc xuong o ben duoi.
+
+    GIAI GIA KHI KEO CUA SO (quan trong):
+      - Chi tao DUNG MOT cua so tooltip cho ca doi (tao lazy 1 lan roi tai
+        su dung). Hien = `deiconify()`, an = `withdraw()`. KHONG tao/huy
+        lien tuc, vi tao/huy 1 cua so native (Toplevel + overrideredirect +
+        topmost) lam tre UI hang tram ms -> app bi GIAT khi keo cua so.
+      - Hien sau `THOI_GIAN_HIEN` (450 ms) giong mac dinh Windows: khi keo
+        cua so, chuot quet qua nhieu o trong < 450 ms -> khong tooltip nao
+        kip hien -> khong tao cua so nao -> het giat. Chuot dung yen tren
+        1 o -> tooltip VAN hien sau 450 ms.
     """
+
+    # Do tre hien tooltip (ms) - giong mac dinh cua Windows.
+    THOI_GIAN_HIEN = 450
+
+    # Danh sach cac tooltip da tao (de dong lai khi app dong).
+    _danh_sach: list = []
 
     def __init__(self, widget, noi_dung, font=None, do_rong_max: int = 460):
         self.widget = widget
@@ -1134,8 +1199,10 @@ class HuongDan:
         self.font = font
         self.do_rong_max = do_rong_max
         self.cua_so = None
+        self._nhan = None
+        self._timer_id = None
         # CTkEntry la 1 Frame chua tkinter.Entry ben trong (`_entry`).
-        # Rê chuot vao vung TEXT thi chi `_entry` nhan <Enter>, nen bind
+        # Re chuot vao vung TEXT thi chi `_entry` nhan <Enter>, nen bind
         # vao `_entry` (fallback: chinh widget) de khong sot.
         dich = getattr(widget, "_entry", None)
         if dich is None:
@@ -1147,6 +1214,7 @@ class HuongDan:
             dich.bind("<ButtonPress-1>", self._ra, add="+")
         except Exception:
             pass
+        HuongDan._danh_sach.append(self)
 
     def _noi_dung_hien_tai(self) -> str:
         """Lay noi dung hien thi. `noi_dung` co the la callable (doc o bien)."""
@@ -1158,41 +1226,143 @@ class HuongDan:
                 return ""
         return str(n or "")
 
+    # ------------------------------------------------------------ hen gio
+
+    def _tk_he(self):
+        """Widget dung de dat hen gio (uu tien toplevel de ben hon o nho)."""
+        try:
+            return self.widget.winfo_toplevel()
+        except Exception:
+            return self.widget
+
+    def _huy_hen(self) -> None:
+        """Huy hen gio hien tooltip (neu co)."""
+        if self._timer_id is None:
+            return
+        try:
+            self._tk_he().after_cancel(self._timer_id)
+        except Exception:
+            pass
+        self._timer_id = None
+
+    # ------------------------------------------------------------ hien / an
+
     def _vao(self, _event=None) -> None:
-        self._ra()
+        """Chuot vao: CHI hen gio hien tooltip, khong hien ngay.
+
+        Do tre 450 ms la ly do app khong giat khi keo cua so (chuot quet
+        qua nhieu o trong < 450 ms -> khong tooltip nao kip hien).
+        """
+        self._huy_hen()
+        try:
+            self._timer_id = self._tk_he().after(self.THOI_GIAN_HIEN,
+                                                 self._hien_tooltip)
+        except Exception:
+            self._timer_id = None
+
+    def _ra(self, _event=None) -> None:
+        """Chuot ra (hoac bam chuot): huy hen gio + AN tooltip.
+
+        Chi `withdraw()` - KHONG `destroy()`: giu nguyen 1 cua so de dung
+        lai (tao/huy lien tuc la nguyen nhan giat khi keo cua so).
+        """
+        self._huy_hen()
+        if self.cua_so is not None:
+            try:
+                self.cua_so.withdraw()
+            except Exception:
+                pass
+
+    def _hien_tooltip(self) -> None:
+        """Callback cua hen gio: tao (hoac tai su dung) cua so roi hien."""
+        self._timer_id = None
         noi_dung = self._noi_dung_hien_tai()
         if not noi_dung:
             return
         try:
-            self.cua_so = tk.Toplevel(self.widget)
-            self.cua_so.overrideredirect(True)
-            self.cua_so.attributes("-topmost", True)
-            lbl = tk.Label(
-                self.cua_so, text=noi_dung, justify="left",
-                background=MAU["the_phu"], foreground=MAU["chu"],
-                font=self.font, padx=8, pady=5, wraplength=self.do_rong_max,
-            )
-            lbl.pack()
+            if self.cua_so is not None:
+                try:
+                    con = bool(self.cua_so.winfo_exists())
+                except Exception:
+                    con = False
+                if not con:
+                    self.cua_so = None
+                    self._nhan = None
+            if self.cua_so is None:
+                self._tao_cua_so(noi_dung)
+            else:
+                self._nhan.configure(text=noi_dung)
+            self._dat_vi_tri()
+            self.cua_so.deiconify()
             self.cua_so.update_idletasks()
-            # Toa do man hinh: `winfo_pointerx` cua TOPLEVEL = toa do man hinh.
-            goc = self.dich.winfo_toplevel()
-            x = goc.winfo_pointerx() + 14
-            y = goc.winfo_pointery() + 20
-            chieu_rong = self.cua_so.winfo_width()
-            man_hinh = goc.winfo_screenwidth()
-            if x + chieu_rong > man_hinh - 8:
-                x = max(8, man_hinh - chieu_rong - 8)
-            self.cua_so.geometry(f"+{x}+{y}")
         except Exception:
-            self.cua_so = None
+            pass
 
-    def _ra(self, _event=None) -> None:
-        if self.cua_so is not None:
+    def _tao_cua_so(self, noi_dung: str) -> None:
+        """Tao cua so tooltip (chi tao 1 lan cho ca doi)."""
+        self.cua_so = tk.Toplevel(self.widget)
+        self.cua_so.overrideredirect(True)
+        self.cua_so.attributes("-topmost", True)
+        self._nhan = tk.Label(
+            self.cua_so, text=noi_dung, justify="left",
+            background=MAU["the_phu"], foreground=MAU["chu"],
+            font=self.font, padx=8, pady=5, wraplength=self.do_rong_max,
+        )
+        self._nhan.pack()
+        # Tao xong -> an ngay, chi hien khi den luc.
+        self.cua_so.withdraw()
+
+    def _chieu_rong(self) -> int:
+        """Chieu rong cua so tooltip (dung cho canh man hinh)."""
+        for w in (self.cua_so, self._nhan):
+            if w is None:
+                continue
             try:
-                self.cua_so.destroy()
+                r = int(w.winfo_reqwidth())
+            except Exception:
+                continue
+            if r > 1:
+                return r
+        try:
+            return int(self.cua_so.winfo_width())
+        except Exception:
+            return 0
+
+    def _dat_vi_tri(self) -> None:
+        """Dat vi tri tooltip: lech +14/+20 px so voi con tro chuot,
+        khong tran ra ngoai man hinh."""
+        self.cua_so.update_idletasks()
+        # Toa do man hinh: `winfo_pointerx` cua TOPLEVEL = toa do man hinh.
+        goc = self.dich.winfo_toplevel()
+        x = goc.winfo_pointerx() + 14
+        y = goc.winfo_pointery() + 20
+        chieu_rong = self._chieu_rong()
+        man_hinh = goc.winfo_screenwidth()
+        if x + chieu_rong > man_hinh - 8:
+            x = max(8, man_hinh - chieu_rong - 8)
+        self.cua_so.geometry(f"+{x}+{y}")
+
+    # ------------------------------------------------------------ dong app
+
+    @classmethod
+    def dong_tat_toan_bo(cls) -> None:
+        """Huy hen gio + dong moi cua so tooltip (goi khi app dong)."""
+        for h in list(cls._danh_sach):
+            try:
+                h._huy_hen()
             except Exception:
                 pass
-            self.cua_so = None
+            try:
+                if h.cua_so is not None:
+                    h.cua_so.destroy()
+                    h.cua_so = None
+                    h._nhan = None
+            except Exception:
+                pass
+        try:
+            cls._danh_sach.clear()
+        except Exception:
+            pass
 
 
 class GoiYTronO:
@@ -1507,6 +1677,71 @@ class CamAIGui(ctk.CTk):
         self.after(PUMP_MS, self._hut_hang_doi)
         # Anh xem truoc video mau: doc o thread nen, giu GUI khong tre luc mo.
         self.after(220, self._bat_dau_doc_thumb)
+        # Sua giat khi keo cua so: bo ep ve lai ca app trong thanh cuon.
+        _patch_scrollbar_khong_ep_ve_lai_ca_app()
+        # Hauong: ve lai cay widget TRUOC khi nguoi dung keo cua so lan dau.
+        self._dem_lan_cho_hauong = 0
+        self.after(150, self._warm_up_ve_cua_so)
+
+    # --------------------------------------------------- hauong ve cua so
+    # Ly do giat: LAN KEO DAU TIEN cua nguoi dung keo cua so ton ~0,75 s.
+    # Do bang profile: lan keo dau tien moi la lan Tk phai ve lai TOAN BO
+    # cay widget (851 widget) cho cua so. Cac lan keo sau re vi bo cuc da
+    # on dinh. => Ep cua so ve dung kich thuoc + ve lai 1 lan luc moi mo
+    # app, nguoi dung keo cua so chi doi VI TRI -> khong con giat.
+
+    def _warm_up_ve_cua_so(self) -> None:
+        """Ep cua so ve dung kich thuoc + ve lai 1 lan TRUOC khi nguoi dung keo.
+
+        Cho canh giua cua so xong truoc (neu co) + cua so da co kich thuoc
+        that moi lam duoc. Ket qua: lan keo DAU TIEN cua nguoi dung chi doi
+        vi tri, khong phai doi kich thuoc -> khong phai ve lai 851 widget.
+        """
+        if getattr(self, "_da_hauong", False):
+            return
+        # Cho cua so co kich thuoc that truoc (Tk tra 1x1 khi chua map).
+        if self.winfo_width() <= 1 or self.winfo_height() <= 1:
+            self.after(120, self._warm_up_ve_cua_so)
+            return
+        # Cho canh giua xong. Neu canh giua khong chay (vi du cua so bi
+        # doi kich thuoc ben ngoai), van hauong sau ~1,2 s de khong tre.
+        self._dem_lan_cho_hauong = getattr(self, "_dem_lan_cho_hauong", 0) + 1
+        if (not getattr(self, "_da_canh_giua", False)
+                and self._dem_lan_cho_hauong < 10):
+            self.after(120, self._warm_up_ve_cua_so)
+            return
+        self._da_hauong = True
+        try:
+            self._ep_kich_thuoc_cua_so_tren_man_hinh()
+        except Exception:                             # noqa: BLE001
+            pass
+
+    def _ep_kich_thuoc_cua_so_tren_man_hinh(self) -> None:
+        """Ep kich thuoc CUA SO TREN MAN HINH = `KICH_THUOC_CUA_SO`.
+
+        Tk geometry (`self.geometry`) dat kich thuoc PHAN CLIENT ben trong.
+        Con cua so nhin tren man hinh thi lon hon them khung + thanh tieu de
+        Windows. Neu hieu sai (cua so tren man hinh lon hon `KICH_THUOC_CUA_SO`)
+        thi LAN KEO DAU TIEN cua nguoi dung se doi kich thuoc cua so -> Tk
+        phai ve lai TOAN BO cay widget (851 widget) -> cua so giat ~0,75 s.
+
+        O day ep kich thuoc cua so tren man hinh ve DUNG `KICH_THUOC_CUA_SO`
+        (1610x980) va ve lai cay widget 1 lan, de nguoi dung keo cua so thi
+        chi doi VI TRI - khong phai doi kich thuoc - nen khong giat.
+        """
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            if not hwnd:
+                hwnd = self.winfo_id()
+            rc = _RECT()
+            if not ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rc)):
+                return
+            u32 = ctypes.windll.user32
+            u32.MoveWindow(ctypes.c_void_p(hwnd), rc.left, rc.top,
+                           KICH_THUOC_CUA_SO[0], KICH_THUOC_CUA_SO[1], 0)
+            self.update()
+        except Exception:                             # noqa: BLE001
+            pass
 
     # ------------------------------------------------------------ icon app
 
@@ -1593,6 +1828,23 @@ class CamAIGui(ctk.CTk):
             pass
         return self.winfo_width(), self.winfo_height()
 
+    def _le_vien_cua_so(self):
+        """Tra (le ngang, le cao) giua cua so TREN MAN HINH va phan CLIENT.
+
+        `self.geometry(...)` trong Tk dat kich thuoc PHAN CLIENT (ben trong).
+        Con cua so nhin tren man hinh thi lon hon them khung + thanh tieu de
+        cua Windows (may anh: +16 px ngang, +39 px cao).
+        """
+        rong_that, cao_that = self._kich_thuoc_that()
+        return (rong_that - self.winfo_width(),
+                cao_that - self.winfo_height())
+
+    def _kich_thuoc_client_mong_muon(self):
+        """Kich thuoc PHAN CLIENT de cua so tren man hinh = KICH_THUOC_CUA_SO."""
+        vien_w, vien_h = self._le_vien_cua_so()
+        return (max(400, KICH_THUOC_CUA_SO[0] - vien_w),
+                max(400, KICH_THUOC_CUA_SO[1] - vien_h))
+
     def _canh_giua_trong_vung_lam_viec(self) -> None:
         """Dat cua so giua vung lam viec cua man hinh, tranh bi taskbar che.
 
@@ -1600,12 +1852,24 @@ class CamAIGui(ctk.CTk):
         Cho den khi cua so that su co dung kich thuoc da dinh nghia: luc
         moi mo, Tk tra kich thuoc mac dinh 200x200, dung no se tinh sai
         vi tri roi giu nguyen sai so do.
+
+        THEM: cua so tren MAN HINH phai dung bang `KICH_THUOC_CUA_SO`
+        (1610x980). Tk geometry chi dat PHAN CLIENT, con cua so tren man
+        hinh con them khung + thanh tieu de Windows. Sai le do khong chi
+        lam cua so lon hon mong muon (roi tran taskbar) ma con lam LAN KEO
+        DAU TIEN cua nguoi dung phai doi kich thuoc cua so -> Tk ve lai
+        TOAN BO cay widget (851 widget) -> cua so giat ~0,7 s. Sua o day.
         """
         if getattr(self, "_da_canh_giua", False):
             return
-        if (self.winfo_width() != KICH_THUOC_CUA_SO[0]
-                or self.winfo_height() != KICH_THUOC_CUA_SO[1]):
+        if self.winfo_width() <= 1 or self.winfo_height() <= 1:
             self.after(120, self._canh_giua_trong_vung_lam_viec)
+            return
+        rong_client, cao_client = self._kich_thuoc_client_mong_muon()
+        if (self.winfo_width() != rong_client
+                or self.winfo_height() != cao_client):
+            self.geometry(f"{rong_client}x{cao_client}")
+            self.after(60, self._canh_giua_trong_vung_lam_viec)
             return
 
         x, y, rong, cao = self._vung_lam_viec()
@@ -4952,6 +5216,21 @@ class CamAIGui(ctk.CTk):
         ).grid(row=1, column=0, columnspan=4, sticky="w", padx=2, pady=8)
 
     # -------------------------------------------------------------- dong
+
+    def destroy(self):
+        """Ghi de de dong cua so tooltip truoc khi huy app.
+
+        Tooltip dung 1 cua so Toplevel rieng nen phai dong no lai, tranh
+        de lai cua so mo coi khi app bi dong.
+        """
+        try:
+            HuongDan.dong_tat_toan_bo()
+        except Exception:                             # noqa: BLE001
+            pass
+        try:
+            super().destroy()
+        except Exception:                             # noqa: BLE001
+            pass
 
     def _dong_cua_so(self):
         if self.busy:

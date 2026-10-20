@@ -103,11 +103,20 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 
 ## Đang làm
 
-- [ ] **Chờ anh xác nhận mục 7** — kéo cửa sổ, còn giật hay không (chỉ có số đo)
+- [x] **Bản 3.5 — sửa giật kéo cửa sổ + launcher 1-click** (anh báo thật):
+      chẩn đoán bằng số đo → thủ phạm `CTkScrollbar._draw()` gọi `update_idletasks()` (xả hết
+      hàng đợi idle của cả app) → đã sửa + khởi động ấm → **lần kéo đầu: 984 ms → 19,4 ms,
+      0 lần tre**; mở app không chậm hơn. Thêm `Mo CamAI.vbs` + `Mo CamAI.bat` +
+      `HUONG-DAN-MO-APP.md`
+- [ ] **Chờ anh xác nhận lại mục 7** — mở app (double-click `Mo CamAI.vbs`) rồi kéo cửa sổ xem
+      còn giật không. Số đo đã sạch nhưng **cần cảm nhận của người dùng**
 - [ ] **Chờ anh xác nhận mục 8** — độ nhận diện; cần video thật của anh
 - [ ] **Chờ ảnh biển số Việt Nam thật** của anh — mới nghiệm thu được OCR biển số
       (hiện mới kiểm chứng bằng ảnh giả 10/10). Bản 3.3 đã có nút **"Đọc biển số
       thử…"** → anh gửi ảnh → bấm 1 nút → có kết quả trong vài giây
+- [ ] **App mở mất ~12,5 s** (đo được: `import gui` 6,8 s + dựng giao diện 2,7 s) — chưa tối ưu.
+      Nếu anh thấy chờ lâu, em rút ngắn phần nạp thư viện (nạp model OCR/YOLO **trễ** khi bấm
+      BẮT ĐẦU thay vì lúc mở app)
 
 ## Kế tiếp
 

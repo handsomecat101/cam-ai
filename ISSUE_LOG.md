@@ -9,6 +9,90 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Kéo cửa sổ bị giật mạnh — tooltip tạo/huỷ cửa sổ native liên tục
+
+**Triệu chứng:** anh dùng thật thì thấy **kéo cửa sổ bị giật lắm** (mục 7 của bảng nghiệm
+thu, trước đây chỉ có số đo của coordinator, **chưa** có xác nhận của anh).
+
+**Đo được (coordinator tự đo, script `_kk_do_giat.py` + `_kk_do_giat_thu_nghiem.py`):**
+
+| Số đo | Kết quả |
+|---|---|
+| Lần kéo dài nhất bị tre (nền) | **520–647 ms** |
+| Số lần tre > 30 ms trong 2–3 s kéo | 3–4 lần |
+| **Chi phí vẽ lại toàn bộ cửa sổ** | chỉ **0,5 ms** → **KHÔNG phải do vẽ lại** |
+| **CPU khi app đứng yên 3 s** | **0 ms** → **KHÔNG phải app chạy nền** |
+| Số widget Tk | **851** (trong đó 586 widget CustomTkinter) |
+
+**Thí nghiệm A/B quyết định** (bỏ binding `<Enter>/<Leave>/<Motion>` trên mọi widget):
+
+| Trạng thái | max gap | số lần tre > 30 ms |
+|---|---|---|
+| Nền | **520 ms** | 3 |
+| Bỏ binding hover (246 binding) | **20,8 ms** | **0** |
+
+→ Thủ phạm là **sự kiện Enter/Leave**, không phải vẽ lại.
+
+**Nguyên nhân (sau khi đo thật, đã loại trừ 2 giả thuyết sai):**
+
+1. ~~Tooltip tạo/huỷ cửa sổ native~~ → **loại trừ**: trong lúc kéo, con trỏ chuột **không nằm
+   trên app** (widget dưới con trỏ = `None`), nên **không có** sự kiện `<Enter>/<Leave>`
+   nào (`Enter=0`, `Leave=0`) và **không cửa sổ tooltip nào được tạo** (`tao=0`).
+2. ~~Chi phí vẽ lại~~ → **loại trừ**: đo riêng thời gian vẽ lại toàn bộ cửa sổ = **0,5 ms**.
+3. ~~App chạy nền~~ → **loại trừ**: **CPU idle = 0 ms** trong 3 s.
+
+**Cái thật sự gây tre (đo được):**
+
+| Bằng chứng | Số đo |
+|---|---|
+| Chỉ xảy ra ở **lần kéo ĐẦU TIÊN** | lần 1: **859 ms** → lần 2: 20,2 ms → lần 3: 20,9 ms (không đổi gì giữa các lần) |
+| Cửa sổ **rỗng** không bị | Tk rỗng 21,3 ms · CTk rỗng 18,4 ms · **CamAI đầy đủ 984 ms** |
+| **Bỏ hết scrollbar** | còn **144 ms** → scrollbar chiếm **~85%** chi phí |
+| Stack lúc đang tre | vòng `CTkScrollbar._draw` (ctk_scrollbar.py:161 → `self._canvas.update_idletasks()`) → `<Configure>` → `_update_dimensions_event` → `_draw` → … |
+| Số widget | **851** Tk (586 CustomTk); app có **5 CTkScrollbar** (4 từ `CTkScrollableFrame` + 1 từ `CTkTextbox` nhật ký) |
+
+→ Lần kéo đầu tiên kích hoạt **một lần vẽ lại toàn bộ cây widget** (851 widget) cộng với
+**5 scrollbar** kéo theo → 0,6–1,0 s. Các lần kéo sau rẻ vì kích thước đã ổn định.
+Lưu ý: "chặn đệ quy `_draw`" bằng re-entrancy guard → **918 ms, không giúp** ⇒ vấn đề không
+nằm ở đệ quy mà ở **chi phí vẽ lại lần đầu**.
+
+**Cách sửa (`VERSION` 3.5):**
+1. **Tooltip** (đúng về thiết kế, giữ lại): tái sử dụng **1 cửa sổ tooltip duy nhất** (không
+   tạo/huỷ liên tục), **trì hoãn 450 ms** (chuẩn Windows), đóng cửa sổ tooltip khi app đóng.
+2. **Thủ phạm thật — `CTkScrollbar._draw()`**: hàm này kết thúc bằng
+   `self._canvas.update_idletasks()`. **`update_idletasks()` là lệnh Tk gốc → nó xả HẾT
+   hàng đợi idle của TOÀN BỘ app**, chứ không chỉ thanh cuộn. Khi kéo/đổi kích thước cửa sổ,
+   `<Configure>` bắn lên → canvas đổi "view" → gọi `yscrollcommand` → `CTkScrollbar.set()`
+   → `_draw()` → `update_idletasks()` → **vẽ lại toàn bộ 851 widget** → UI tre **600–900 ms**
+   ở **lần kéo đầu tiên** (các lần sau rẻ vì kích thước đã ổn định).
+   → **Sửa: bỏ lệnh `update_idletasks()` khỏi `_draw()` của thanh cuộn** (hàm
+   `_patch_scrollbar_khong_ep_ve_lai_ca_app()` trong `gui.py`). Thanh cuộn vẫn được vẽ lại bình
+   thường ở vòng idle kế tiếp của Tk, nhưng **không còn ép vẽ lại cả app**.
+   Kèm **khởi động ấm**: vẽ sẵn cây widget trước khi người dùng kéo lần đầu.
+
+**KẾT QUẢ ĐO ĐƯỢC SAU KHI SỬA (coordinator tự chạy lại):**
+
+| Số đo | Trước | Sau |
+|---|---|---|
+| **Lần kéo ĐẦU TIÊN — `max`** | **859 – 984 ms** | **19,4 ms** |
+| Lần kéo đầu — số lần tre > 30 ms | 3 – 9 | **0** |
+| Lần kéo đầu — `tb` / `p90` | — | 14,9 / 17,5 ms |
+| Thời gian mở app (tới khi cửa sổ sẵn sàng) | 13,3 s | **12,5 s** (không chậm hơn) |
+| CPU khi app đứng yên | 0 ms | 0 ms |
+
+**Bài học:**
+- Khi app "giật khi kéo cửa sổ", **đừng đoán** — hãy đo 4 thứ: (1) chi phí vẽ lại,
+  (2) CPU idle, (3) **lần kéo thứ mấy** bị, (4) so với cửa sổ rỗng. Ở đây, nếu chỉ đo
+  "lần kéo đầu" thì ra số 520–980 ms, nhưng nếu đo lần thứ 2 ra 20 ms → biết ngay đây là
+  **chi phí khởi tạo hiển thị**, không phải lỗi kéo liên tục.
+- **Thí nghiệm A/B phải đảo thứ tự hoặc lặp lại**: lần đo đầu tiên luôn bị "phí" này, nên
+  so sánh "có sửa / không sửa" bằng 2 lần đo liên tiếp sẽ ra kết luận **sai**.
+- Tooltip mà hiện **ngay lập tức** khi rê chuột vừa gây giật vừa phiền (Windows dùng
+  delay ~500 ms). **Luôn có delay.**
+- Đừng tạo/huỷ đối tượng native (cửa sổ) trong handler sự kiện tần suất cao — **tái sử dụng**.
+
+---
+
 ## Dấu ✓ trong ô checkbox biến mất (ô xanh đặc) — CustomTkinter vẽ 2 lớp cùng 1 màu
 
 **Triệu chứng:** sau khi thiết kế lại giao diện, **mọi ô checkbox đã tick hiện thành một ô
