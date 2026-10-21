@@ -2,7 +2,7 @@
 
 Tài liệu này dành cho **máy tính khác** — anh clone repo từ GitHub rồi làm theo.
 
-> Repo: `https://github.com/handsomecat101/cam-ai` (private — cần đăng nhập GitHub của anh)
+> Repo: `https://github.com/handsomecat101/cam-ai` (**public** — clone không cần đăng nhập, trừ khi anh đổi lại private)
 > Bản hiện tại: **v3.7**
 
 ---

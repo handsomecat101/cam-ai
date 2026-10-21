@@ -156,7 +156,7 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
     35/35, 3.3 4/4, thiết kế 7/7, ngôn ngữ 5/5, canvas PASS, không mất tính năng PASS,
     coordinator 35/35); hồi quy video **SHA256 giống hệt** bản gốc.
 - [x] **Đẩy lên GitHub + bộ cài máy mới** (anh chuyển sang máy khác)
-  - Repo **private**: `https://github.com/handsomecat101/cam-ai` — nhánh `master`, toàn bộ lịch sử, **~3 MB**
+  - Repo **public**: `https://github.com/handsomecat101/cam-ai` — nhánh `master`, toàn bộ lịch sử, **~3 MB**
   - `cai_dat_may_moi.bat` → tạo `.venv` + cài thư viện + tải 2 model, **1 lệnh**
   - `TAI-MAY-MOI.md` = hướng dẫn máy mới (clone → cài → mở app → git pull/push)
   - **Không commit** (quá nặng / là dữ liệu cá nhân): `models/` 784 MB · `video_mau/` 507 MB · `known_faces/` · `.venv/`

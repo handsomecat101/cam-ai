@@ -3,7 +3,7 @@
 > Đọc file này **trước khi sửa bất cứ thứ gì**. Nó là "bộ nhớ làm việc" của dự án.
 > Mọi thứ ở đây đã được **kiểm chứng bằng số đo thật** — đừng phải đoán lại.
 
-**CamAI v3.7** · `VERSION` nằm trong `cam_ai_core.py` · nhánh `master` · repo private
+**CamAI v3.7** · `VERSION` nằm trong `cam_ai_core.py` · nhánh `master` · repo **public**
 `https://github.com/handsomecat101/cam-ai`
 
 ---

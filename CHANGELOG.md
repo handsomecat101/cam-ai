@@ -31,7 +31,7 @@ Bản này **hoàn tất** mục tiêu anh chốt: *CamAI = app detect đa thể
 
 | Hạng mục | Chi tiết |
 |---|---|
-| **Repo GitHub** | `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử commit** (từ `bb52c18` bản 3.5 → `7ebe43b`) đã lên. Kích thước repo **~3 MB** (chỉ code + tài liệu) |
+| **Repo GitHub** | `https://github.com/handsomecat101/cam-ai` — **public** (đổi từ private lúc 23:45 để anh thấy được ngay), nhánh `master`, **toàn bộ lịch sử commit** (từ `bb52c18` bản 3.5 → `7ebe43b`) đã lên. Kích thước repo **~3 MB** (chỉ code + tài liệu) |
 | **Cố ý KHÔNG commit** | `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` (ảnh khuôn mặt) · `*.pt` / `*.onnx` · file kết quả chạy. Lý do: GitHub giới hạn 100 MB/file, repo 1,3 GB sẽ clone chậm; model tải lại được bằng 1 lệnh |
 | **Giữ lại file giấy phép** | `video_mau/moi/NGUON_LICENSE_NGUOI.md` **vẫn được commit** — là attribution CC BY / CC BY-SA cho 5 video Wikimedia, bắt buộc phải có |
 | **`known_faces_mau.zip`** (41 KB, **không commit**) | Gói 10 ảnh "An"/"Binh" để anh chuyển sang máy mới bằng USB. Ảnh khuôn mặt **cố ý không đưa vào git** (biometric data + git history không xoá được) |

@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-21 (sau 00:00 — **đã đẩy lên GitHub** `https://github.com/handsomecat101/cam-ai` (private, toàn bộ lịch sử, ~3 MB) + **bộ cài 1 lệnh cho máy mới** (`cai_dat_may_moi.bat`) + hướng dẫn `TAI-MAY-MOI.md`; bản **3.7** vẫn là bản app hiện tại, `VERSION` = **3.7**)
+**Ngày cập nhật:** 2026-10-21 (sau 00:00 — **đã đẩy lên GitHub** `https://github.com/handsomecat101/cam-ai` (**public** — đổi từ private lúc 23:45 vì anh không thấy repo trong danh sách, toàn bộ lịch sử, ~3 MB) + **bộ cài 1 lệnh cho máy mới** (`cai_dat_may_moi.bat`) + hướng dẫn `TAI-MAY-MOI.md`; bản **3.7** vẫn là bản app hiện tại, `VERSION` = **3.7**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 
 > # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
@@ -769,9 +769,9 @@ Anh báo: *"đẩy dự án này lên git để tôi làm tiếp ở máy khác,
 
 | Hạng mục | Kết quả |
 |---|---|
-| **Repo** | `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử** đã lên (`bb52c18` bản 3.5 → `7ebe43b`). Kích thước **~3 MB** |
+| **Repo** | `https://github.com/handsomecat101/cam-ai` — **public** (đổi từ private lúc 23:45), nhánh `master`, **toàn bộ lịch sử** đã lên (`bb52c18` bản 3.5 → `7ebe43b`). Kích thước **~3 MB** |
 | **`AGENTS.md`** (file mới) | **"Bộ nhớ làm việc" của dự án, nằm trong repo để đi theo code**: mục tiêu sản phẩm đã chốt · thứ tự đọc file · **bất biến không được phá** (20 checkbox, 12 nhóm con, 13 thẻ, 10→14 cột CSV, 80 lớp COCO, encoding) · 10 quy tắc bắt buộc khi sửa code · lệnh kiểm chứng copy-paste · bản đồ file + phân chia sở hữu giữa agent · 12 gotcha hay gặp · **checklist sau mỗi lần sửa** (bump VERSION + 4 file tài liệu + commit) · việc chưa làm / chờ anh |
-| **Cách tạo repo** | Không có `gh` CLI → lấy OAuth token của GCM (Credential Manager, tài khoản `handsomecat101`) → `POST /user/repos` với `private=true`. Token **không** in ra log, không lưu trong repo |
+| **Cách tạo repo** | Không có `gh` CLI → lấy OAuth token của GCM (Credential Manager, tài khoản `handsomecat101`) → `POST /user/repos` với `private=true` → sau đó **đổi sang `public`** lúc 23:45 (anh báo "không thấy repo nào" — repo private mà đăng nhập sai tài khoản thì không hiện). Token **không** in ra log, không lưu trong repo |
 | **Cố ý KHÔNG commit** | `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` · `*.pt`/`*.onnx` · file kết quả chạy. GitHub giới hạn 100 MB/file; model tải lại được bằng 1 lệnh |
 | **Giữ lại attribution** | `video_mau/moi/NGUON_LICENSE_NGUOI.md` vẫn được commit — CC BY / CC BY-SA **bắt buộc** phải có |
 | **Bộ cài 1 lệnh** | `cai_dat_may_moi.bat` → `cai_dat_may_moi.py`: tạo `.venv` → cài thư viện → tải `yolo11n.pt` → tải model ArcFace → in tổng kết. **Không chết khi 1 bước fail**; exit 0 chỉ khi venv + 2 model có |
