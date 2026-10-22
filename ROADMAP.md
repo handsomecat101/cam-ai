@@ -193,6 +193,23 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 - [ ] Chuông Windows bằng âm thanh hệ thống
 - [ ] Rà lại `known_faces/` — dữ liệu giả, chờ anh đồng ý xóa
 
+## GIAO DIỆN MỚI (PySide6) — anh yêu cầu làm lại 2026-10-22
+
+Anh: *"cái nền tảng này đúng là bạn chọn nó quá lạc hậu, lên kế hoạch làm lại cho tôi đi cái
+giao diện với mọi thứ không thể chấp nhận được"*. Em **không** tự chọn lần nữa — đã dựng
+**bản mẫu 1 cửa sổ** để anh duyệt trước (bài học lần trước: em chọn nền tảng → phải làm lại).
+
+- [x] **Bản mẫu PySide6** (`mau_gui_qt.py`, 850 dòng) — hướng **"Windows 11 Fluent"**: nền tối
+      `#16181D`, accent `#4C8DFF`, bo góc 8–10px, font Segoe UI, 4 mục lớn accordion, 6 thẻ số,
+      khung video 16:9, danh sách sự kiện, nhật ký monospace. Icon vẽ tay bằng **QPainter**
+      (không emoji). Ảnh: `_kk_out/mau_qt/`
+- [x] **Sửa tốc độ** (bản 3.8) — **4,09×, bit-exact** → xem `PROJECT_STATE.md` mục 2.1l
+- [ ] **Anh duyệt bản mẫu** → chốt 3 khoảng trống agent tự báo: (1) khoảng trống ~360px dưới
+      4 thẻ cột trái, (2) khoảng trống ~250px dưới hàng thẻ số, (3) danh sách sự kiện thưa
+- [ ] **Dựng app PySide6 thật** — chỉ lớp vỏ GUI viết lại; `cam_ai_core.py`, `face_engine.py`,
+      `bien_so.py`, `lop_viet.py` và **định dạng CSV giữ nguyên 100%**
+- [ ] **Chạy song song 2 bản**, launcher chỉ trỏ sang bản mới khi anh ưng
+
 ## Chờ anh quyết
 
 - [ ] **Camera máy chấm công**: đặt ở cửa hay trên xe? khoảng cách người đứng bao xa?

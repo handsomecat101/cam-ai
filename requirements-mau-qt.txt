@@ -1,0 +1,11 @@
+# Chi dinh cho BAN MAU giao dien PySide6 (mau_gui_qt.py)
+# Khong bat buoc cho app chinh - app hien tai (gui.py) van dung CustomTkinter.
+# Cai file nay khi anh muon XEM ban mau tren may khac.
+#
+# Cai:   .venv\Scripts\python.exe -m pip install -r requirements-mau-qt.txt
+# Chay:  .venv\Scripts\python.exe mau_gui_qt.py
+#
+# PySide6 6.12.0 (Qt 6.12.0) - da kiem chung tren may nay.
+# Goi y: PySide6-Essentials chi tach rieng se nho hon, nhung ban mau dung
+#        QPainter + QSS nen Essentials da du.
+PySide6==6.12.0
