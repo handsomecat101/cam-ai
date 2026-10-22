@@ -2,6 +2,53 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.8] — 2026-10-22 (sau 16:00)
+
+Anh báo: *"quét video màn hình trên nó chạy đâu tối thôi"* + *"nền tảng này quá lạc hậu"*.
+Bản này xử lý **triệt để phần tốc độ** (đo được, không đoán). Phần **giao diện** sẽ làm ở bản sau
+theo hướng anh duyệt — em **không** tự chọn nền tảng lần nữa.
+
+### Đã sửa
+
+| Hạng mục | Chi tiết |
+|---|---|
+| **Tốc độ pipeline: 4,09× nhanh hơn, BIT-EXACT** | File mới **`nhan_dien_nhanh.py`**: chụp **CUDA Graph** cho forward YOLO11n rồi replay ⇒ loại ~22 ms CPU overhead/khung (GPU trước đó **đói 90% thời gian**). Hệ quả: **28,97 → 6,33 ms/khung** (36,98 → **151,43 khung/s**). E2E GUI **39,1 s → 26,1 s** |
+| **App crash lúc thoát (0xC0000005)** | Thiếu `openh264-2.5.0-win64.dll` ⇒ `VideoWriter` H.264 **không khởi tạo được** ⇒ crash teardown (**4/5 lần trên bản gốc `git HEAD`** — lỗi có sẵn từ lâu). Đã tải **bản chính thức Cisco v2.5.0** (kèm **3 file giấy phép** BSD-2-Clause trong repo) + `_nap_dll_openh264()` nạp qua `ctypes` (giữ handle chống GC) + `_fourcc_ket_qua()` **probe thật** rồi mới chọn `avc1`, lỗi thì lùi `mp4v` |
+| **Log đỏ OpenH264 mỗi lần chạy** | Hết. Chỉ còn dòng bình thường *"OpenH264 Video Codec provided by Cisco Systems, Inc."* |
+| **Ghi log profile trong pipeline** | `CAMAI_PROFILE=1` → in bảng thời gian từng thành phần trên 1 khung (tắt thì không tốn gì) |
+
+### BẰNG CHỨNG — coordinator tự chạy lại, KHÔNG tin báo cáo agent
+
+| Kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_bit_exact.py` | **PASS — 200/200 khung BIT-EXACT** (xyxy/conf/cls/tên lớp giống hệt) · 64,64 → 6,63 ms/khung |
+| Hồi quy CSV | **PASS — SHA256 GIỐNG HẸT** (250 dòng dữ liệu, 10 cột, tên cột y hệt) |
+| Đếm phương tiện | **PASS — 21 lượt trước / 21 lượt sau**, chênh **0,00%** |
+| `app.py` 3 lần liên tiếp | **3/3 exit = 0** (trước: crash 4/5) |
+| `VideoWriter` với `avc1` | `opened = True` (trước: `False`) |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** |
+| `_kk_kiem_nguon_viet.py` | **35/35 PASS** |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_gui_chay_thuc.py` (e2e) | **7/7 PASS** — 26,1 s (trước 39,1 s) |
+| `_kk_kiem_gui_b3.py` · `_kk_kiem_giao_dien.py` · `_kk_kiem_ngon_ngu_v3_3.py` · `_kk_kiem_canvas_vung.py` | **PASS** / 7/7 / 5/5 / PASS (lệch 0,0000) |
+
+### HAI GIẢ ĐỊNH SAI ĐÃ LOẠI (có lý do, không phải "không làm được")
+
+| Hướng | Kết quả | Vì sao loại |
+|---|---|---|
+| **Batching khung** | làm lệch **số đếm tối đa 0,497559** | sai số đếm ⇒ **hỏng bất biến** |
+| **FP16 (`half=True`)** | **không** tăng tốc (18,53 vs 19,20 ms) + lệch tọa độ | vô ích |
+| **ONNX Runtime** | `yolo11n.onnx` có sẵn là bản export **cứng 480×480** + NMS nhúng | khác `imgsz`/letterbox ⇒ kết quả khác ⇒ **hỏng SHA256** |
+| **"Overhead gọi `detector()`"** (giả định ban đầu của coordinator) | `torch.profiler`: **Self CPU 112,64 ms** vs **Self CUDA 7,11 ms** | nguyên nhân thật là **CPU-side launch overhead** của PyTorch/cuDNN, **không phải** overhead gọi hàm |
+
+### Đã thêm
+
+| Hạng mục | Chi tiết |
+|---|---|
+| **`nhan_dien_nhanh.py`** | `DetectorNhanh` — CUDA Graph + preprocess nhanh (LetterBox cache, copy thẳng vào buffer tĩnh). **Tự kiểm tra `torch.equal` lúc chụp Graph**: lệch 1 bit là **tự rơi về đường cũ**. Tắt bằng `CAMAI_DETECTOR_NHANH=0` |
+| **`openh264-2.5.0-win64.dll`** (987 KB) | Bản phát hành **chính thức Cisco v2.5.0**, kèm `openh264-2.5.0-LICENSE.txt` + `-NOTICE.txt` + `-BINARY_LICENSE.txt` (**giấy phép phải có** để phân phối kèm) |
+| **`mau_gui_qt.py`** | **Bản mẫu giao diện PySide6** để anh duyệt hướng thiết kế trước khi xây cả app (bài học lần trước: em tự chọn nền tảng → phải làm lại) |
+
 ## [3.7] — 2026-10-20 (sau 17:00)
 
 `VERSION` trong `cam_ai_core.py` = **3.7**.

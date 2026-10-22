@@ -1,0 +1,49 @@
+OpenH264 - thong tin ban phat hanh (NOTICE)
+===========================================
+
+Ten tep trong repo : openh264-2.5.0-win64.dll
+Phan mem          : Cisco OpenH264 (bo ma ho tro giai ma H.264/AVC)
+Phat hanh         : v2.5.0 (2024-11-06)
+Nguon tai (chinh thuc, cua Cisco):
+    http://ciscobinary.openh264.org/openh264-2.5.0-win64.dll.bz2
+    (day la may chu phat hanh chinh thuc cua Cisco - duoc tro link tu trang
+     phat hanh GitHub chinh thuc https://github.com/cisco/openh264/releases
+     va tu file RELEASES cua chinh repo khoa hoc:
+     https://github.com/cisco/openh264/blob/master/RELEASES)
+
+Kich thuoc        : 986712 byte
+MD5 (theo file chu ky cua Cisco openh264-2.5.0-win64.dll.signed.md5.txt):
+                   83234500b244daf1e79c8b772c06e66f
+SHA-256:
+                   bf91c488638b32448f7d89611f6bb9c232dce82975d7d2827c78f78fc2a7fb2b
+
+Ghi chu ve nguon tai
+--------------------
+- GitHub Releases cua Cisco/openh264 KHONG con file nhip hanh (nhin chung
+  chi con source code). File .dll chinh thuc duoc Cisco phan phoi tren
+  may chu rieng "ciscobinary.openh264.org" - day cung la nguon chinh thuc
+  do Cisco tro link.
+- Tep .dll trong repo lay nguyen ban goc tu may chu tren, KHONG sua doi
+  (gia tri MD5 khop dung file chu ky cua Cisco). Nen nen tach .bz2 bang
+  bo giai nen bz2 (khong dung thu vien khong chinh thuc).
+
+Giay phep
+---------
+- openh264-2.5.0-LICENSE.txt          : BSD 2-Clause (nguon) - Copyright (c) 2013, Cisco Systems
+- openh264-2.5.0-BINARY_LICENSE.txt   : giay phep cua chinh file .dhl nhip hanh
+                                        (Cisco AVC/H.264 Patent Portfolio License
+                                        tu MPEG LA, mien phi khi hop dieu kien)
+
+BSD-2-Clause cho PHEP phan phoi kèm (bao gom dang bien dich nhip hanh) neu
+giu nguyen thong bao ban quyen + dieu kien + phu dinh (xem file LICENSE).
+Vi vay tep .dll nay DUOC commit vao repo kem 2 file giay phep o tren.
+
+Vi sao can tep nay
+------------------
+FFmpeg/OpenCV goi LoadLibrary("openh264-2.5.0-win64.dll") de co encoder
+H.264 (fourcc "avc1"). Khong co tep nay:
+  - FFmpeg in log do "Failed to load OpenH264 library"
+  - VideoWriter fourcc "avc1" that bai -> video ket qua co the hong
+  - Tien trinh co the CRASH luc thoat (0xC0000005)
+Chi khi co encoder H.264 thi video .mp4 phat duoc tren trinh duyet
+(Chrome/Edge/Firefox) va khong can dung codec du phong MPEG-4 Part 2.

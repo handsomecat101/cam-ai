@@ -9,6 +9,43 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Thiếu `openh264-2.5.0-win64.dll` → VideoWriter hỏng → **app CRASH lúc thoát** (0xC0000005)
+
+**Triệu chứng:** mỗi lần chạy app/CLI đều in log đỏ:
+```
+Failed to load OpenH264 library: openh264-2.5.0-win64.dll
+  Please check environment and/or download library: https://github.com/cisco/openh264/releases
+[libopenh264 @ ...] Unable to create encoder
+[ERROR:0@...] global cap_ffmpeg_impl.hpp:3568 open Could not open codec libopenh264, error: Unspecified error (-1313558101)
+[ERROR:0@...] global cap_ffmpeg_impl.hpp:3585 open VIDEOIO/FFMPEG: Failed to initialize VideoWriter
+```
+
+Hệ quả — **KHÔNG chỉ là log đỏ**:
+1. `cv2.VideoWriter` với fourcc `avc1` (H.264) **không khởi tạo được** → file video kết quả có thể hỏng.
+2. **Tiến trình CRASH lúc thoát** với `0xC0000005` (access violation) — đo được **4/5 lần trên bản gốc `git HEAD`**, tức là **lỗi có sẵn từ lâu, không phải do ai sửa**.
+
+**Nguyên nhân:** FFmpeg của OpenCV gọi `LoadLibrary("openh264-2.5.0-win64.dll")`. Tên file **phải khớp đúng phiên bản FFmpeg dùng** — đổi tên là FFmpeg không tìm thấy. Máy phát triển **không có** file DLL này (OpenCV chỉ kèm `msopenh264` cho build khác).
+
+**Cách sửa (bản 3.8):**
+1. Tải **bản phát hành chính thức của Cisco v2.5.0** → `openh264-2.5.0-win64.dll` đặt cạnh `app.py`/`gui.py` (kèm **giấy phép BSD-2-Clause của Cisco** trong repo).
+2. Thêm `_nap_dll_openh264()` — nạp DLL bằng `ctypes.WinDLL` **trước khi** tạo `VideoWriter`, và **giữ handle ở biến global** (Windows `unload` DLL khi handle bị GC). Nạp trước bằng `LoadLibrary` ⇒ FFmpeg dùng được DLL đã nạp dù nó nằm ở thư mục nào.
+3. `_fourcc_ket_qua()` **kiểm tra** bằng cách thử mở thật một file mp4 tạm với `avc1` → nếu hỏng thì **fallback `mp4v`** và **báo rõ** codec đang dùng, **không crash**.
+
+**Kết quả đo (coordinator tự chạy lại):**
+| | Trước | Sau |
+|---|---|---|
+| `VideoWriter` với `avc1` | `opened = False` + log đỏ | **`opened = True`** + dòng *"OpenH264 Video Codec provided by Cisco Systems, Inc."* |
+| `app.py --input ...` 3 lần liên tiếp | **crash 4/5 lần** (exit `0xC0000005`) | **3/3 lần exit = 0** |
+| Codec file kết quả | hỏng / không mở được | **h264**, đọc lại đúng số khung |
+
+**Bài học:**
+- **"Log đỏ mà vẫn chạy" là hiểu lầm nguy hiểm** — ở đây log đỏ che một lỗi **crash lúc thoát**. Tài liệu cũ ghi *"file vẫn H.264 hợp lệ"* là **SAI**, đã sửa lại.
+- **Lỗi crash lúc thoát thường do tài nguyên chưa giải phóng / encoder hỏng**, không phải do logic chính. Phải tái hiện **nhiều lần** (4/5, 3/5) mới thấy — chạy 1 lần thì tưởng "lúc nào cũng được".
+- **DLL của bên thứ ba phải đi kèm giấy phép** trong repo (Cisco OpenH264 là BSD-2-Clause, được phân phối kèm) — không có giấy phép thì không commit.
+- Tên file DLL **phải khớp đúng** phiên bản FFmpeg dùng. Đổi tên = không được nạp.
+
+---
+
 ## Log "Đang nhận N lớp" KHÔNG dịch được + lỗi chính tả "Bỏ qua l không có"
 
 **Triệu chứng (agent phát hiện khi sửa vòng 3):** 2 dòng log trong khung "xem trực tiếp"

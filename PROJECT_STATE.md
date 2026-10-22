@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-21 (sau 00:00 — **đã đẩy lên GitHub** `https://github.com/handsomecat101/cam-ai` (**public** — đổi từ private lúc 23:45 vì anh không thấy repo trong danh sách, toàn bộ lịch sử, ~3 MB) + **bộ cài 1 lệnh cho máy mới** (`cai_dat_may_moi.bat`) + hướng dẫn `TAI-MAY-MOI.md`; bản **3.7** vẫn là bản app hiện tại, `VERSION` = **3.7**)
+**Ngày cập nhật:** 2026-10-22 (sau 16:00 — bản **3.8**: **tối ưu tốc độ pipeline 4,09× (CUDA Graph, BIT-EXACT)** + **sửa lỗi app crash lúc thoát** (thiếu `openh264-2.5.0-win64.dll`) + **bản mẫu giao diện PySide6** để anh duyệt hướng thiết kế; `VERSION` = **3.8**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 
 > # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
@@ -764,7 +764,6 @@ tiếng Việt); **camera thật chưa kiểm chứng được** (máy này khô
 đường đi live qua camera IP giả); **mục 7 / mục 8** vẫn chờ anh.
 
 #### F. ĐẨY LÊN GITHUB + BỘ CÀI MÁY MỚI (sau khi chốt 3.7)
-
 Anh báo: *"đẩy dự án này lên git để tôi làm tiếp ở máy khác, máy này nặng quá"*.
 
 | Hạng mục | Kết quả |
@@ -780,6 +779,92 @@ Anh báo: *"đẩy dự án này lên git để tôi làm tiếp ở máy khác,
 | **`known_faces_mau.zip`** (41 KB) | Gói 10 ảnh "An"/"Binh" để chuyển máy. **Không commit** (ảnh khuôn mặt = biometric data, git history không xoá được) |
 | **Xung đột do agent phát hiện** | `rapidocr-onnxruntime` kéo bản **CPU** `onnxruntime` và **ghi đè** bản GPU → script cài phát hiện (chỉ khi cả 2 dist-info trong `.venv`) rồi cài lại `onnxruntime-gpu` |
 | **Xác minh** | `pip install --dry-run -r requirements.txt` → **exit 0** (11/11 dòng resolve) · `torch==2.14.0` trên index cu126 → `torch-2.14.0+cu126` (cp313) resolve được · `insightface==2.1` có sẵn wheel (không cần compiler) · chạy thật script → **exit 0** · chạy từ số 0 (xoá `.venv`) → tạo venv + tiếng Việt có dấu đúng |
+
+---
+
+### 2.1l BẢN 3.8 — TỐI ƯU TỐC ĐỘ PIPELINE: **4,09× NHANH HƠN**, BIT-EXACT (2026-10-22)
+
+**Vì sao làm:** anh báo *"quét video màn hình trên nó chạy đâu tối thôi"*. Em đo lại từ đầu thay vì đoán.
+
+#### A. Đo được gì (baseline trước khi sửa)
+
+Video mẫu `car-detection.mp4` (377 khung, 12,5 fps, 768×432), RTX 3090, **GPU rảnh 0%**:
+
+| Số đo | Kết quả |
+|---|---|
+| End-to-end (chỉ người) | 6,85 khung/s *(đo dưới tải nặng — máy đang chạy agent khác)* |
+| End-to-end (nhận vật thể tiếng Việt) | 7,91 khung/s |
+| End-to-end (đọc biển số) | 6,70 khung/s |
+| End-to-end (nhận diện mặt) | 7,98 khung/s |
+| `detector(frame)` 1 khung/lần (đường app đang dùng) | **~99 ms/khung** |
+| Batch 8 khung/lần | **8,89 ms/khung** |
+| `FaceEngine` nạp | **21,3 s** |
+
+#### B. Nguyên nhân THẬT — giả định ban đầu của em SAI
+
+Em đoán "overhead gọi `detector()` từng khung". Agent đo bằng `torch.profiler` trên **đúng vòng lặp thật** thì ra:
+
+| Chỉ số (1 forward YOLO11n 1×3×384×640) | Giá trị |
+|---|---|
+| **Self CPU time** | **112,64 ms** |
+| **Self CUDA time** | **7,11 ms** (≈1,42 ms/khung) |
+| `aten::cudnn_convolution` | 22,1 ms CPU / 4,35 ms CUDA (405 lần gọi) |
+
+→ **GPU đói**, không phải GPU yếu. Mỗi lớp conv tốn ~55 µs CPU nhưng chỉ ~11 µs GPU. Đây là **CPU-side launch overhead của PyTorch/cuDNN trên Windows**.
+
+**Hai hướng bị loại có lý do (không phải "không làm được"):**
+- **Batching** → làm lệch **số đếm tối đa 0,497559** ⇒ sai số đếm ⇒ **bỏ**.
+- **FP16 (`half=True`)** → **không** tăng tốc (18,53 vs 19,20 ms) và làm lệch tọa độ ⇒ **bỏ**.
+- **ONNX Runtime** → `yolo11n.onnx` có sẵn là bản export **cứng 480×480** + NMS nhúng ⇒ khác `imgsz`/letterbox của ultralytics ⇒ kết quả khác ⇒ **hỏng SHA256** ⇒ **bỏ**.
+
+#### C. Cách sửa — **CUDA Graph**
+
+File mới **`nhan_dien_nhanh.py`** (290 dòng): chụp **CUDA Graph** cho forward YOLO, rồi **replay** thay vì gọi lại từng lớp → loại ~22 ms CPU overhead/khung.
+
+| Hạng mục | TRƯỚC | SAU |
+|---|---|---|
+| YOLO detect | 27,403 ms/khung (94,6%) | **5,009 ms/khung (79,2%)** |
+| Đọc khung (decode) | 1,395 | 1,631 |
+| Ghi video | 0,564 | 0,545 |
+| Vẽ khung + nhãn | 0,406 | 0,402 |
+| Tracker (ByteTrack) | 0,269 | 0,314 |
+| **TỔNG** | **28,965 ms/khung** | **6,328 ms/khung** |
+| Trong đó: preprocess | — | 1,736 |
+| **CUDA Graph replay** | — | **0,130** |
+| NMS + scale + về CPU | — | 4,308 |
+
+**Kết quả:**
+| Video | TRƯỚC (gia nghiên) | SAU | Nhanh |
+|---|---|---|---|
+| `car-detection.mp4` | 28,97 ms → 36,98 khung/s | 6,33 ms → **151,43 khung/s** | **4,09×** |
+| `people-detection.mp4` | 23,90 ms → 41,85 khung/s | 6,97 ms → **143,55 khung/s** | **3,43×** |
+
+Wall-clock end-to-end (tính cả khởi động Python ~7 s + khởi tạo CUDA ~5 s): **14,44 → 21,54 khung/s** và **21,26 → 33,65 khung/s**.
+E2E GUI (`_kk_kiem_gui_chay_thuc.py`): **39,1 s → 26,1 s**.
+
+#### D. BẰNG CHỨNG — coordinator tự chạy lại, KHÔNG tin báo cáo agent
+
+| Kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_bit_exact.py` | **PASS — 200/200 khung BIT-EXACT** (xyxy/conf/cls/tên lớp giống hệt). Đường cũ 64,64 ms → đường nhanh 6,63 ms/khung |
+| Hồi quy CSV (SHA256) | **PASS — SHA256 GIỐNG HẸT**, 250 dòng dữ liệu, 10 cột, tên cột y hệt |
+| Đếm phương tiện (`--dem-phuong-tien`) | **PASS — 21 lượt trước / 21 lượt sau**, chênh **0 (0,00%)** |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** |
+| `_kk_kiem_nguon_viet.py` | **35/35 PASS** |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_gui_chay_thuc.py` (e2e) | **7/7 PASS** — 26,1 s (trước 39,1 s) |
+| `_kk_kiem_gui_b3.py` | **4/4 PASS** |
+| `_kk_kiem_giao_dien.py` | **7/7 PASS** |
+| `_kk_kiem_ngon_ngu_v3_3.py` | **5/5 PASS** |
+| `_kk_kiem_canvas_vung.py` | **PASS** — lệch 0,0000 |
+
+**Bất biến CSV 10 cột / 250 dòng KHÔNG đổi** — đây là bằng chứng quan trọng nhất: tăng tốc **không đánh đổi** kết quả.
+
+#### E. Cơ chế an toàn
+
+- **Bit-exact có kiểm tra tự động**: lúc chụp CUDA Graph, script so `torch.equal` với đường cũ — **lệch 1 bit là tự rơi về đường cũ**.
+- Tắt được bằng biến môi trường `CAMAI_DETECTOR_NHANH=0`.
+- **KHÔNG thêm field vào `AnalysisConfig`** (bộ `_kk_kiem_chuc_nang.py` kiểm 2 field cuối-cuối là `dem_phuong_tien`/`lop_phuong_tien`; thêm field làm bộ test FAIL → đã giữ nguyên, dùng biến môi trường).
 
 ---
 
@@ -1278,6 +1363,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-22 (sau 16:00) | **Bản 3.8 — TỐI ƯU TỐC ĐỘ (4,09×, BIT-EXACT) + SỬA LỖI APP CRASH + BẢN MẪU GIAO DIỆN PySide6.** Anh báo *"quét video màn hình trên nó chạy đâu tối thôi"* + *"nền tảng này quá lạc hậu"*. **Đo trước:** end-to-end 6,7–8,0 khung/s (video 12,5 fps) · `detector(frame)` ~99 ms/khung · `FaceEngine` nạp 21,3 s. **Nguyên nhân THẬT (giả định ban đầu của em SAI):** `torch.profiler` cho thấy **Self CPU 112,64 ms vs Self CUDA 7,11 ms** ⇒ **GPU đói** do CPU-side launch overhead của PyTorch/cuDNN, **không** phải overhead gọi hàm. **Cách sửa:** file mới `nhan_dien_nhanh.py` — **CUDA Graph** cho forward YOLO11n + preprocess nhanh (LetterBox cache, buffer tĩnh) ⇒ **28,97 → 6,33 ms/khung (36,98 → 151,43 khung/s)**, E2E GUI **39,1 s → 26,1 s**. **Loại 3 hướng có lý do:** batching (lệch số đếm tối đa 0,497559) · FP16 (không tăng tốc + lệch tọa độ) · ONNX (bản export cứng 480×480 + NMS nhúng ⇒ hỏng SHA256). **BẰNG CHỨNG coordinator tự chạy:** bit-exact **200/200 khung** · CSV **SHA256 giống hệt** (250 dòng × 10 cột) · đếm phương tiện **21 = 21** (chênh 0,00%) · **10 bộ kiểm chứng PASS**. **Sửa lỗi CRASH lúc thoát (0xC0000005, có sẵn từ lâu — 4/5 lần trên bản gốc `git HEAD`):** thiếu `openh264-2.5.0-win64.dll` ⇒ `VideoWriter` H.264 không khởi tạo được ⇒ crash teardown. Đã tải **bản chính thức Cisco v2.5.0** + **3 file giấy phép** + `_nap_dll_openh264()` (ctypes, giữ handle chống GC) + `_fourcc_ket_qua()` probe thật rồi mới chọn `avc1`, lỗi thì lùi `mp4v`. **Kết quả:** `avc1` mở được, **hết log đỏ**, `app.py` **3/3 exit = 0**. **Bản mẫu giao diện PySide6** (`mau_gui_qt.py`) để anh **duyệt hướng thiết kế trước** — bài học lần trước em tự chọn nền tảng → phải làm lại. Xem mục **2.1l**. |
 | 2026-10-21 (sau 00:00) | **ĐẨY LÊN GITHUB + BỘ CÀI MÁY MỚI.** Anh báo *"đẩy dự án này lên git để tôi làm tiếp ở máy khác, máy này nặng quá"*. **Repo:** `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử commit** (từ `bb52c18` bản 3.5 → `7ebe43b`), kích thước **~3 MB**. Không có `gh` CLI → lấy OAuth token của **GCM** (Credential Manager, tài khoản `handsomecat101`) → `POST /user/repos` với `private=true`; token **không** in ra log. **Cố ý KHÔNG commit:** `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` · `*.pt`/`*.onnx` · file kết quả chạy (GitHub giới hạn 100 MB/file; model tải lại được bằng 1 lệnh). **Giữ lại** `video_mau/moi/NGUON_LICENSE_NGUOI.md` (attribution CC BY / CC BY-SA bắt buộc). **Bộ cài 1 lệnh:** `cai_dat_may_moi.bat` → `cai_dat_may_moi.py` (tạo `.venv` → cài thư viện → tải `yolo11n.pt` → tải model ArcFace → in tổng kết; **không chết khi 1 bước fail**; exit 0 chỉ khi venv + 2 model có). **`requirements.txt`** bổ sung 5 gói thiếu (`customtkinter`, `pillow`, `rapidocr-onnxruntime`, `openpyxl`, `pywin32`), dòng `torch` **cố ý comment** vì `+cu126` không có trên PyPI. **`TAI-MAY-MOI.md`** = hướng dẫn máy mới + bảng "thứ KHÔNG có trong git" + cách lấy lại từng thứ. **`known_faces_mau.zip`** (41 KB, **không commit**) = 10 ảnh "An"/"Binh" để chuyển máy (ảnh khuôn mặt không đưa vào git). **Agent phát hiện xung đột thật:** `rapidocr-onnxruntime` kéo bản **CPU** `onnxruntime` **ghi đè** bản GPU → script cài phát hiện rồi cài lại `onnxruntime-gpu`. **Xác minh:** `pip install --dry-run` exit 0 (11/11 resolve) · `torch-2.14.0+cu126` (cp313) resolve được · `insightface==2.1` có sẵn wheel · chạy thật script exit 0 · chạy từ số 0 (xoá `.venv`) → tạo venv + tiếng Việt có dấu đúng. Xem mục **2.1k** phần F. |
 | 2026-10-20 (sau 17:00) | **Bản 3.7 — hoàn tất mục tiêu anh chốt: GUI nối xong 2 nguồn mới + lớp vật thể TIẾNG VIỆT + đếm phương tiện.** **Agent A (`gui.py`):** nhóm "NGUỒN" thành chọn nguồn tổng quát — label "Nguồn", nhãn trạng thái tự cập nhật theo `loai_nguon()` ("Video / Ảnh tĩnh / Camera máy / Camera IP"), 4 nút **Chọn video… / Chọn ảnh… / Chọn camera… / Danh sách camera**, hộp thoại chọn camera (quét **nền** + nút Huỷ, không treo) + ô địa chỉ camera IP có kiểm tra tiền tố; thanh tiến trình **indeterminate** khi quay, nút DỪNG dừng được vòng lặp live (`stopped=True`); nguồn ảnh xuất **ảnh kết quả `.jpg`** + CSV; **45 chuỗi mới** trong `DICH_VI_EN`. **Agent B (`lop_viet.py` mới + `cam_ai_core.py` + `app.py`):** bảng **80 lớp COCO ↔ tiếng Việt** đọc thật từ `yolo11n.pt` (khớp **100%** model, module **không import torch**), **~200 từ đồng nghĩa**; `--lop` nhận **có dấu / không dấu / tiếng Anh** → cùng kết quả (CSV SHA256 giống hệt), gõ sai báo lỗi **kèm gợi ý**; `--list-lop` in đủ 80 dòng; `--dem-phuong-tien` đếm theo lớp + tổng + max cùng lúc với **4 cột CSV mới ở CUỐI** (10 cột cũ không đổi). **Coordinator tự verify:** 10 bộ kiểm chứng **PASS** (lop tiếng Việt 53/53, chức năng 73/73, nguồn GUI 35/35, e2e 7/7, 3.3 4/4, thiết kế 7/7, ngôn ngữ 5/5, canvas PASS, **không mất tính năng PASS** — 20 checkbox + 12 nhóm con + 13 thẻ video mẫu giống hệt, không mất nút nào); hồi quy video **SHA256 giống hệt** bản gốc. **3 lỗi thật đã sửa** (chi tiết `ISSUE_LOG.md`): (1) **mũi tên mục lớn sai trạng thái** — NGUỒN đang mở nhưng mũi tên vẫn chỉ sang phải, lỗi **có từ bản 3.6** (đã kiểm lại bằng `git show 35250e5:gui.py`), coordinator phát hiện bằng cách **phóng to 3×** ảnh chụp; (2) **GUI "xem trực tiếp" chỉ hiểu lớp tiếng Anh** (`_vong_xem` tự viết lại logic chọn lớp) ⇒ gõ "ô tô" thì khung xem trực tiếp không vẽ khung nào dù báo cáo có → sửa bằng **cùng hàm** của core; (3) **OpenCV Hershey âm thầm bỏ dấu tiếng Việt** khi vẽ nhãn lên khung ("ô tô" → "o to") → khung hình dùng tên **không dấu**, log/báo cáo/CSV dùng tên **có dấu**. Xem mục **2.1k**. |
 | 2026-10-20 (sau 15:30) | **Bản 3.6 — 4 mục cấu hình lớn + nguồn ẢNH & nguồn CAMERA.** Bản đầu tiên làm theo **định hướng anh chốt** (CamAI = app detect đa thể loại trên **3 nguồn**; app chấm công tách riêng; đổi nền tảng để sau). **Agent 1 — `gui.py`:** lớp `NhomLon` 12 nhóm rời rạc → **4 mục lớn** (NGUỒN mở sẵn / PHÂN TÍCH / BIỂN SỐ & ẢNH / CẢNH BÁO & MÔ HÌNH), mỗi mục có 1 dòng mô tả, chỉ 1 mục mở tại một lúc, mũi tên `Segoe MDL2 Assets` E76C↔E70D xoay thật, mở mục con sẽ mở luôn mục lớn cha; dải "Video mẫu dùng thử" chuyển bố cục ngang **212px → 125px**. Script `_kk_kiem_khong_mat_tinh_nang.py` chứng minh **20 checkbox + 21 nút + 12 nhóm con + 13 thẻ video mẫu giống hệt trước/sau** (không mất tính năng). **Agent 2 — `cam_ai_core.py` + `app.py`:** chế độ **ẢNH** (`loai_nguon`, `la_live`, xuất `<ten>_ket_qua.jpg`) + chế độ **CAMERA** (webcam `0`, `rtsp://`/`http://`, ngân sách thời gian không treo, `q` để dừng, tiến trình indeterminate) + lệnh **`--list-camera`** + gọi thật `_chuan_hoa_console()`. **Coordinator verify (tự chạy lại):** chế độ ảnh **EXIT=0** (4 người, 2 mặt, nhận đúng "An"/"Binh", ảnh kết quả 199.956 B, CSV 1 dòng); `--list-camera` **EXIT=0** (máy này **không có camera**); e2e **7/7 PASS** (37,9 s); b3 **4/4**; giao diện **7/7**; ngôn ngữ **5/5**; canvas **PASS** (sai số 0,0000); hồi quy video CSV **251 dòng**, SHA256 **giống hệt** bản gốc. **Sửa lỗi repo do coordinator phát hiện:** `gui_ngon_ngu.json` (lựa chọn ngôn ngữ cá nhân) bị git theo dõi → script test để lại "en" ⇒ app của anh tự mở tiếng Anh + e2e FAIL → đã `git rm --cached` + `.gitignore` + reset `"vi"`, và sửa `_kk_kiem_gui_chay_thuc.py` **không còn phụ thuộc ngôn ngữ**. Bump 3.5 → **3.6**. Xem mục **2.1j**. |

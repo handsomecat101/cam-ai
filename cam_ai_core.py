@@ -26,6 +26,7 @@ import csv
 import difflib
 import os
 import signal
+import sys
 import tempfile
 import time
 import warnings
@@ -162,6 +163,105 @@ TEN_VAT_THE = {
     **lop_viet.TEN_LOP_VIET_KHONG_DAU,
     **_TEN_VAT_THE_CU,
 }
+
+
+# --- detector nhanh (CUDA Graph) ---
+# YOLO qua CUDA Graph: nhanh ~4-6 lan, ket qua BIT-EXACT voi duong cu cu
+# (da kiem chung 200/200 khung tren 2 video + CSV SHA256 giong het ban goc).
+# KHONG dua vao AnalysisConfig de GIU NGUYEN thu tu truong cua dataclass
+# (biet luan cu: 2 truong moi phai la CUOI-CUOI - xem _kk_kiem_chuc_nang.py).
+# Tat tam thoi bang bien moi truong: CAMAI_DETECTOR_NHANH=0
+DETECTOR_NHANH_MAC_DINH = True
+DETECTOR_NHANH_MOI_TRUONG = "CAMAI_DETECTOR_NHANH"
+
+
+def detector_nhanh_bat() -> bool:
+    """True neu dung detector nhanh (CUDA Graph).
+
+    Bien moi truong CAMAI_DETECTOR_NHANH=0 -> tat (dung duong cu cu).
+    """
+    gia = os.environ.get(DETECTOR_NHANH_MOI_TRUONG, "").strip()
+    if gia == "":
+        return DETECTOR_NHANH_MAC_DINH
+    return gia not in ("0", "false", "off", "no")
+
+
+# ------------------------------------------------------- HO SO THOI GIAN (PROFILE)
+# Chi bat khi co bien moi truong CAMAI_PROFILE=1. Khi TAT, khong ton them gi:
+# khong do dong, khong tao doi tuong, khong in gi -> hanh vi cu giong het.
+#
+# Muc dich: biet CHINH XAC thanh phan nao an thoi gian trong vong lap that,
+# thay vi doan. Do bang time.perf_counter() quanh tung doan cua pipeline.
+PROFILE_MOI_TRUONG = "CAMAI_PROFILE"
+
+
+def profile_bat() -> bool:
+    """True neu CAMAI_PROFILE=1. Doc moi lan goi de tien kiem tra thu nghiem."""
+    return os.environ.get(PROFILE_MOI_TRUONG, "").strip() == "1"
+
+
+class HoSo:
+    """Gom thoi gian (giay) cua tung thanh phan trong vong lap phan tich.
+
+    Chi duoc tao khi profile_bat() la True. Moi lan goi .them() chi cong
+    thoi gian -> chi phi < 1 micro giay/khung, khong anh huong hieu nang.
+
+    Luu them so do BO KHUNG DAU (khung 1) rieng: khoi tao CUDA + chup CUDA
+    Graph dien ra o khung dau -> tinh vao trung binh se lam sai nhanh thuc.
+    """
+
+    def __init__(self) -> None:
+        self.tong: dict[str, float] = {}
+        self.so: dict[str, int] = {}
+        self.tong_sau: dict[str, float] = {}     # khung 2..N
+        self.so_sau: dict[str, int] = {}
+        self.n_khung = 0
+        self.n_khung_sau = 0
+        self.tong_thoi_gian = 0.0
+        self.tong_thoi_gian_sau = 0.0
+        self.tong_khung_dau = 0.0
+
+    def them(self, ten: str, giay: float) -> None:
+        self.tong[ten] = self.tong.get(ten, 0.0) + giay
+        self.so[ten] = self.so.get(ten, 0) + 1
+        if self.n_khung >= 1:               # khung 2..N -> nhom "gia ngien"
+            self.tong_sau[ten] = self.tong_sau.get(ten, 0.0) + giay
+            self.so_sau[ten] = self.so_sau.get(ten, 0) + 1
+
+    def bao_cao(self, log) -> None:
+        """In bang thoi gian tung thanh phan (ms/khung) ra log."""
+        if not self.n_khung:
+            return
+        tong_ms = self.tong_thoi_gian * 1000.0
+        fps = self.n_khung / max(self.tong_thoi_gian, 1e-9)
+        log("")
+        log("========== HO SO THOI GIAN (CAMAI_PROFILE=1) ==========")
+        log(f"So khung hinh: {self.n_khung} | tong: {tong_ms:.0f} ms | "
+            f"{fps:.2f} khung/s (TRONG CA khoi tao CUDA o khung dau)")
+        log(f"Khung dau (khoi tao CUDA/chup graph): {self.tong_khung_dau * 1000.0:.0f} ms")
+        if self.n_khung_sau:
+            tb = self.tong_thoi_gian_sau * 1000.0 / self.n_khung_sau
+            log(f"GIA NGHIEN (khung 2..N): {tb:.3f} ms/khung | "
+                f"{self.n_khung_sau / max(self.tong_thoi_gian_sau, 1e-9):.2f} khung/s")
+        log("")
+        log(f"{'thanh phan':<22}{'ms/khung':>10}{'%':>8}"
+            f"{'ms/khung':>11}{'%':>8}")
+        log(f"{'':<22}{'(ca video)':>10}{'':>8}{'(gia ngien)':>11}{'':>8}")
+        da_do = sum(self.tong.values())
+        for ten, giay in sorted(self.tong.items(), key=lambda kv: -kv[1]):
+            ms = giay * 1000.0 / self.n_khung
+            phan_trong = (giay / self.tong_thoi_gian * 100.0) if self.tong_thoi_gian else 0.0
+            ms_sau = self.tong_sau.get(ten, 0.0) * 1000.0 / max(self.n_khung_sau, 1)
+            phan_sau = (
+                self.tong_sau.get(ten, 0.0) / self.tong_thoi_gian_sau * 100.0
+                if self.tong_thoi_gian_sau else 0.0
+            )
+            log(f"{ten:<22}{ms:>10.3f}{phan_trong:>7.1f}%{ms_sau:>11.3f}{phan_sau:>7.1f}%")
+        khac = self.tong_thoi_gian - da_do
+        if khac > 0:
+            log(f"{'(chua do)':<22}{khac * 1000.0 / self.n_khung:>10.3f}"
+                f"{khac / self.tong_thoi_gian * 100.0:>7.1f}%")
+        log("========================================================")
 
 
 # ------------------------------------------------------- nguon vao (anh / camera)
@@ -386,6 +486,99 @@ class AnalysisResult:
 
 # ------------------------------------------------- ghi video an toan (moov atom)
 
+# Cisco OpenH264 - ban phat hanh CHINH THUC v2.5.0 (giay phep BSD-2-Clause).
+# FFmpeg cua OpenCV goi "openh264-2.5.0-win64.dll" de co encoder H.264.
+# Ten file PHAI Khop phien ban FFmpeg dung; doi ten -> FFmpeg khong tim thay
+# -> log do "Failed to load OpenH264 library" + VideoWriter avc1 that bai.
+# File .dll dat ngay canh app.py/gui.py trong thu muc du an.
+TEN_DLL_OPENH264 = "openh264-2.5.0-win64.dll"
+
+_DLL_OPENH264_HANDLE = None      # giu tham chiu: Windows unload DLL khi handle bi GC
+
+
+def _duong_dan_dll_openh264() -> str:
+    """Duong dan file DLL OpenH264 neu tim thay, khong thi chuoi rong.
+
+    Thu tu uu tien:
+      1. Thu muc du an (canh cam_ai_core.py) - noi ta dat DLL di cung phat
+         hanh chinh thuc cua Cisco.
+      2. Thu muc chay chuong trinh (sys.executable) - truong hop copy ca thu muc.
+      3. Thu muc hien tai (cwd) va cac thu muc trong PATH.
+    """
+    cac_thu_muc = []
+    for duong_dan in (
+        os.path.dirname(os.path.abspath(__file__)),
+        os.path.dirname(os.path.abspath(sys.executable)),
+        os.getcwd(),
+    ):
+        if duong_dan:
+            cac_thu_muc.append(duong_dan)
+    cac_thu_muc.extend(p for p in os.environ.get("PATH", "").split(os.pathsep) if p)
+
+    for thu_muc in cac_thu_muc:
+        duong_dan = os.path.join(thu_muc, TEN_DLL_OPENH264)
+        try:
+            if os.path.isfile(duong_dan):
+                return duong_dan
+        except OSError:
+            continue
+    return ""
+
+
+def _nap_dll_openh264() -> str:
+    """Nap DLL OpenH264 vao PROCESS truoc khi tao VideoWriter.
+
+    Windows: LoadLibrary() tra ve handle cua module DA NAP truoc do, KHONG quet
+    lai duong dan. FFmpeg/OpenCV goi LoadLibrary("openh264-2.5.0-win64.dll") ->
+    nen DLL da nap o BAT KY thu muc nao cung duoc dung (ke ca khi chay app tu
+    thu muc khac). Tra ve duong dan DLL da nap, khong nap duoc thi chuoi rong.
+    """
+    global _DLL_OPENH264_HANDLE
+    if _DLL_OPENH264_HANDLE is not None:
+        return TEN_DLL_OPENH264
+    duong_dan = _duong_dan_dll_openh264()
+    if not duong_dan:
+        return ""
+    try:
+        import ctypes
+
+        # GIU handle o bien global: Windows unload DLL khi handle bi GC.
+        _DLL_OPENH264_HANDLE = ctypes.WinDLL(duong_dan)
+    except Exception:                                        # noqa: BLE001
+        _DLL_OPENH264_HANDLE = None
+        return ""
+    return duong_dan
+
+
+def _probe_co_khung_hinh(duong_dan: str) -> bool:
+    """True neu file video doc lai duoc it nhat 1 khung hinh THAT.
+
+    Dung de kiem tra encoder H.264 co that su chay khong (khong chi header co
+    chuoi 'avc1'): file rong / khong co du lieu -> encoder hong -> phai lui
+    ve mp4v.
+    """
+    try:
+        if not os.path.isfile(duong_dan) or os.path.getsize(duong_dan) <= 0:
+            return False
+    except OSError:
+        return False
+    cap = None
+    try:
+        cap = cv2.VideoCapture(duong_dan)
+        if not cap.isOpened():
+            return False
+        ok, khung_hinh = cap.read()
+        return bool(ok) and khung_hinh is not None
+    except Exception:                                        # noqa: BLE001
+        return False
+    finally:
+        if cap is not None:
+            try:
+                cap.release()
+            except Exception:                                # noqa: BLE001
+                pass
+
+
 def _fourcc_ket_qua() -> str:
     """Tra fourcc de ghi video: 'avc1' (H.264) neu may co encoder, nguoc lai 'mp4v'.
 
@@ -394,9 +587,17 @@ def _fourcc_ket_qua() -> str:
     H.264 (avc1) thi moi trinh duyet deu phat duoc.
 
     CACH KIEM TRA (chi 1 LAN cho ca tien trinh, ket qua duoc cache):
-      1. Ghi 1 file mp4 tam (2 khung hinh 64x64 mau den) voi fourcc avc1.
-      2. Doc ~4 KB dau file, tim chuoi b'avc1' (fourcc that trong box stsd).
-      3. Co b'avc1' -> dung 'avc1'; khong co -> lui ve 'mp4v'.
+      1. Nap DLL OpenH264 (Cisco) vao process -> FFmpeg co encoder H.264.
+         KHONG tim thay DLL -> thang dung 'mp4v' (va KHONG thu avc1, de khong
+         in log do "Failed to load OpenH264 library" va khong de VideoWriter
+         avc1 that bai gay crash luc thoat).
+      2. Ghi 1 file mp4 tam (2 khung hinh 64x64) bang BACKEND FFMPEG voi
+         fourcc avc1. EP FFMPEG de chan backend khac (MSMF) ghi "dinh dang"
+         ra: neu FFMPEG that bai thi isOpened() tra False -> nhan ra chinh
+         xac. (TRUOC DAY ham nay chi tim chuoi b'avc1' trong header nen LUON
+         tra 'avc1' ke ca khi encoder hong.)
+      3. Doc lai file probe: phai co it nhat 1 khung hinh THAT -> 'avc1';
+         khong co -> lui ve 'mp4v'.
     File probe LUON duoc xoa. Moi loi -> tra 'mp4v' (fail-safe, khong lam
     hong pipeline).
     """
@@ -407,45 +608,46 @@ def _fourcc_ket_qua() -> str:
     fourcc = "mp4v"
     duong_dan_probe = ""
     try:
-        # tempfile: file probe nam o thu muc tam cua he -> khong de rac
-        # trong thu muc du an.
-        fd, duong_dan_probe = tempfile.mkstemp(prefix="cam_ai_probe_", suffix=".mp4")
-        os.close(fd)
-
-        writer = None
-        mo_duoc = False
-        try:
-            writer = cv2.VideoWriter(
-                duong_dan_probe, cv2.VideoWriter_fourcc(*"avc1"), 10.0, (64, 64)
+        # (1) Nap DLL OpenH264 truoc: FFmpeg can co encoder H.264 thi ghi avc1.
+        co_dll = bool(_nap_dll_openh264())
+        if co_dll:
+            # tempfile: file probe nam o thu muc tam cua he -> khong de rac
+            # trong thu muc du an.
+            fd, duong_dan_probe = tempfile.mkstemp(
+                prefix="cam_ai_probe_", suffix=".mp4"
             )
-            mo_duoc = bool(writer.isOpened())
-            if mo_duoc:
-                khung_hinh_den = np.zeros((64, 64, 3), np.uint8)
-                writer.write(khung_hinh_den)
-                writer.write(khung_hinh_den)
-        finally:
-            if writer is not None:
-                try:
-                    writer.release()
-                except Exception:                            # noqa: BLE001
-                    pass
-                # Huy tham chu de dong han file that. Windows: file con bi
-                # khoa thi os.remove() that bai -> de lai rac trong TEMP.
-                del writer
-                writer = None
+            os.close(fd)
 
-        if mo_duoc and os.path.isfile(duong_dan_probe):
-            kich_thuoc = os.path.getsize(duong_dan_probe)
-            if kich_thuoc > 0:
-                with open(duong_dan_probe, "rb") as f:
-                    dau = f.read(4096)
-                tim_thay = b"avc1" in dau
-                if not tim_thay and kich_thuoc > len(dau):
-                    # moov atom (chua box stsd) co the nam o CUOI file
-                    f.seek(max(0, kich_thuoc - 65536))
-                    tim_thay = b"avc1" in f.read()
-                if tim_thay:
-                    fourcc = "avc1"
+            writer = None
+            mo_duoc = False
+            try:
+                writer = cv2.VideoWriter(
+                    duong_dan_probe,
+                    cv2.VIDEOWRITER_FFMPEG,      # EP FFMPEG (khong dung MSMF)
+                    cv2.VideoWriter_fourcc(*"avc1"),
+                    10.0,
+                    (64, 64),
+                )
+                mo_duoc = bool(writer.isOpened())
+                if mo_duoc:
+                    khung_hinh_den = np.zeros((64, 64, 3), np.uint8)
+                    writer.write(khung_hinh_den)
+                    writer.write(khung_hinh_den)
+            finally:
+                if writer is not None:
+                    try:
+                        writer.release()
+                    except Exception:                        # noqa: BLE001
+                        pass
+                    # Huy tham chu de dong han file that. Windows: file con bi
+                    # khoa thi os.remove() that bai -> de lai rac trong TEMP.
+                    del writer
+                    writer = None
+
+            # (3) Doc lai file probe: phai co khung hinh THAT moi la encoder
+            # tot (khong chi header co chuoi 'avc1').
+            if mo_duoc and _probe_co_khung_hinh(duong_dan_probe):
+                fourcc = "avc1"
     except Exception:                                        # noqa: BLE001
         fourcc = "mp4v"        # fail-safe: khong bao gio lam hong pipeline
     finally:
@@ -462,6 +664,62 @@ def _fourcc_ket_qua() -> str:
 
     _FOURCC_KET_QUA_CACHE = fourcc
     return fourcc
+
+
+def _mo_video_writer(
+    duong_dan: str,
+    fps: float,
+    size: tuple[int, int],
+    log=None,
+) -> tuple:
+    """Tao VideoWriter co phong an du phong: avc1 (H.264) -> mp4v -> loi ro rang.
+
+    Tra (writer, fourcc_dung). Nem CamAIError bang thong bao tieng Viet neu
+    khong codec nao mo duoc: KHONG tao file hong im lang, KHONG de app crash.
+
+    GHI CHU: 'mp4v' CHI la du phong. Neu dung 'mp4v' trong khi uu tien la
+    'avc1' thi phai ghi log canh bao de biet video dung codec nao (trinh
+    duyet co the khong phat duoc MPEG-4 Part 2).
+    """
+    fourcc_chinh = _fourcc_ket_qua()
+    danh_sach = []
+    for f in (fourcc_chinh, "avc1", "mp4v"):
+        if f not in danh_sach:
+            danh_sach.append(f)
+
+    loi = []
+    for fourcc in danh_sach:
+        writer = None
+        try:
+            writer = cv2.VideoWriter(
+                duong_dan, cv2.VideoWriter_fourcc(*fourcc), fps, size
+            )
+        except Exception as exc:                            # noqa: BLE001
+            loi.append(f"{fourcc}: {exc}")
+            continue
+        if writer.isOpened():
+            if fourcc != "avc1":
+                _log_an_toan(
+                    log,
+                    f"[video] CANH BAO: dung codec du phong '{fourcc}' "
+                    "(MPEG-4 Part 2) - trinh duyet co the khong phat duoc video",
+                    f"[video] CANH BAO: dung codec du phong '{fourcc}' "
+                    "(MPEG-4 Part 2) - trinh duyet co the khong phat duoc video",
+                )
+            return writer, fourcc
+        loi.append(f"{fourcc}: khong mo duoc")
+        try:
+            writer.release()
+        except Exception:                                    # noqa: BLE001
+            pass
+        del writer
+
+    raise CamAIError(
+        f"[loi] khong gia duoc file video ket qua: {duong_dan}\n"
+        "       Da thu cac codec: " + "; ".join(loi) + "\n"
+        "       Thu muc cha khong tao duoc hoac khong co quyen ghi: "
+        f"{os.path.dirname(os.path.abspath(duong_dan))}"
+    )
 
 
 def duong_dan_tam(duong_dan: str) -> str:
@@ -764,13 +1022,15 @@ class ClipRecorder:
     post = tong_giay / 2  (phia sau su kien)
     """
 
-    def __init__(self, thu_muc, tong_giay=CLIP_MAC_DINH_GIAY, fps=25.0, size=(0, 0)):
+    def __init__(self, thu_muc, tong_giay=CLIP_MAC_DINH_GIAY, fps=25.0, size=(0, 0),
+                 log=None):
         self.thu_muc = thu_muc
         self.tong_giay = max(2.0, float(tong_giay))
         self.pre = self.tong_giay / 2.0
         self.post = self.tong_giay - self.pre
         self.fps = fps or 25.0
         self.size = size
+        self.log = log                 # ghi canh bao khi dung codec du phong
         # Can bao dem: 1 khung hinh 1080p ~ 6 MB, giu qua se no RAM.
         can_ban_dinh = int(self.pre * self.fps) + 2
         can = can_ban_dinh
@@ -819,14 +1079,15 @@ class ClipRecorder:
         # xuat hien voi ten .mp4 that. Xem chuyen_ten_sau_khi_dong().
         duong_tam = duong_dan_tam(self.duong_dan)
         don_file_tam(duong_tam)
-        writer = cv2.VideoWriter(
-            duong_tam,
-            # avc1 (H.264) neu may co encoder, nguoc lai mp4v - xem
-            # _fourcc_ket_qua(). mp4v thi trinh duyet khong phat duoc.
-            cv2.VideoWriter_fourcc(*_fourcc_ket_qua()),
-            self.fps, self.size,
-        )
-        if not writer.isOpened():
+        # avc1 (H.264) neu may co encoder, nguoc lai mp4v - xem
+        # _fourcc_ket_qua(). mp4v thi trinh duyet khong phat duoc.
+        # _mo_video_writer co phong an du phong va nem loi ro bang tieng Viet.
+        try:
+            writer, _fourcc_dung = _mo_video_writer(
+                duong_tam, self.fps, self.size, log=self.log
+            )
+        except CamAIError:
+            # Khong ghi duoc clip -> bo qua clip nay, KHONG lam app chet.
             self.duong_dan = ""
             self.ly_do = []
             return
@@ -1542,6 +1803,25 @@ def run_analysis(
 
     tracker = sv.ByteTrack()
 
+    # --- detector nhanh (CUDA Graph): BIT-EXACT, chi nhanh hon.
+    # KHONG dung khi tach_o (che do do 5 lan/khung, giong het duong cu).
+    detector_nhanh = None
+    if detector_nhanh_bat() and not cfg.tach_o:
+        try:
+            from nhan_dien_nhanh import DetectorNhanh
+
+            detector_nhanh = DetectorNhanh(
+                detector, conf=cfg.conf, log=log, bat_cuda_graph=True,
+            )
+        except Exception as exc:                    # noqa: BLE001 - fail-safe
+            detector_nhanh = None
+            log(
+                f"[nhanh] khong dung duoc detector nhanh ({type(exc).__name__}: "
+                f"{exc}) -> dung duong cu cu"
+            )
+    elif detector_nhanh_bat() and cfg.tach_o:
+        log("[nhanh] dang bat tach-o -> dung duong cu cu (khong dung CUDA Graph)")
+
     engine = None
     if not cfg.no_face:
         try:
@@ -1615,7 +1895,16 @@ def run_analysis(
         out_path_tam = duong_dan_tam(out_path)
         if don_file_tam(out_path_tam):
             log(f"[video] da don file tam cu: {out_path_tam}")
-        fourcc_dung = _fourcc_ket_qua()
+        # Mo VideoWriter co phong an du phong (avc1 -> mp4v). KHONG de tao
+        # file video hong im lang, KHONG de app crash.
+        try:
+            writer, fourcc_dung = _mo_video_writer(
+                out_path_tam, fps, (width, height), log=log
+            )
+        except CamAIError:
+            cap.release()
+            don_file_tam(out_path_tam)
+            raise
         if fourcc_dung == "avc1":
             _log_an_toan(
                 log,
@@ -1625,19 +1914,10 @@ def run_analysis(
         else:
             _log_an_toan(
                 log,
-                "[video] codec: MPEG-4 Part 2 (mp4v) - máy này không có encoder H.264",
-                "[video] codec: MPEG-4 Part 2 (mp4v) - may nay khong co encoder H.264",
-            )
-        writer = cv2.VideoWriter(
-            out_path_tam, cv2.VideoWriter_fourcc(*fourcc_dung), fps, (width, height)
-        )
-        if not writer.isOpened():
-            cap.release()
-            don_file_tam(out_path_tam)
-            raise CamAIError(
-                f"[loi] khong gia duoc file video ket qua: {out_path}\n"
-                "       Thu muc cha khong tao duoc hoac khong co quyen ghi: "
-                f"{thu_muc_video or os.path.dirname(os.path.abspath(out_path))}"
+                f"[video] codec: MPEG-4 Part 2 ({fourcc_dung}) "
+                "- máy này không có encoder H.264",
+                f"[video] codec: MPEG-4 Part 2 ({fourcc_dung}) "
+                "- may nay khong co encoder H.264",
             )
         # File tam dang duoc ghi -> dang ky vao registry de "don file sot" khong
         # bao gio xoa nho (xem don_file_tam_trong_thu_muc).
@@ -1661,7 +1941,8 @@ def run_analysis(
         if don_con_sot:
             log(f"[clip] da don {len(don_con_sot)} file .part.mp4 con sot lai")
         recorder = ClipRecorder(
-            cfg.tu_luu_clip, tong_giay=cfg.clip_giay, fps=fps, size=(width, height)
+            cfg.tu_luu_clip, tong_giay=cfg.clip_giay, fps=fps, size=(width, height),
+            log=log,
         )
         log(
             f"[clip] tu luu clip vao: {cfg.tu_luu_clip}"
@@ -1770,10 +2051,22 @@ def run_analysis(
     lan_gui_hinh = 0.0                          # thoi diem gui khung hinh gan nhat
     bao_loi_gui_hinh = False                    # chi bao loi callback 1 lan
 
+    # --- HO SO THOI GIAN: chi khi CAMAI_PROFILE=1 (khong ton them gi khi tat)
+    ho_so = HoSo() if profile_bat() else None
+
     try:
         # Khung hinh lay tu 1 nguon duy nhat (anh / video / camera) - phan con
         # lai cua pipeline (ve khung, ghi CSV, su kien...) GIU NGUYEN.
-        for frame in _khung_hinh_nguon(cap, khung_anh, khung_dau):
+        nguon_khung = _khung_hinh_nguon(cap, khung_anh, khung_dau)
+        while True:
+            _t0 = time.perf_counter()
+            try:
+                frame = next(nguon_khung)
+            except StopIteration:
+                break
+            if ho_so is not None:
+                ho_so.them("01_doc_khung", time.perf_counter() - _t0)
+                _t_khung = time.perf_counter()
             # --- camera/live: nhan phim 'q' de dung ngay
             if la_live_nguon and _phim_q_dung():
                 stopped = True
@@ -1781,15 +2074,34 @@ def run_analysis(
                 break
 
             # --- nguoi: chay moi khung hinh (YOLO tren GPU, rat nhanh)
+            if ho_so is not None:
+                _t0 = time.perf_counter()
             if cfg.tach_o:
                 # TOAN KHUH + 2x2 o co chong, gop NMS.
                 # Cham hon ~5.3 lan. MAC DINH TAT de giu live view >=10 fps.
                 tat_ca = detect_tach_o(detector, frame, cfg.conf)
+                if ho_so is not None:
+                    ho_so.them("02_yolo_goi", time.perf_counter() - _t0)
+                    _t0 = time.perf_counter()
+            elif detector_nhanh is not None:
+                # CUDA Graph: ket qua BIT-EXACT, nhanh ~6 lan.
+                tat_ca = detector_nhanh.detect(frame)
+                if ho_so is not None:
+                    ho_so.them("02_yolo_goi", time.perf_counter() - _t0)
+                    _t0 = time.perf_counter()
             else:
                 result = detector(frame, verbose=False, conf=cfg.conf)[0]
+                if ho_so is not None:
+                    ho_so.them("02_yolo_goi", time.perf_counter() - _t0)
+                    _t0 = time.perf_counter()
                 tat_ca = sv.Detections.from_ultralytics(result)
+            if ho_so is not None:
+                ho_so.them("03_chuyen_doi_sv", time.perf_counter() - _t0)
+                _t0 = time.perf_counter()
             detections = tat_ca[tat_ca.class_id == PERSON_CLASS_ID]
             detections = tracker.update_with_detections(detections)
+            if ho_so is not None:
+                ho_so.them("04_tracker", time.perf_counter() - _t0)
 
             people_count = len(detections)
             max_people = max(max_people, people_count)
@@ -1829,8 +2141,12 @@ def run_analysis(
 
             # --- khuon mat: quet theo --face-every de tiet kiem thoi gian
             face_results = []
+            if ho_so is not None:
+                _t0 = time.perf_counter()
             if engine is not None and frame_index % max(1, cfg.face_every) == 0:
                 face_results = engine.analyze(frame, min_face_px=cfg.min_face)
+            if ho_so is not None:
+                ho_so.them("05_nhan_dien_mat", time.perf_counter() - _t0)
 
             face_count = len(face_results)
             max_faces = max(max_faces, face_count)
@@ -1853,6 +2169,8 @@ def run_analysis(
             # neu lam mo thi OCR khong doc duoc). Dung lai `tat_ca` cua YOLO
             # san co -> KHONG chay them 1 lan YOLO moi khung hinh.
             bs_frame: list = []
+            if ho_so is not None:
+                _t0 = time.perf_counter()
             if bo_doc_bien_so is not None:
                 try:
                     bs_frame = bo_doc_bien_so.doc(
@@ -1870,6 +2188,8 @@ def run_analysis(
                         f"({type(exc).__name__}: {exc})"
                     )
                     bo_doc_bien_so = None
+            if ho_so is not None:
+                ho_so.them("06_ocr_bien_so", time.perf_counter() - _t0)
 
             # --- lam mo nen
             if cfg.pixelate and people_count:
@@ -1997,6 +2317,8 @@ def run_analysis(
                 )
 
             # --- khung nguoi + duong dem
+            if ho_so is not None:
+                _t0 = time.perf_counter()
             labels = [
                 f"Nguoi {int(tid)}" if tid is not None else "Nguoi"
                 for tid in (detections.tracker_id if people_count else [])
@@ -2092,9 +2414,15 @@ def run_analysis(
                     frame = ve_khung_bien_so(frame, bs_frame)
                 except Exception:                           # noqa: BLE001 - fail-safe
                     pass    # khong ve overlay van chay tiep, khong dung app
+            if ho_so is not None:
+                ho_so.them("07_ve_khung", time.perf_counter() - _t0)
 
             if writer is not None:
+                if ho_so is not None:
+                    _t0 = time.perf_counter()
                 writer.write(frame)
+                if ho_so is not None:
+                    ho_so.them("08_ghi_video", time.perf_counter() - _t0)
             # Giu lai khung hinh CUOI da ve overlay (che do anh can no de luu
             # ra file .jpg).
             khung_cuoi = frame
@@ -2104,6 +2432,8 @@ def run_analysis(
             # badge) nen hien thi y hinh pipeline, khac vo hinh tho.
             # CHI encode khi co frame_cb (GUI) -> CLI khong ton them gi.
             if frame_cb is not None:
+                if ho_so is not None:
+                    _t0 = time.perf_counter()
                 gui_duoc = True
                 if frame_cb_interval > 0:
                     luc = time.monotonic()
@@ -2124,6 +2454,8 @@ def run_analysis(
                         if not bao_loi_gui_hinh:
                             bao_loi_gui_hinh = True
                             log(f"[canh bao] callback khung hinh loi: {exc}")
+                if ho_so is not None:
+                    ho_so.them("09_nen_jpeg", time.perf_counter() - _t0)
 
             # --- tu luu clip: giu vong dem + ghi khi co su kien
             if recorder is not None:
@@ -2192,6 +2524,17 @@ def run_analysis(
                 stopped = True
                 log("  [dung] nhan tin hieu dung -> dung mem, dong video an toan")
                 break
+
+            if ho_so is not None:
+                # Tong thoi gian 1 khung (tu luc doc xong khung den het vong lap)
+                _tg = time.perf_counter() - _t_khung
+                if ho_so.n_khung == 0:
+                    ho_so.tong_khung_dau = _tg
+                else:
+                    ho_so.tong_thoi_gian_sau += _tg
+                    ho_so.n_khung_sau += 1
+                ho_so.tong_thoi_gian += _tg
+                ho_so.n_khung += 1
     finally:
         cap.release()
         if writer is not None:
@@ -2381,6 +2724,11 @@ def run_analysis(
         else:
             log("Khong co su kien nao duoc chup trong video nay.")
     log("==============================")
+
+    if ho_so is not None:
+        ho_so.bao_cao(log)
+        if detector_nhanh is not None:
+            detector_nhanh.bao_cao(log)
 
     return AnalysisResult(
         out_path=out_path,

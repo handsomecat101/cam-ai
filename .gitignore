@@ -73,3 +73,9 @@ gui_ngon_ngu.json
 
 # Ban sao anh quen de chuyen sang may moi (anh giu o may cu, KHONG commit)
 known_faces_mau.zip
+
+# --- file tam cua agent (khong commit) ---
+_kk_core_goc.py
+_kk_probe_tmp*.py
+_tmp_dl_b/
+.commandcode/
