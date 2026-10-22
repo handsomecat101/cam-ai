@@ -1,0 +1,1991 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#16181D">
+<title>CamAI — Phân tích video giám sát</title>
+<style>
+/* ===================================================================
+   CamAI - UI web (dung chung cho QWebEngineView va trinh duyet dien thoai)
+   File tu chua: toan bo CSS + JS. KHONG tai tai nguyen tu Internet.
+   Doi theme = chi sua khoi bien CSS o :root.
+   =================================================================== */
+:root{
+  --bg:#16181D; --panel:#1E2128; --panel-2:#252932; --panel-3:#2E3340;
+  --border:#31353F; --border-strong:#454B58;
+  --text:#E9EAEE; --muted:#9AA0AC;
+  --accent:#4C8DFF; --accent-hi:#6BA1FF; --accent-dim:rgba(76,141,255,.16);
+  --accent-line:rgba(76,141,255,.45);
+  --ok:#3FB950; --ok-dim:rgba(63,185,80,.16); --ok-line:rgba(63,185,80,.45);
+  --warn:#E3B341; --warn-dim:rgba(227,179,65,.16); --warn-line:rgba(227,179,65,.45);
+  --err:#F85149; --err-dim:rgba(248,81,73,.16); --err-line:rgba(248,81,73,.45);
+  --video-bg:#0E1014;
+  --r-s:8px; --r-m:10px; --r-l:12px;
+  --g-1:8px; --g-2:12px; --g-3:16px; --g-4:24px;
+  --font:"Segoe UI","Segoe UI Variable Text",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  --h-dau:56px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{height:auto;-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100vh;min-height:100dvh;
+  font-family:var(--font);font-size:13px;line-height:1.45;color:var(--text);
+  background:
+    radial-gradient(1100px 620px at 10% -12%, rgba(76,141,255,.11), transparent 62%),
+    radial-gradient(900px 520px at 102% -4%, rgba(63,185,80,.07), transparent 58%),
+    var(--bg);
+  background-attachment:fixed;
+  overflow-x:hidden;overflow-y:auto;
+  -webkit-font-smoothing:antialiased;
+}
+img,video,svg{max-width:100%;display:block}
+button,input,select,textarea{font-family:inherit;font-size:13px}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r-s)}
+.an{display:none !important}
+
+/* --------------------------------------------- THANH CUON TU CHINH ------ */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--border-strong);background-clip:content-box}
+
+/* ------------------------------------------------------ HEADER ---------- */
+.thanh-dau{
+  position:sticky;top:0;z-index:50;
+  min-height:var(--h-dau);
+  display:flex;align-items:center;gap:var(--g-2);
+  padding:8px var(--g-3);
+  background:rgba(30,33,40,.78);
+  backdrop-filter:blur(18px) saturate(150%);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  border-bottom:1px solid var(--border);
+}
+.dau-trai{display:flex;align-items:center;gap:var(--g-2);min-width:0;flex:1 1 auto}
+.dau-giua{flex:0 0 auto}
+.dau-phai{flex:0 0 auto;display:flex;align-items:center;gap:var(--g-2)}
+.ten-app{font-size:19px;font-weight:600;letter-spacing:.2px;white-space:nowrap}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;
+  border-radius:var(--r-s);font-size:11px;color:var(--muted);
+  background:rgba(37,41,50,.72);border:1px solid var(--border);white-space:nowrap;
+}
+.chip-v{font-family:var(--font-mono);font-size:10px;padding:3px 8px}
+.chip-trang-thai{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 12px;
+  border-radius:var(--r-s);font-size:12px;font-weight:600;
+  color:var(--ok);background:var(--ok-dim);border:1px solid var(--ok-line);white-space:nowrap;
+}
+.chip-trang-thai.v2{color:var(--warn);background:var(--warn-dim);border-color:var(--warn-line)}
+.chip-trang-thai.v3{color:var(--err);background:var(--err-dim);border-color:var(--err-line)}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;box-shadow:0 0 0 3px rgba(63,185,80,.16)}
+.chip-trang-thai.v2 .dot{box-shadow:0 0 0 3px rgba(227,179,65,.16)}
+.chip-trang-thai.v3 .dot{box-shadow:0 0 0 3px rgba(248,81,73,.16)}
+
+/* --------------------------------------------------------- NUT --------- */
+.nut{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  min-height:36px;height:36px;padding:0 14px;
+  border-radius:var(--r-s);border:1px solid var(--border);
+  background:var(--panel-2);color:var(--text);
+  font-size:13px;font-weight:600;white-space:nowrap;
+  transition:background .16s ease,border-color .16s ease,transform .12s ease,box-shadow .16s ease,color .16s ease;
+}
+.nut:hover{background:var(--panel-3);border-color:var(--border-strong);transform:translateY(-1px)}
+.nut:active{transform:translateY(0)}
+.nut:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.nut-chinh{background:var(--accent);border-color:transparent;color:#0B1220}
+.nut-chinh:hover{background:var(--accent-hi);border-color:transparent;box-shadow:0 6px 18px rgba(76,141,255,.28)}
+.nut-do{background:var(--err);border-color:transparent;color:#fff}
+.nut-do:hover{background:#FF6A63;border-color:transparent}
+.nut-nho{min-height:32px;height:32px;padding:0 10px;font-size:12px;font-weight:500;justify-content:flex-start}
+.nut-icon{width:36px;padding:0}
+.ico{width:14px;height:14px;flex:none}
+.nut-menu{display:none}
+
+/* --------------------------------------------------------- BO CUC ------ */
+.lay-out{
+  display:grid;gap:var(--g-3);
+  padding:var(--g-3);
+  padding-left:max(var(--g-3),env(safe-area-inset-left));
+  padding-right:max(var(--g-3),env(safe-area-inset-right));
+  padding-bottom:max(var(--g-3),env(safe-area-inset-bottom));
+  max-width:1680px;margin:0 auto;align-items:start;
+}
+@media (min-width:901px){
+  .lay-out{grid-template-columns:300px minmax(0,1fr) 300px}
+}
+@media (min-width:1180px){
+  .lay-out{grid-template-columns:330px minmax(0,1fr) 340px}
+}
+.cot{display:flex;flex-direction:column;gap:var(--g-2);min-width:0}
+
+.the{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--r-m);
+  padding:14px var(--g-3);display:flex;flex-direction:column;gap:var(--g-1);
+  min-width:0;
+}
+.the-tieu-de{font-size:13px;font-weight:600;flex:none}
+.nhan-nho{font-size:12px;color:var(--muted);margin:0}
+
+/* --------------------------------------------- ACCORDION 12 NHOM ------- */
+.acc{
+  background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-m);
+  overflow:hidden;transition:border-color .18s ease,background .18s ease;
+}
+.acc:hover{border-color:var(--border-strong)}
+.acc[open]{border-color:var(--border-strong);background:var(--panel-2)}
+.acc>summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+  padding:10px var(--g-2);font-size:12.5px;font-weight:600;color:var(--text);
+  transition:background .16s ease;
+}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary::marker{content:""}
+.acc>summary:hover{background:var(--panel-3)}
+.chev{width:13px;height:13px;flex:none;color:var(--muted);transition:transform .22s cubic-bezier(.4,0,.2,1),color .18s ease}
+.acc[open] .chev{transform:rotate(90deg);color:var(--accent-hi)}
+.acc-mo-ta{margin:0 var(--g-2) 8px 32px;font-size:11px;color:var(--muted)}
+.acc-noi-dung{padding:0 var(--g-2) var(--g-2);display:flex;flex-direction:column;gap:var(--g-1)}
+.acc-noi-dung:empty{display:none}
+.acc-hanh-dung{display:flex;gap:var(--g-1);flex-wrap:wrap}
+.acc-hanh-dung>*{flex:1 1 150px}
+
+/* ------------------------------------------------------ FORM ----------- */
+.nhan{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
+.truong{display:flex;flex-direction:column;min-width:0}
+input[type=text],input[type=password],input[type=number],select{
+  width:100%;min-width:0;height:34px;
+  background:var(--panel);color:var(--text);
+  border:1px solid var(--border);border-radius:var(--r-s);
+  padding:0 10px;font-size:13px;
+  transition:border-color .16s ease,box-shadow .16s ease;
+}
+input::placeholder{color:#6E7480}
+input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+input[type=number]{font-family:var(--font-mono)}
+select{cursor:pointer}
+.chon{
+  display:flex;gap:9px;align-items:flex-start;
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--r-s);
+  padding:8px 10px;cursor:pointer;
+  transition:border-color .16s ease,background .16s ease;
+}
+.chon:hover{border-color:var(--border-strong)}
+.chon input{width:16px;height:16px;margin:2px 0 0;accent-color:var(--accent);flex:none}
+.chon span{font-size:12px;min-width:0}
+.chon.off{opacity:.55}
+.luoi-chon{display:grid;gap:var(--g-1);grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.hang{display:flex;gap:var(--g-1);flex-wrap:wrap;align-items:center}
+.hang>*{flex:0 1 auto}
+.nho{color:var(--muted);font-size:11px;margin:0;overflow-wrap:anywhere}
+.nho strong{color:var(--text)}
+.ghi-chu-vang{color:var(--warn);font-size:11px;margin:0}
+
+/* --------------------------------------------------- VIDEO -------------- */
+.khung-video{
+  position:relative;background:var(--video-bg);border:1px solid var(--border);
+  border-radius:var(--r-m);overflow:hidden;aspect-ratio:16/9;
+  display:flex;align-items:center;justify-content:center;
+}
+.khung-video img,.khung-video video{width:100%;height:100%;object-fit:contain;background:#000}
+/* Canvas ve vung: phu dung khung anh, chi bat chuot khi dang o che do ve. */
+#canvas_vung{position:absolute;z-index:4;pointer-events:none;touch-action:none;cursor:crosshair}
+#canvas_vung.ve-duoc{pointer-events:auto}
+/* Chon tep (anh nguoi quen) - giong mau nen cua giao dien. */
+input[type=file]{width:100%;min-width:0;font-size:12px;color:var(--muted);background:var(--panel);border:1px dashed var(--border);border-radius:var(--r-s);padding:6px 8px}
+input[type=file]::file-selector-button{background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:var(--r-s);padding:5px 10px;margin-right:8px;cursor:pointer;font-size:12px}
+.chu-thuong{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center;padding:var(--g-2);pointer-events:none}
+.thanh-tien{height:6px;background:var(--panel-2);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
+.thanh-tien>div{height:100%;width:0;background:var(--accent);transition:width .3s ease}
+.hang-the-so{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--g-1)}
+.the-so{
+  background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-m);
+  padding:9px 6px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease,background .18s ease;
+}
+.the-so:hover{border-color:var(--accent-line);background:var(--panel-3);transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.28)}
+.the-so b{font-size:22px;line-height:1.15;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.the-so span{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.the-so.canh b{color:var(--warn)}
+.the-so.quen b{color:var(--ok)}
+
+/* --------------------------------------------- DANH SACH ---------------- */
+.khung-danh-sach{max-height:260px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.dong{display:flex;gap:var(--g-1);padding:6px 4px;border-bottom:1px solid var(--border);align-items:flex-start;border-radius:var(--r-s);transition:background .16s ease}
+.dong:hover{background:var(--panel-2)}
+.dong:last-child{border-bottom:none}
+.dong .gio{color:var(--muted);font-size:11px;flex:0 0 auto;font-variant-numeric:tabular-nums;font-family:var(--font-mono);padding-top:2px;min-width:50px}
+.dong .nd{font-size:12px;flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.the-nho{font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid var(--border);background:var(--panel-2);color:var(--muted);flex:0 0 auto;white-space:nowrap;margin-top:1px}
+.the-nho.vao{background:var(--ok-dim);color:var(--ok);border-color:var(--ok-line)}
+.the-nho.ra{background:var(--err-dim);color:var(--err);border-color:var(--err-line)}
+.the-nho.vi_pham,.the-nho.canh_lau{background:var(--warn-dim);color:var(--warn);border-color:var(--warn-line)}
+.the-nho.ERROR{background:var(--err-dim);color:var(--err);border-color:var(--err-line)}
+.the-nho.WARN{background:var(--warn-dim);color:var(--warn);border-color:var(--warn-line)}
+.the-nho.INFO{background:var(--accent-dim);color:var(--accent-hi);border-color:var(--accent-line)}
+.nhat-ky{font-family:var(--font-mono);font-size:11px}
+.nhat-ky .nd{font-family:var(--font-mono)}
+
+/* --------------------------------------------- THONG BAO ----------------- */
+.thong-bao{margin-top:var(--g-1);border-radius:var(--r-s);padding:9px 11px;font-size:12px;overflow-wrap:anywhere;display:none}
+.thong-bao.ok{background:var(--ok-dim);border:1px solid var(--ok-line);color:#7EE787;display:block}
+.thong-bao.loi{background:var(--err-dim);border:1px solid var(--err-line);color:#FFA39E;display:block}
+.thong-bao.tt{background:var(--panel-2);border:1px solid var(--border);color:var(--text);display:block}
+
+/* --------------------------------------------- DANG NHAP ---------------- */
+#man_dang_nhap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:var(--g-3)}
+#the_dang_nhap{width:100%;max-width:380px}
+#the_dang_nhap h1{font-size:26px;margin:0 0 4px;letter-spacing:.4px}
+
+/* --------------------------------------------- DRAWER / MODAL ----------- */
+.ve-phu{
+  display:none;position:fixed;inset:0;background:rgba(8,10,14,.55);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  z-index:55;opacity:0;pointer-events:none;transition:opacity .24s ease;
+}
+.ve-phu.mo{opacity:1;pointer-events:auto}
+.modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:var(--g-3);background:rgba(8,10,14,.6)}
+.modal.mo{display:flex}
+.modal-hop{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border-strong);border-radius:var(--r-l);padding:var(--g-3);display:flex;flex-direction:column;gap:var(--g-1);box-shadow:0 20px 60px rgba(0,0,0,.55)}
+.modal-tieu-de{font-size:14px;font-weight:600}
+.modal-goyi{display:flex;gap:6px;flex-wrap:wrap}
+.modal-goyi button{font-size:11px;padding:4px 9px;min-height:28px;height:28px;border-radius:999px;border:1px solid var(--border);background:var(--panel-2);color:var(--muted)}
+.modal-goyi button:hover{border-color:var(--accent-line);color:var(--accent-hi)}
+.modal-hanh-dung{display:flex;gap:var(--g-1);justify-content:flex-end;margin-top:var(--g-1)}
+.ket-qua-json{
+  font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;word-break:break-word;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-s);
+  padding:var(--g-2);max-height:320px;overflow:auto;color:var(--text);margin:0;
+}
+
+/* --------------------------------------------- VIDEO MAU ---------------- */
+.danh-sach-mau{display:grid;gap:var(--g-1);grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.danh-sach-mau button{text-align:left;font-weight:500;font-size:12px;justify-content:flex-start;white-space:normal;height:auto;min-height:36px;line-height:1.35;padding:6px 10px;overflow-wrap:anywhere}
+.ds-camera{font-size:12px;color:var(--muted);margin:var(--g-1) 0 0;padding-left:18px}
+.ds-camera li{margin-bottom:3px}
+a{color:var(--accent-hi)}
+footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font-size:11px;max-width:1680px;margin:0 auto}
+
+/* --------------------------------------------- RESPONSIVE -------------- */
+@media (max-width:900px){
+  .lay-out{grid-template-columns:minmax(0,1fr)}
+  .nut-menu{display:inline-flex}
+  .cot-trai{
+    position:fixed;top:0;bottom:0;left:0;width:min(88vw,330px);z-index:60;
+    transform:translateX(-102%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+    background:var(--panel);border-right:1px solid var(--border);
+    box-shadow:24px 0 48px rgba(0,0,0,.45);
+    padding:var(--g-3);padding-top:max(var(--g-3),env(safe-area-inset-top));
+    overflow-y:auto;overflow-x:hidden;
+  }
+  .cot-trai.mo{transform:translateX(0)}
+  .ve-phu{display:block}
+  .hang-the-so{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .the-so b{font-size:19px}
+}
+@media (max-width:560px){
+  .ten-app{font-size:17px}
+  .chip-v{display:none}
+  .nut,.nut-nho,.nut-icon{min-height:44px;height:44px}
+  .nut-icon{width:44px}
+  input[type=text],input[type=password],input[type=number],select{height:44px;font-size:14px}
+  .chon{padding:11px 10px}
+  .chon input{width:18px;height:18px}
+  .the-so{padding:11px 4px}
+  .the-so b{font-size:20px}
+  .the-so span{font-size:10px}
+  .thanh-dau{padding:8px 10px}
+  .modal-hop{max-width:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================ DANG NHAP ============================ -->
+<div id="man_dang_nhap">
+  <div class="the" id="the_dang_nhap">
+    <h1>CamAI</h1>
+    <p class="nhan-nho">Nhập mật khẩu để vào phần mềm.</p>
+    <form id="form_dang_nhap" style="margin-top:var(--g-3)">
+      <div class="truong">
+        <label class="nhan" for="o_mat_khauu">Mật khẩu</label>
+        <input type="password" id="o_mat_khauu" placeholder="Mật khẩu"
+               autocomplete="current-password" required>
+      </div>
+      <button class="nut nut-chinh" type="submit" style="width:100%;margin-top:var(--g-2)">Vào phần mềm</button>
+    </form>
+    <div id="loi_dang_nhap" class="thong-bao"></div>
+    <p class="nho" style="margin-top:var(--g-2)">Toàn bộ hình ảnh và video được xử lý ngay trên máy này,
+      không gửi lên Internet.</p>
+  </div>
+</div>
+
+<!-- ============================ TRANG CHINH ========================== -->
+<div id="man_chinh" class="an">
+
+  <header class="thanh-dau">
+    <div class="dau-trai">
+      <button class="nut nut-icon nut-menu" id="nut_menu" aria-label="Mở bảng tuỳ chọn" title="Tuỳ chọn phân tích">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+      <span class="ten-app">CamAI</span>
+      <span class="chip chip-v" id="chip_phien">Web</span>
+    </div>
+    <div class="dau-giua">
+      <span class="chip-trang-thai" id="nhan_trang_thai">
+        <span class="dot"></span><span id="nhan_trang_thai_chu">Chưa chạy</span>
+      </span>
+    </div>
+    <div class="dau-phai">
+      <button class="nut nut-nho" id="nut_dang_xuat">Đăng xuất</button>
+    </div>
+  </header>
+
+  <div class="lay-out">
+
+    <!-- ==================== COT TRAI: 12 NHOM TINH NANG ================ -->
+    <aside class="cot cot-trai" id="cot_trai">
+      <div class="the" style="gap:var(--g-1)">
+        <div class="the-tieu-de">Tuỳ chọn phân tích</div>
+        <p class="nhan-nho">12 nhóm tính năng. Bấm để mở hoặc gập.</p>
+
+        <!-- ---------- 1. PHAT HIEN NGUOI ---------- -->
+        <details class="acc" data-nhom="phat_hien" open>
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>1. Phát hiện người</summary>
+          <p class="acc-mo-ta">Đếm có bao nhiêu người trong khung hình. Đây là bước đầu tiên, mọi tính năng khác đều dựa vào nó.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_phat_hien" data-truong="phat_hien" checked><span>Bật phát hiện người</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_conf">Ngưỡng tin cậy</label>
+              <input type="number" id="o_conf" data-truong="conf" min="0.05" max="1" step="0.05" value="0.25" inputmode="decimal">
+              <p class="nho">0,25 = mặc định. Hạ xuống sẽ bắt được cả người ở xa, nhưng nhiều khi bắt nhầm.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_model">Mô hình nhận diện</label>
+              <select id="o_model" data-truong="model">
+                <option value="yolo11n.pt" selected>yolo11n.pt (nhẹ nhất)</option>
+                <option value="yolo11s.pt">yolo11s.pt</option>
+                <option value="yolo11m.pt">yolo11m.pt</option>
+                <option value="yolo11l.pt">yolo11l.pt</option>
+              </select>
+              <p class="nho">yolo11n = nhẹ nhất, chạy nhanh nhất. Không rành thì để yolo11n.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_thiet_bi">Chạy bằng</label>
+              <select id="o_thiet_bi" data-truong="thiet_bi">
+                <option value="auto" selected>Tự động</option>
+                <option value="cuda">GPU (CUDA)</option>
+                <option value="cpu">CPU</option>
+              </select>
+              <p class="nho">Máy có card màn hình thì chạy nhanh hơn khoảng 2 lần. Không rành thì để “Tự động”.</p>
+            </div>
+            <div class="luoi-chon">
+              <label class="chon"><input type="checkbox" id="c_ve_khung" data-truong="ve_khung" checked><span>Vẽ khung người</span></label>
+              <label class="chon"><input type="checkbox" id="c_ve_nhan" data-truong="ve_nhan" checked><span>Vẽ nhãn tên</span></label>
+              <label class="chon"><input type="checkbox" id="c_lam_mo" data-truong="lam_mo"><span>Làm mờ nền, giữ rõ chỗ có người</span></label>
+            </div>
+          </div>
+        </details>
+
+        <!-- ---------- 2. NHAN DIEN KHUON MAT ---------- -->
+        <details class="acc" data-nhom="mat">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>2. Nhận diện khuôn mặt</summary>
+          <p class="acc-mo-ta">Dùng để biết người đó là ai. Cần có ảnh đăng ký trước trong thư mục known_faces.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_nhan_mat" data-truong="nhan_mat" checked><span>Bật nhận diện khuôn mặt</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_face_threshold">Ngưỡng giống mặt</label>
+              <input type="number" id="o_face_threshold" data-truong="face_threshold" min="0.1" max="0.9" step="0.05" value="0.40" inputmode="decimal">
+              <p class="nho">Cao hơn = dễ nhận nhầm người khác. Thấp hơn = dễ không nhận ra người quen. Mặc định 0,40.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_min_face">Bỏ qua mặt nhỏ hơn (px)</label>
+              <input type="number" id="o_min_face" data-truong="min_face" min="0" max="5000" step="1" value="0" inputmode="numeric">
+              <p class="nho">Mặt nhỏ hơn cỡ này thì bỏ qua. Để 0 = không bỏ.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_face_every">Quét mặt mỗi (khung hình)</label>
+              <input type="number" id="o_face_every" data-truong="face_every" min="1" max="100" step="1" value="1" inputmode="numeric">
+              <p class="nho">Quét mỗi N khung hình thì giảm tải máy. Máy chấm công nên để 5. Giám sát người đi nhanh thì để 1–2.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_faces_dir">Thư mục ảnh đã học</label>
+              <div class="hang">
+                <input type="text" id="o_faces_dir" data-truong="faces_dir" value="known_faces"
+                       placeholder="known_faces" autocomplete="off" spellcheck="false" style="flex:1 1 120px">
+                <button class="nut nut-nho" id="nut_chon_faces_dir" type="button" style="flex:0 0 auto">Chọn…</button>
+              </div>
+              <p class="nho">Cấu trúc: known_faces / &lt;Tên&gt; / *.jpg — mỗi người một thư mục con.</p>
+            </div>
+            <label class="chon off"><input type="checkbox" id="c_uoi_gioi" data-truong="uoi_gioi" checked disabled><span>Ước lượng tuổi và giới tính (luôn bật)</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_ten_nguoi_quen">Đăng ký người quen mới</label>
+              <input type="text" id="o_ten_nguoi_quen" placeholder="Tên: An, Binh…"
+                     autocomplete="off" spellcheck="false">
+              <label class="nhan" for="o_anh_nguoi_quen" style="margin-top:6px">Ảnh khuôn mặt của người đó</label>
+              <input type="file" id="o_anh_nguoi_quen" accept="image/*">
+              <p class="nho">Tên chỉ dùng chữ cái, số, khoảng trắng và gạch dưới. Ảnh được lưu vào known_faces/&lt;Tên&gt;/ rồi máy chủ tự đọc lại danh sách người đã học.</p>
+            </div>
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_dang_ky_nguoi_quen" type="button">Đăng ký người quen…</button>
+              <button class="nut nut-nho" id="nut_doc_lai_nguoi_quen" type="button">Đọc lại danh sách người đã học</button>
+            </div>
+          </div>
+        </details>
+
+        <!-- ---------- 3. DEM RA VAO ---------- -->
+        <details class="acc" data-nhom="dem">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>3. Đếm ra vào</summary>
+          <p class="acc-mo-ta">Vạch nằm ở giữa khung hình, đếm người đi qua vạch theo hướng vào / ra.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_dem_ra_vao" data-truong="dem_ra_vao"><span>Bật đếm người ra / vào (kèm vẽ vạch đếm)</span></label>
+          </div>
+        </details>
+
+        <!-- ---------- 4. CANH VUNG ---------- -->
+        <details class="acc" data-nhom="vung">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>4. Canh vùng</summary>
+          <p class="acc-mo-ta">Khoanh một vùng trong khung hình rồi cảnh báo khi có người vào vùng đó.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_canh_vung" data-truong="canh_vung"><span>Bật canh vùng</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_file_vung">File vùng (.txt)</label>
+              <div class="hang">
+                <input type="text" id="o_file_vung" data-truong="file_vung" value=""
+                       placeholder="vung.txt (mặc định)" autocomplete="off" spellcheck="false" style="flex:1 1 120px">
+                <button class="nut nut-nho" id="nut_chon_file_vung" type="button" style="flex:0 0 auto">Chọn…</button>
+              </div>
+            </div>
+            <label class="chon"><input type="checkbox" id="c_vung_nhay" data-truong="vung_nhay"><span>Chỉ cần một phần chân vào vùng là bị báo</span></label>
+            <p class="nho">Tắt = chặt: cả người phải nằm hẳn trong vùng mới báo. Bật = nhạy: thân chạm vùng là báo ngay.</p>
+            <div class="truong">
+              <label class="nhan" for="o_vung_max">Cảnh báo khi vượt quá (người)</label>
+              <input type="number" id="o_vung_max" data-truong="vung_max" min="0" max="999" step="1" value="2" inputmode="numeric">
+              <p class="nho">Nhập 0 để tắt cảnh báo này.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_canh_lau">Cảnh báo khi người đứng lâu (giây)</label>
+              <input type="number" id="o_canh_lau" data-truong="canh_lau" min="0" max="600" step="0.5" value="3" inputmode="decimal">
+              <p class="nho">Nhập 0 để tắt cảnh báo này.</p>
+            </div>
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_ve_vung" type="button">Vẽ vùng trên khung hình</button>
+              <button class="nut nut-nho" id="nut_luu_vung" type="button" disabled>Lưu vùng</button>
+              <button class="nut nut-nho" id="nut_ve_vung_tai_day" type="button">Xoá vùng</button>
+            </div>
+            <p class="nho" id="dong_vung">Chưa vẽ vùng nào. Bấm “Vẽ vùng trên khung hình”, rồi kéo chuột (hoặc chạm) trên khung video để khoanh vùng.</p>
+          </div>
+        </details>
+
+        <!-- ---------- 5. LUU CLIP ---------- -->
+        <details class="acc" data-nhom="clip">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>5. Lưu clip khi có sự kiện</summary>
+          <p class="acc-mo-ta">Tự cắt và lưu đoạn video quanh lúc có chuyện. Mặc định tắt để cho máy chạy nhẹ.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_luu_clip" data-truong="luu_clip"><span>Bật lưu clip khi có sự kiện</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_tu_luu_clip">Thư mục lưu clip</label>
+              <input type="text" id="o_tu_luu_clip" data-truong="tu_luu_clip" value=""
+                     placeholder="clip_da_luu (để trống = máy chủ tự chọn)" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_clip_giay">Tổng thời lượng 1 clip (giây)</label>
+              <input type="number" id="o_clip_giay" data-truong="clip_giay" min="2" max="120" step="1" value="10" inputmode="numeric">
+              <p class="nho">Chia đôi: một nửa trước sự kiện, một nửa sau sự kiện.</p>
+            </div>
+            <label class="chon"><input type="checkbox" id="c_clip_tat_ca" data-truong="clip_ghi_tat_ca"><span>Ghi clip cả khi không bật canh vùng</span></label>
+          </div>
+        </details>
+
+        <!-- ---------- 6. THEM VAT THE KHAC ---------- -->
+        <details class="acc" data-nhom="vat_the">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>6. Thêm vật thể khác</summary>
+          <p class="acc-mo-ta">Ngoài người, còn vẽ khung và đếm các vật thể khác (xe, chó, mèo). Mặc định tắt.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_vat_the" data-truong="vat_the"><span>Bật nhận vật thể khác</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_lop">Danh sách lớp cần nhận</label>
+              <input type="text" id="o_lop" data-truong="lop" value="" placeholder="ô tô, xe máy" list="ds_lop"
+                     autocomplete="off" spellcheck="false">
+              <datalist id="ds_lop"></datalist>
+              <p class="nho" id="dong_lop">Gợi ý lớp vật thể sẽ tự động tải.</p>
+            </div>
+            <label class="chon"><input type="checkbox" id="c_dem_phuong_tien" data-truong="dem_phuong_tien"><span>Bật đếm phương tiện (ô tô, xe máy…)</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_lop_phuong_tien">Lớp phương tiện cần đếm</label>
+              <input type="text" id="o_lop_phuong_tien" data-truong="lop_phuong_tien" value=""
+                     placeholder="ô tô, xe máy (để trống = lớp xe mặc định)" list="ds_lop"
+                     autocomplete="off" spellcheck="false">
+            </div>
+            <p class="nho">Khung vật thể vẽ màu cam và KHÔNG tính vào số người, số vào/ra, cảnh báo vùng.</p>
+          </div>
+        </details>
+
+        <!-- ---------- 7. NHAN NGUOI O XA ---------- -->
+        <details class="acc" data-nhom="tach_o">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>7. Nhận người ở xa (chậm hơn)</summary>
+          <p class="acc-mo-ta">Máy sẽ dò cả khung hình nguyên vẹn lẫn các ô nhỏ, rồi ghép lại — nên người ở gần không bị mất, người ở xa thì dễ nhận hơn.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_tach_o" data-truong="tach_o"><span>Bật nhận người ở xa</span></label>
+            <p class="ghi-chu-vang">Cảnh báo: bật mục này sẽ CHẬM HƠN ~5,3 LẦN và xem trực tiếp sẽ giật hơn. Camera treo cao quay gần thì không cần.</p>
+          </div>
+        </details>
+
+        <!-- ---------- 8. DOC BIEN SO XE ---------- -->
+        <details class="acc" data-nhom="bien_so">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>8. Đọc biển số xe</summary>
+          <p class="acc-mo-ta">Đọc chữ trên biển số xe Việt Nam bằng RapidOCR — chạy 100% trên máy này, không gửi ảnh ra ngoài.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_doc_bien_so" data-truong="doc_bien_so"><span>Bật đọc biển số xe</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_bien_so_dir">Thư mục lưu ảnh crop biển số</label>
+              <div class="hang">
+                <input type="text" id="o_bien_so_dir" data-truong="bien_so_dir" value="anh_bien_so"
+                       autocomplete="off" spellcheck="false" style="flex:1 1 120px">
+                <button class="nut nut-nho" id="nut_chon_bien_so_dir" type="button" style="flex:0 0 auto">Chọn…</button>
+              </div>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_bien_so_tin_cay">Ngưỡng tin cậy đọc biển số</label>
+              <input type="number" id="o_bien_so_tin_cay" data-truong="bien_so_tin_cay" min="0.1" max="1" step="0.05" value="0.5" inputmode="decimal">
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_bien_so_giay">Nghỉ giữa 2 lần (giây)</label>
+              <input type="number" id="o_bien_so_giay" data-truong="bien_so_nhoan_lai_giay" min="1" max="600" step="1" value="30" inputmode="numeric">
+              <p class="nho">Cùng một biển số chỉ được lưu ảnh 1 lần trong khoảng nghỉ ở trên.</p>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_bien_so_vung">Vùng biển số cần quét (ROI)</label>
+              <input type="text" id="o_bien_so_vung" data-truong="vung_bien_so" value=""
+                     placeholder="x1,y1,x2,y2 (để trống = tự tìm trong khung hình)"
+                     autocomplete="off" spellcheck="false">
+              <p class="nho">Gõ 0,1 – 1,0 là tọa độ tương đối, số lớn hơn 1 là tọa độ pixel.</p>
+            </div>
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_xem_bien_so" type="button">Xem biển số đã đọc</button>
+            </div>
+            <p class="nho" id="dong_bien_so">Chưa đọc được biển số nào.</p>
+          </div>
+        </details>
+
+        <!-- ---------- 9. TU CHUP ANH ---------- -->
+        <details class="acc" data-nhom="tu_chup">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>9. Tự chụp ảnh khi có sự kiện</summary>
+          <p class="acc-mo-ta">Khi có người đông, vượt vùng hoặc thấy người quen thì chụp lại khung hình lưu thành ảnh. Mặc định tắt.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_tu_chup" data-truong="tu_chup"><span>Bật tự chụp ảnh khi có sự kiện</span></label>
+            <div class="truong">
+              <label class="nhan" for="o_tu_chup_dir">Thư mục lưu ảnh</label>
+              <div class="hang">
+                <input type="text" id="o_tu_chup_dir" data-truong="tu_chup_dir" value="anh_su_kien"
+                       autocomplete="off" spellcheck="false" style="flex:1 1 120px">
+                <button class="nut nut-nho" id="nut_chon_tu_chup_dir" type="button" style="flex:0 0 auto">Chọn…</button>
+              </div>
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_tu_chup_giay">Nghỉ giữa 2 lần (giây)</label>
+              <input type="number" id="o_tu_chup_giay" data-truong="tu_chup_nhoan_lai_giay" min="1" max="600" step="1" value="10" inputmode="numeric">
+              <p class="nho">Chụp khi có người đông, vượt vùng canh, thấy người quen hoặc có người đứng lâu.</p>
+            </div>
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_xem_anh_su_kien" type="button">Xem ảnh sự kiện đã chụp</button>
+            </div>
+            <p class="nho" id="dong_anh_su_kien">Chưa chụp ảnh sự kiện nào.</p>
+          </div>
+        </details>
+
+        <!-- ---------- 10. CANH BAO ---------- -->
+        <details class="acc" data-nhom="canh_bao">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>10. Cảnh báo (gửi tin ra ngoài)</summary>
+          <p class="acc-mo-ta">Khi có sự kiện thì báo ra ngoài máy này (chuông / hộp thoại / Telegram). Mặc định TẮT, và mặc định chỉ thử chứ không gửi thật.</p>
+          <div class="acc-noi-dung">
+            <label class="chon"><input type="checkbox" id="c_canh_bao" data-truong="bat_canh_bao"><span>Bật cảnh báo ra ngoài</span></label>
+            <label class="chon"><input type="checkbox" id="c_cb_mo_phong" data-truong="canh_bao_mo_phong" checked><span>Chỉ thử (không gửi thật)</span></label>
+            <p class="nho">Bỏ chọn ô này thì cảnh báo sẽ KÊU CHUÔNG và MỞ HỘP THOẠI ngay trên máy này.</p>
+            <div class="truong">
+              <label class="nhan" for="o_cb_go">Gộp tin (giây)</label>
+              <input type="number" id="o_cb_go" data-truong="canh_bao_go" min="0" max="3600" step="5" value="60" inputmode="numeric">
+            </div>
+            <div class="truong">
+              <label class="nhan" for="o_cb_gioi_han">Giới hạn (tin/phút)</label>
+              <input type="number" id="o_cb_gioi_han" data-truong="canh_bao_gioi_han" min="1" max="999" step="1" value="5" inputmode="numeric">
+            </div>
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_thu_canh_bao" type="button">Thử gửi 1 cảnh báo</button>
+            </div>
+          </div>
+        </details>
+
+        <!-- ---------- 11. THONG TIN MO HINH AI ---------- -->
+        <details class="acc" data-nhom="model">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>11. Thông tin mô hình AI</summary>
+          <p class="acc-mo-ta">Xem phần mềm đang dùng model nào, nặng bao nhiêu, chạy trên GPU hay CPU.</p>
+          <div class="acc-noi-dung">
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_thong_tin_model" type="button">Xem thông tin mô hình AI đang dùng</button>
+            </div>
+          </div>
+        </details>
+
+        <!-- ---------- 12. MAY NAY CHAY BANG GI ---------- -->
+        <details class="acc" data-nhom="thiet_bi">
+          <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>12. Máy này chạy bằng gì</summary>
+          <p class="acc-mo-ta">Máy có GPU thì CamAI tự chạy bằng card màn hình cho nhanh. Máy không có GPU thì chạy bằng CPU, vẫn chạy được nhưng chậm hơn. Không rành thì cứ để “Tự động”.</p>
+          <div class="acc-noi-dung">
+            <p class="nho">Đang chọn: <strong id="dong_thiet_bi">Tự động</strong> (đổi ở mục “1. Phát hiện người”).</p>
+            <div class="acc-hanh-dung">
+              <button class="nut nut-nho" id="nut_thong_tin_thiet_bi" type="button">Xem thông tin thiết bị</button>
+            </div>
+          </div>
+        </details>
+
+      </div>
+    </aside>
+
+    <!-- ==================== COT CHINH: VIDEO + SO + CHAY ================ -->
+    <section class="cot cot-chinh">
+
+      <div class="the">
+        <div class="the-tieu-de">1. Chọn nguồn</div>
+        <div class="truong">
+          <label class="nhan" for="o_duong_dan">Đường dẫn video trên máy chủ</label>
+          <input type="text" id="o_duong_dan" placeholder="video_mau/car-detection.mp4"
+                 autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="hang">
+          <button class="nut nut-nho" id="nut_quet_camera" type="button">Quét camera</button>
+          <button class="nut nut-nho" id="nut_lay_mau" type="button">Video mẫu</button>
+        </div>
+        <ul class="ds-camera" id="ds_camera"></ul>
+        <div class="danh-sach-mau" id="luoi_video_mau"></div>
+        <p class="nho">Bản web chạy được với <strong>file video</strong>. Camera/webcam trực tiếp dùng trong bản desktop.</p>
+      </div>
+
+      <div class="the">
+        <div class="the-tieu-de">2. Chạy</div>
+        <div class="hang">
+          <button class="nut nut-chinh" id="nut_chay" type="button" style="flex:1 1 140px">BẮT ĐẦU</button>
+          <button class="nut nut-do" id="nut_dung" type="button" style="flex:0 1 120px" disabled>DỪNG</button>
+        </div>
+        <div id="noi_dung_thong_bao" class="thong-bao"></div>
+      </div>
+
+      <div class="the">
+        <div class="khung-video">
+          <img id="img_live" class="an" alt="Khung hình đang phân tích">
+          <video id="video_ket_qua" class="an" controls playsinline preload="none"></video>
+          <canvas id="canvas_vung" class="an"></canvas>
+          <div class="chu-thuong" id="chu_khung">Bấm “BẮT ĐẦU” để chạy phân tích.</div>
+        </div>
+        <div class="thanh-tien"><div id="thanhtien"></div></div>
+        <p class="nho" id="dong_khung_hinh">Chưa có dữ liệu.</p>
+        <div class="the-tieu-de" style="margin-top:var(--g-1)">3. Kết quả</div>
+        <div class="hang">
+          <button class="nut nut-nho" id="nut_xem_video" type="button" style="flex:1 1 150px">Xem video kết quả</button>
+          <button class="nut nut-nho" id="nut_tai_csv" type="button" style="flex:1 1 110px">Tải CSV</button>
+          <button class="nut nut-nho" id="nut_tao_bao_cao" type="button" style="flex:1 1 130px">Tạo báo cáo</button>
+        </div>
+        <p class="nho">CSV ghi từng sự kiện. Báo cáo tạo file tổng kết (xlsx + html) trên máy chủ.</p>
+      </div>
+
+      <div class="the">
+        <div class="the-tieu-de">Đếm nhanh</div>
+        <div class="hang-the-so">
+          <div class="the-so"><b id="s_nguoi">0</b><span>Người</span></div>
+          <div class="the-so"><b id="s_mat">0</b><span>Khuôn mặt</span></div>
+          <div class="the-so"><b id="s_vao">0</b><span>Vào</span></div>
+          <div class="the-so"><b id="s_ra">0</b><span>Ra</span></div>
+          <div class="the-so canh"><b id="s_trong_vung">0</b><span>Trong vùng</span></div>
+          <div class="the-so"><b id="s_xe">0</b><span>Xe</span></div>
+        </div>
+        <p class="nho" id="dong_ket_qua"></p>
+      </div>
+    </section>
+
+    <!-- ==================== COT PHAI: SU KIEN + NHAT KY ================== -->
+    <aside class="cot cot-phai">
+      <div class="the">
+        <div class="the-tieu-de">Sự kiện</div>
+        <div class="khung-danh-sach" id="khung_su_kien">
+          <p class="nho" id="chu_su_kien">Chưa có sự kiện nào.</p>
+        </div>
+      </div>
+      <div class="the">
+        <div class="the-tieu-de">Nhật ký</div>
+        <div class="khung-danh-sach nhat-ky" id="khung_nhat_ky">
+          <p class="nho" id="chu_nhat_ky">Chưa có nhật ký nào.</p>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer>CamAI — xử lý ngay trên máy này, không gửi hình ảnh lên Internet.</footer>
+</div>
+
+<!-- ============================ MODAL CHON DUONG DAN ==================== -->
+<div class="modal" id="modal_chon_duong_dan">
+  <div class="modal-hop">
+    <div class="modal-tieu-de" id="modal_tieu_de">Chọn đường dẫn trên máy chủ</div>
+    <input type="text" id="modal_o_duong_dan" placeholder="known_faces" autocomplete="off" spellcheck="false">
+    <p class="nho">Gõ đường dẫn thư mục trên máy chủ (không phải trên điện thoại).</p>
+    <p class="nho">Gợi ý nhanh:</p>
+    <div class="modal-goyi" id="modal_goyi"></div>
+    <div class="modal-hanh-dung">
+      <button class="nut nut-nho" id="modal_huy" type="button">Hủy</button>
+      <button class="nut nut-chinh" id="modal_ok" type="button">Chọn</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ MODAL KET QUA ========================== -->
+<div class="modal" id="modal_ket_qua">
+  <div class="modal-hop">
+    <div class="modal-tieu-de" id="modal_ket_qua_tieu_de">Thông tin</div>
+    <pre class="ket-qua-json" id="modal_ket_qua_noi_dung"></pre>
+    <div class="modal-hanh-dung">
+      <button class="nut nut-nho" id="modal_ket_qua_dong" type="button">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<div class="ve-phu" id="ve_phu"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TOKEN_KEY = 'camai_token';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* -------------------------------------------------- token ---------- */
+  function layToken() {
+    try { return window.localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  function luuToken(t) {
+    try { window.localStorage.setItem(TOKEN_KEY, t || ''); } catch (e) { /* bo qua */ }
+  }
+  function xoaToken() {
+    try { window.localStorage.removeItem(TOKEN_KEY); } catch (e) { /* bo qua */ }
+  }
+  function themToken(duong) {
+    var t = layToken();
+    if (!t) return duong;
+    return duong + (duong.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(t);
+  }
+
+  /* -------------------------------------------------- goi API -------- */
+  function api(duong, tuy_chon) {
+    var goi = { credentials: 'same-origin' };
+    if (tuy_chon) {
+      for (var k in tuy_chon) { if (tuy_chon.hasOwnProperty(k)) goi[k] = tuy_chon[k]; }
+    }
+    var token = layToken();
+    if (token) {
+      goi.headers = goi.headers || {};
+      goi.headers['X-Camai-Token'] = token;
+      goi.headers['Authorization'] = 'Bearer ' + token;
+    }
+    return fetch(duong, goi).then(function (res) {
+      return res.text().then(function (chuoi) {
+        var duLieu = null;
+        try { duLieu = JSON.parse(chuoi); } catch (e) { duLieu = null; }
+        return { ok: res.ok, status: res.status, duLieu: duLieu };
+      });
+    }).catch(function () {
+      return { ok: false, status: 0, duLieu: null,
+               loi: 'Không kết nối được tới máy chủ.' };
+    });
+  }
+
+  /* Thu cac endpoint lien tiep, bo qua 404. Tra null neu khong co endpoint nao ton tai. */
+  function thuApi(danh_sach) {
+    var i = 0;
+    function buoc() {
+      if (i >= danh_sach.length) return Promise.resolve(null);
+      var duong = danh_sach[i++];
+      return api(duong).then(function (r) {
+        if (r.status === 404) return buoc();
+        return { duong: duong, ok: r.ok, status: r.status, duLieu: r.duLieu };
+      });
+    }
+    return buoc();
+  }
+
+  /* -------------------------------------------------- thong bao ------- */
+  function thongBao(nd, loai) {
+    var o = $('noi_dung_thong_bao');
+    if (!o) return;
+    o.className = 'thong-bao ' + (loai === true ? 'ok' : (loai === false ? 'loi' : 'tt'));
+    o.textContent = nd || '';
+  }
+
+  function moManChinh() {
+    $('man_dang_nhap').classList.add('an');
+    $('man_chinh').classList.remove('an');
+  }
+  function hienManDangNhap() {
+    $('man_chinh').classList.add('an');
+    $('man_dang_nhap').classList.remove('an');
+  }
+
+  /* -------------------------------------------------- dang nhap ------ */
+  $('form_dang_nhap').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var loi = $('loi_dang_nhap');
+    loi.className = 'thong-bao loi';
+    loi.textContent = 'Đang kiểm tra...';
+    api('/api/dang-nhap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mat_khauu: $('o_mat_khauu').value })
+    }).then(function (r) {
+      if (r.ok && r.duLieu && r.duLieu.ok) {
+        luuToken(r.duLieu.token || '');
+        loi.className = 'thong-bao';
+        loi.textContent = '';
+        $('o_mat_khauu').value = '';
+        moManChinh();
+        napVideoMau();
+        napLopViet();
+        napCauHinh();
+        poll();
+      } else {
+        loi.className = 'thong-bao loi';
+        loi.textContent = (r.duLieu && r.duLieu.loi) || 'Đăng nhập không thành công.';
+      }
+    });
+  });
+
+  $('nut_dang_xuat').addEventListener('click', function () {
+    api('/api/dang-xuat', { method: 'POST' }).then(function () {
+      xoaToken();
+      hienManDangNhap();
+    });
+  });
+
+  /* -------------------------------------------------- nap du lieu ---- */
+  function napVideoMau() {
+    return api('/api/video-mau').then(function (r) {
+      if (!r.ok || !r.duLieu || !r.duLieu.video_mau) return;
+      var luoi = $('luoi_video_mau');
+      luoi.innerHTML = '';
+      r.duLieu.video_mau.forEach(function (v) {
+        if (!v.co_that) return;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'nut nut-nho';
+        b.textContent = v.ten;
+        b.title = v.duong_dan || '';
+        b.addEventListener('click', function () {
+          $('o_duong_dan').value = v.duong_dan;
+          thongBao('Đã chọn: ' + v.ten + '. Bấm “BẮT ĐẦU” để chạy.', true);
+        });
+        luoi.appendChild(b);
+      });
+    });
+  }
+
+  function napLopViet() {
+    return api('/api/lop-viet').then(function (r) {
+      if (!r.ok || !r.duLieu || !r.duLieu.danh_sach) return;
+      var ds = $('ds_lop');
+      ds.innerHTML = '';
+      r.duLieu.danh_sach.forEach(function (l) {
+        var o = document.createElement('option');
+        o.value = l.ten_viet;
+        o.setAttribute('data-ten-anh', l.ten_anh);
+        ds.appendChild(o);
+      });
+      $('dong_lop').textContent = 'Có ' + r.duLieu.danh_sach.length +
+        ' lớp vật thể (gõ tiếng Việt, ví dụ “ô tô”, “xe máy”).';
+    });
+  }
+
+  $('nut_lay_mau').addEventListener('click', function () {
+    napVideoMau();
+    thongBao('Đã tải danh sách video mẫu.', true);
+  });
+
+  $('nut_quet_camera').addEventListener('click', function () {
+    var ds = $('ds_camera');
+    ds.innerHTML = '<li>Đang quét camera...</li>';
+    thongBao('Đang quét camera trên máy chủ...', true);
+    api('/api/quet-camera').then(function (r) {
+      if (!r.ok || !r.duLieu) {
+        ds.innerHTML = '<li>Không quét được camera.</li>';
+        thongBao('Không quét được camera trên máy chủ.', false);
+        return;
+      }
+      var danh = r.duLieu.danh_sach || [];
+      var co = danh.filter(function (c) { return c.mo_duoc; });
+      if (!co.length) {
+        ds.innerHTML = '<li>Máy này không tìm thấy camera nào.</li>';
+        thongBao('Không tìm thấy camera nào trên máy chủ.', false);
+        return;
+      }
+      ds.innerHTML = '';
+      co.forEach(function (c) {
+        var li = document.createElement('li');
+        li.textContent = 'Camera ' + c.index + ' — ' + (c.ten || 'không tên') +
+          ' (' + (c.do_phan_giai || '?') + ')';
+        ds.appendChild(li);
+      });
+      thongBao('Tìm thấy ' + co.length + ' camera (bản web chỉ chạy file video).', true);
+    });
+  });
+
+  /* -------------------------------------------------- 12 NHOM ------- */
+  /* Ten truong trong HTML = ten goi noi bo cua UI.
+     Cac ten khu (alias) giup khi may chu tra ve ten field cua AnalysisConfig. */
+  var ALIAS = {
+    no_face: 'nhan_mat',
+    nhan_vat_the: 'vat_the',
+    show_box: 've_khung',
+    show_label: 've_nhan',
+    pixelate: 'lam_mo',
+    vung: 'file_vung',
+    show_line: 'dem_ra_vao'
+  };
+  var DAO_NGUOC = { no_face: true };
+
+  /* 2 field do SERVER so huu - UI khong duoc tao control cho chung. */
+  var KHONG_DUNG = { input: 1, output: 1 };
+
+  /* Field GIU mac dinh cua UI (mac dinh gui.py, khong theo dataclass). */
+  var GIU_MAC_DINH = { canh_bao_mo_phong: 1, show_line: 1 };
+
+  /* data-truong (UI) -> khoa gui vao body (ten field cua AnalysisConfig).
+     null = chi o tren man hinh, KHONG gui xuong may chu. */
+  var TRUONG_PAYLOAD = {
+    phat_hien: null,
+    conf: 'conf',
+    model: 'model',
+    thiet_bi: 'thiet_bi',
+    ve_khung: 'show_box',
+    ve_nhan: 'show_label',
+    lam_mo: 'pixelate',
+    nhan_mat: 'no_face',
+    face_threshold: 'face_threshold',
+    min_face: 'min_face',
+    face_every: 'face_every',
+    faces_dir: 'faces_dir',
+    uoi_gioi: null,
+    dem_ra_vao: 'show_line',
+    canh_vung: null,
+    file_vung: 'vung',
+    vung_nhay: 'vung_nhay',
+    vung_max: 'vung_max',
+    canh_lau: 'canh_lau',
+    luu_clip: null,
+    tu_luu_clip: 'tu_luu_clip',
+    clip_giay: 'clip_giay',
+    clip_ghi_tat_ca: 'clip_ghi_tat_ca',
+    vat_the: 'nhan_vat_the',
+    lop: 'lop',
+    dem_phuong_tien: 'dem_phuong_tien',
+    lop_phuong_tien: 'lop_phuong_tien',
+    tach_o: 'tach_o',
+    doc_bien_so: 'doc_bien_so',
+    bien_so_dir: 'bien_so_dir',
+    bien_so_tin_cay: 'bien_so_tin_cay',
+    bien_so_nhoan_lai_giay: 'bien_so_nhoan_lai_giay',
+    bien_so_vung: 'vung_bien_so',
+    tu_chup: null,
+    tu_chup_dir: 'tu_chup_dir',
+    tu_chup_nhoan_lai_giay: 'tu_chup_nhoan_lai_giay',
+    bat_canh_bao: 'bat_canh_bao',
+    canh_bao_mo_phong: 'canh_bao_mo_phong',
+    canh_bao_go: 'canh_bao_go',
+    canh_bao_gioi_han: 'canh_bao_gioi_han'
+  };
+
+  var NHOM_KEYS = {
+    phat_hien: ['phat_hien', 'phat_hien_nguoi'],
+    mat: ['nhan_dien_khuon_mat', 'nhan_mat', 'khuon_mat', 'mat'],
+    dem: ['dem_ra_vao'],
+    vung: ['canh_vung', 'vung'],
+    clip: ['luu_clip', 'luu_clip_khi_co_su_kien', 'clip'],
+    vat_the: ['them_vat_the_khac', 'vat_the', 'vat_the_khac'],
+    tach_o: ['nhan_nguoi_o_xa', 'nhan_nguoi_o_xa_cham_hon', 'tach_o'],
+    bien_so: ['doc_bien_so_xe', 'bien_so', 'doc_bien_so'],
+    tu_chup: ['tu_chup_anh_khi_co_su_kien', 'tu_chup'],
+    canh_bao: ['canh_bao_gui_tin_ra_ngoai', 'canh_bao'],
+    model: ['thong_tin_mo_hinh_ai', 'model', 'mo_hinh_ai'],
+    thiet_bi: ['may_nay_chay_bang_gi', 'thiet_bi']
+  };
+
+  function slug(s) {
+    var x = String(s || '').toLowerCase();
+    if (x.normalize) {
+      /* bo dau thanh (dac biet tieng Viet): ma chu < 768 la dau thanh */
+      var y = x.normalize('NFD');
+      var rs = '';
+      for (var i = 0; i < y.length; i++) {
+        var cp = y.charCodeAt(i);
+        if (cp < 768 || cp > 879) rs += y.charAt(i);
+      }
+      x = rs;
+    }
+    x = x.replace(/đ/g, 'd');
+    x = x.replace(/[^a-z0-9]+/g, '_');
+    return x.replace(/^_+|_+$/g, '');
+  }
+
+  function timNhom(ten) {
+    var s = slug(ten);
+    var khoa;
+    /* khop chinh xac */
+    for (khoa in NHOM_KEYS) {
+      if (!NHOM_KEYS.hasOwnProperty(khoa)) continue;
+      if (NHOM_KEYS[khoa].indexOf(s) >= 0) return khoa;
+    }
+    /* khop theo tien to (vd "nhan_nguoi_o_xa_cham_hon" -> "nhan_nguoi_o_xa") */
+    for (khoa in NHOM_KEYS) {
+      if (!NHOM_KEYS.hasOwnProperty(khoa)) continue;
+      for (var i = 0; i < NHOM_KEYS[khoa].length; i++) {
+        if (s.indexOf(NHOM_KEYS[khoa][i]) === 0) return khoa;
+      }
+    }
+    return null;
+  }
+
+  function capNhatControl(el, truong) {
+    var mac = truong.gia_tri_mac_dinh;
+    if (el.type === 'checkbox') {
+      if (GIU_MAC_DINH[truong.ten]) return;   /* giu mac dinh an toan cua UI */
+      if (mac !== undefined && mac !== null) el.checked = !!mac;
+      return;
+    }
+    if (truong.toi_thieu !== undefined && truong.toi_thieu !== null) el.min = truong.toi_thieu;
+    if (truong.toi_da !== undefined && truong.toi_da !== null) el.max = truong.toi_da;
+    if (truong.buoc !== undefined && truong.buoc !== null) el.step = truong.buoc;
+    if (mac !== undefined && mac !== null && !el.value) el.value = mac;
+    if (truong.mo_ta && el.tagName === 'INPUT' && el.type === 'text') {
+      el.title = truong.mo_ta;
+    }
+  }
+
+  function taoControl(truong) {
+    var ten = truong.ten || '';
+    var kieu = String(truong.kieu || 'chuoi').toLowerCase();
+    var wrapper = document.createElement('div');
+    wrapper.className = 'truong';
+    var lb = document.createElement('label');
+    lb.className = 'nhan';
+    lb.textContent = truong.nhan || ten;
+    var el;
+    if (kieu === 'bool' || kieu === 'boolean' || kieu === 'checkbox') {
+      wrapper.className = 'chon';
+      el = document.createElement('input');
+      el.type = 'checkbox';
+      lb.remove();
+      wrapper.appendChild(el);
+      var sp = document.createElement('span');
+      sp.textContent = truong.nhan || ten;
+      wrapper.appendChild(sp);
+    } else if (kieu === 'so' || kieu === 'int' || kieu === 'float' || kieu === 'number') {
+      el = document.createElement('input');
+      el.type = 'number';
+      wrapper.appendChild(lb);
+      wrapper.appendChild(el);
+    } else {
+      el = document.createElement('input');
+      el.type = 'text';
+      wrapper.appendChild(lb);
+      wrapper.appendChild(el);
+    }
+    el.id = 'o_cfg_' + ten;
+    el.setAttribute('data-truong', ten);
+    if (truong.mo_ta) {
+      var p = document.createElement('p');
+      p.className = 'nho';
+      p.textContent = truong.mo_ta;
+      wrapper.appendChild(p);
+    }
+    capNhatControl(el, truong);
+    return wrapper;
+  }
+
+  function apDungCauHinh(danhSach) {
+    var daDung = {};
+    danhSach.forEach(function (n) {
+      if (!n) return;
+      var key = timNhom(n.ten || n.id || n.key || '');
+      if (!key) return;
+      var acc = document.querySelector('details[data-nhom="' + key + '"]');
+      if (!acc) return;
+      var body = acc.querySelector('.acc-noi-dung');
+      if (!body) return;
+      (n.truong || []).forEach(function (t) {
+        if (!t) return;
+        var ten = t.ten || '';
+        if (!ten) return;
+        if (KHONG_DUNG[ten]) return;        /* server so huu input/output */
+        var tim = ten;
+        if (ALIAS[tim]) tim = ALIAS[tim];
+        var el = body.querySelector('[data-truong="' + tim + '"]');
+        if (!el) {
+          body.appendChild(taoControl(t));
+          return;
+        }
+        if (el.type === 'checkbox' && DAO_NGUOC[ten]) {
+          if (GIU_MAC_DINH[ten]) return;
+          var mac = t.gia_tri_mac_dinh;
+          if (mac !== undefined && mac !== null) el.checked = !mac;
+          return;
+        }
+        capNhatControl(el, t);
+      });
+    });
+    return daDung;
+  }
+
+  function napCauHinh() {
+    return api('/api/cau-hinh').then(function (r) {
+      if (!r.ok || !r.duLieu) return false;
+      var duLieu = r.duLieu;
+      var danh = duLieu.nhom || duLieu.nhom_con || duLieu.nhom_tinh_nang ||
+                 duLieu.groups || duLieu.cau_hinh;
+      if (!danh) return false;
+      if (!Array.isArray(danh)) {
+        if (Array.isArray(duLieu)) danh = duLieu;
+        else return false;
+      }
+      try {
+        apDungCauHinh(danh);
+      } catch (e) { return false; }
+      return true;
+    }).catch(function () { return false; });
+  }
+
+  /* -------------------------------------------------- tach payload --- */
+  function so(id) {
+    var el = $(id);
+    if (!el) return 0;
+    var v = parseFloat(el.value);
+    return isNaN(v) ? 0 : v;
+  }
+  function chon(id) {
+    var el = $(id);
+    return !!(el && el.checked);
+  }
+  function chuoi(id) {
+    var el = $(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  /* Chi gui field khi dieu kien "bat" dung - con lai de may chu tu chon. */
+  var DIEU_KIEN_GUI = {
+    vung: function () { return chon('c_canh_vung') && chuoi('o_file_vung') !== ''; },
+    tu_luu_clip: function () { return chuoi('o_tu_luu_clip') !== ''; },
+    tu_chup_dir: function () { return chon('c_tu_chup'); },
+    vung_bien_so: function () { return chon('c_doc_bien_so') && chuoi('o_bien_so_vung') !== ''; },
+    lop_phuong_tien: function () { return chon('c_dem_phuong_tien'); }
+  };
+
+  function tachPayload() {
+    var p = {};
+
+    /* 1. Doc tat ca control co data-truong (ke ca control do may chu sinh them).
+          Doi ten sang ten field cua AnalysisConfig roi ep kieu dung. */
+    var ds = document.querySelectorAll('#man_chinh [data-truong]');
+    for (var i = 0; i < ds.length; i++) {
+      var el = ds[i];
+      var ten = el.getAttribute('data-truong');
+      if (!ten) continue;
+      var khoa = (ten in TRUONG_PAYLOAD) ? TRUONG_PAYLOAD[ten] : ten;
+      if (khoa === null || khoa === undefined) continue;      /* chi o giao dien */
+      if (KHONG_DUNG[khoa]) continue;                        /* server so huu */
+      if (DIEU_KIEN_GUI[khoa] && !DIEU_KIEN_GUI[khoa]()) continue;
+      var gt;
+      if (el.type === 'checkbox') {
+        gt = !!el.checked;
+      } else if (el.type === 'number') {
+        var v = parseFloat(el.value);
+        if (isNaN(v)) continue;
+        gt = v;
+      } else {
+        gt = String(el.value || '').trim();
+      }
+      if (DAO_NGUOC[khoa]) gt = !gt;
+      /* Neu co 2 control cung mot ten: uu tien control tinh (thuoc nhom
+         12) - chi lay gia tri sau khi gia tri truoc rong. */
+      if (khoa in p) {
+        if (p[khoa] !== '' && p[khoa] !== undefined && p[khoa] !== null) continue;
+      }
+      p[khoa] = gt;
+    }
+
+    /* 2. Chuoi rong -> de may chu tu chon (giong quy tac cua cam_ai_core). */
+    if (chon('c_tu_chup') && !p.tu_chup_dir) p.tu_chup_dir = 'anh_su_kien';
+
+    /* 3. Hop dong CU: server cu van chay nguyen. */
+    p.duong_dan = chuoi('o_duong_dan');
+    p.nhan_mat = !p.no_face;
+    p.dem_ra_vao = !!p.show_line;
+    p.vat_the = !!p.nhan_vat_the;
+    p.ve_khung = !!p.show_box;
+    p.ve_nhan = !!p.show_label;
+    p.lam_mo = !!p.pixelate;
+    p.nguong_mat = p.face_threshold;
+    p.canh_vung = chon('c_canh_vung');
+    p.luu_clip = chon('c_luu_clip');
+    if (p.face_threshold === undefined) p.face_threshold = 0.40;
+    if (p.nguong_mat === undefined) p.nguong_mat = 0.40;
+
+    return p;
+  }
+
+  /* -------------------------------------------------- chay / dung --- */
+  $('nut_chay').addEventListener('click', function () {
+    var duong = chuoi('o_duong_dan');
+    if (!duong) { thongBao('Chưa chọn video.', false); return; }
+    if (!chon('c_phat_hien')) {
+      thongBao('Cần bật “Phát hiện người” thì phần mềm mới biết đâu là người.', false);
+      return;
+    }
+    thongBao('Đang bắt đầu...', true);
+    api('/api/phan-tich', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tachPayload())
+    }).then(function (r) {
+      if (r.ok && r.duLieu && r.duLieu.ok) {
+        thongBao(r.duLieu.thong_bao || 'Đang phân tích...', true);
+        $('video_ket_qua').classList.add('an');
+        $('img_live').classList.remove('an');
+        $('chu_khung').classList.add('an');
+      } else {
+        thongBao((r.duLieu && r.duLieu.loi) || 'Không chạy được.', false);
+      }
+    });
+  });
+
+  $('nut_dung').addEventListener('click', function () {
+    thongBao('Đang yêu cầu dừng...', true);
+    api('/api/dung', { method: 'POST' }).then(function (r) {
+      if (!r.ok || (r.duLieu && r.duLieu.ok === false)) {
+        thongBao((r.duLieu && r.duLieu.loi) || 'Không dừng được.', false);
+      }
+    });
+  });
+
+  $('nut_xem_video').addEventListener('click', function () {
+    var v = $('video_ket_qua');
+    if (!v.getAttribute('src')) {
+      v.setAttribute('src', themToken('/api/tai-video'));
+    }
+    v.classList.remove('an');
+    $('img_live').classList.add('an');
+    $('chu_khung').classList.add('an');
+    v.play().catch(function () { /* trinh duyet tu choi */ });
+  });
+
+  $('nut_tai_csv').addEventListener('click', function () {
+    window.location.href = themToken('/api/tai-ket-qua?loai=csv');
+  });
+
+  $('nut_tao_bao_cao').addEventListener('click', function () {
+    thongBao('Đang tạo báo cáo, chờ vài giây...', true);
+    api('/api/tao-bao-cao', { method: 'POST' }).then(function (r) {
+      thongBao((r.duLieu && r.duLieu.loi) || 'Đã gửi yêu cầu tạo báo cáo.', true);
+    });
+  });
+
+  /* -------------------------------------------------- ve trang thai -- */
+  var da_xong = false;
+  function veSuKien(danhSach) {
+    var khung = $('khung_su_kien');
+    khung.innerHTML = '';
+    if (!danhSach || !danhSach.length) {
+      var p = document.createElement('p');
+      p.className = 'nho';
+      p.textContent = 'Chưa có sự kiện nào.';
+      khung.appendChild(p);
+      return;
+    }
+    danhSach.slice().reverse().forEach(function (s) {
+      var dong = document.createElement('div');
+      dong.className = 'dong';
+      var gio = document.createElement('span');
+      gio.className = 'gio';
+      gio.textContent = s.gio || '';
+      var nd = document.createElement('span');
+      nd.className = 'nd';
+      nd.textContent = s.mo_ta || '';
+      var the = document.createElement('span');
+      the.className = 'the-nho ' + (s.loai || '');
+      the.textContent = s.loai || '';
+      dong.appendChild(gio);
+      dong.appendChild(nd);
+      dong.appendChild(the);
+      khung.appendChild(dong);
+    });
+  }
+
+  function veNhatKy(danhSach) {
+    var khung = $('khung_nhat_ky');
+    khung.innerHTML = '';
+    if (!danhSach || !danhSach.length) {
+      var p = document.createElement('p');
+      p.className = 'nho';
+      p.textContent = 'Chưa có nhật ký nào.';
+      khung.appendChild(p);
+      return;
+    }
+    danhSach.slice().reverse().forEach(function (n) {
+      var dong = document.createElement('div');
+      dong.className = 'dong';
+      var gio = document.createElement('span');
+      gio.className = 'gio';
+      gio.textContent = n.gio || '';
+      var nd = document.createElement('span');
+      nd.className = 'nd';
+      nd.textContent = n.noi_dung || '';
+      var the = document.createElement('span');
+      the.className = 'the-nho ' + (n.cap_do || 'INFO');
+      the.textContent = n.cap_do || 'INFO';
+      dong.appendChild(gio);
+      dong.appendChild(nd);
+      dong.appendChild(the);
+      khung.appendChild(dong);
+    });
+  }
+
+  function veTrangThai(d) {
+    var nhan = $('nhan_trang_thai');
+    var chu = $('nhan_trang_thai_chu');
+    if (d.loi) {
+      nhan.className = 'chip-trang-thai v3';
+      chu.textContent = 'Lỗi';
+    } else if (d.busy) {
+      nhan.className = 'chip-trang-thai v2';
+      chu.textContent = 'Đang chạy ' + (d.phan_tram || 0) + '%';
+    } else if (d.xong) {
+      nhan.className = 'chip-trang-thai';
+      chu.textContent = 'Xong';
+    } else {
+      nhan.className = 'chip-trang-thai';
+      chu.textContent = d.trang_thai || 'Chưa chạy';
+    }
+
+    $('nut_chay').disabled = !!d.busy;
+    $('nut_dung').disabled = !d.busy;
+    $('thanhtien').style.width = (d.phan_tram || 0) + '%';
+    $('dong_khung_hinh').textContent =
+      'Khung hình ' + (d.dong || 0) + ' / ' + (d.tong_khung || '?') +
+      '  •  ' + (d.loai_nguon || '?') +
+      '  •  FPS ' + (d.fps_hien_tai || 0) +
+      (d.nguoi_quen ? '  •  Người quen: ' + d.nguoi_quen : '');
+
+    $('s_nguoi').textContent = d.nguoi || 0;
+    $('s_mat').textContent = d.mat || 0;
+    $('s_vao').textContent = d.vao || 0;
+    $('s_ra').textContent = d.ra || 0;
+    $('s_trong_vung').textContent = d.trong_vung || 0;
+    $('s_xe').textContent = d.xe || 0;
+
+    veSuKien(d.su_kien);
+    veNhatKy(d.nhat_ky);
+
+    /* Vua chay xong -> lam moi ket qua bien so + anh su kien (chi dong dong
+       tom tat, khong tu mo cua so). */
+    if (d.xong && !da_xong) {
+      da_xong = true;
+      napBienSo(false);
+      napAnhSuKien(false);
+    } else if (!d.xong) {
+      da_xong = false;
+    }
+
+    if (d.busy) {
+      $('img_live').classList.remove('an');
+      $('chu_khung').classList.add('an');
+      $('img_live').src = themToken('/api/anh-nen?t=' + Date.now());
+    } else if (!$('video_ket_qua').classList.contains('an')) {
+      $('img_live').classList.add('an');
+    } else {
+      $('img_live').classList.add('an');
+      $('chu_khung').classList.remove('an');
+    }
+
+    /* Khung hinh vua doi (live view / video ket qua) -> canh lai canvas ve vung. */
+    if (VUNG.che_do || VUNG.co) {
+      if (canhCanvasVung()) veVungVe();
+    }
+
+    if (d.ket_qua) {
+      var k = d.ket_qua;
+      $('dong_ket_qua').textContent =
+        'Video: ' + (d.tep ? d.tep.split(/[\\/]/).pop() : (d.tieu_de || '')) +
+        ' — ' + k.khung_hinh + ' khung hình, ' + k.thoi_luong + ' giây, ' +
+        k.fps + ' fps. Nhiều nhất ' + k.max_nguoi + ' người / ' + k.max_mat +
+        ' mặt. Nam: ' + k.nam + ', Nữ: ' + k.nu +
+        (k.xe ? ', Xe: ' + k.xe : '') +
+        (k.nguoi_quen && k.nguoi_quen.length
+          ? '. Đã nhận ra: ' + k.nguoi_quen.join(', ') : '');
+    }
+  }
+
+  /* -------------------------------------------------- poll 500 ms --- */
+  var bo_dong = null;
+  function poll() {
+    return api('/api/trang-thai').then(function (r) {
+      if (r.status === 401) {
+        hienManDangNhap();
+        return;
+      }
+      if (r.ok && r.duLieu) {
+        if ($('man_chinh').classList.contains('an')) moManChinh();
+        veTrangThai(r.duLieu);
+      }
+    });
+  }
+  function batDauPoll() {
+    if (bo_dong) return;
+    bo_dong = setInterval(poll, 500);
+  }
+
+  /* -------------------------------------------------- drawer --------- */
+  function dongDrawer() {
+    $('cot_trai').classList.remove('mo');
+    $('ve_phu').classList.remove('mo');
+  }
+  $('nut_menu').addEventListener('click', function () {
+    $('cot_trai').classList.toggle('mo');
+    $('ve_phu').classList.toggle('mo');
+  });
+  $('ve_phu').addEventListener('click', dongDrawer);
+
+  /* -------------------------------------------------- modal duong dan - */
+  var o_duong_dan_dich = '';
+  var GOYI_DUONG_DAN = [
+    'known_faces', 'clip_da_luu', 'anh_bien_so', 'anh_su_kien', 'vung.txt'
+  ];
+
+  function moModalDuongDan(tieu_de, o_nhan, gia_tri) {
+    o_duong_dan_dich = o_nhan;
+    $('modal_tieu_de').textContent = tieu_de || 'Chọn đường dẫn trên máy chủ';
+    $('modal_o_duong_dan').value = gia_tri || '';
+    var goyi = $('modal_goyi');
+    goyi.innerHTML = '';
+    GOYI_DUONG_DAN.forEach(function (g) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = g;
+      b.addEventListener('click', function () {
+        $('modal_o_duong_dan').value = g;
+      });
+      goyi.appendChild(b);
+    });
+    $('modal_chon_duong_dan').classList.add('mo');
+    try { $('modal_o_duong_dan').focus(); } catch (e) { /* bo qua */ }
+  }
+  function dongModalDuongDan() {
+    $('modal_chon_duong_dan').classList.remove('mo');
+  }
+  $('modal_huy').addEventListener('click', dongModalDuongDan);
+  $('modal_ok').addEventListener('click', function () {
+    var v = $('modal_o_duong_dan').value.trim();
+    if (o_duong_dan_dich && $(o_duong_dan_dich)) $(o_duong_dan_dich).value = v;
+    dongModalDuongDan();
+  });
+  $('modal_o_duong_dan').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); $('modal_ok').click(); }
+  });
+
+  function moModalKetQua(tieu_de, noi_dung) {
+    $('modal_ket_qua_tieu_de').textContent = tieu_de || 'Thông tin';
+    $('modal_ket_qua_noi_dung').textContent = noi_dung || '';
+    $('modal_ket_qua').classList.add('mo');
+  }
+  $('modal_ket_qua_dong').addEventListener('click', function () {
+    $('modal_ket_qua').classList.remove('mo');
+  });
+
+  /* -------------------------------------------------- nut chon duong dan */
+  function ganNutChon(id_nut, tieu_de, id_o, mac_dinh) {
+    var b = $(id_nut);
+    if (!b) return;
+    b.addEventListener('click', function () {
+      moModalDuongDan(tieu_de, id_o, ($(id_o) ? $(id_o).value : '') || mac_dinh || '');
+    });
+  }
+  ganNutChon('nut_chon_faces_dir', 'Chọn thư mục ảnh đã học', 'o_faces_dir', 'known_faces');
+  ganNutChon('nut_chon_file_vung', 'Chọn file vùng (.txt)', 'o_file_vung', 'vung.txt');
+  ganNutChon('nut_chon_bien_so_dir', 'Chọn thư mục lưu ảnh biển số', 'o_bien_so_dir', 'anh_bien_so');
+  ganNutChon('nut_chon_tu_chup_dir', 'Chọn thư mục lưu ảnh sự kiện', 'o_tu_chup_dir', 'anh_su_kien');
+
+  /* -------------------------------------------------- nhom 4: ve vung */
+  /* Ve vung ngay tren khung hinh: canvas phu len anh/video, keo chuot (hoac
+     cham) de khoanh chu nhat, roi gui toa do tuong doi (0..1) len may chu. */
+  var VUNG = { che_do: false, x1: 0, y1: 0, x2: 0, y2: 0, co: false };
+  var ve_dang_keo = false;
+
+  function mediaDangHien() {
+    var img = $('img_live');
+    if (img && !img.classList.contains('an') && img.naturalWidth) return img;
+    var vid = $('video_ket_qua');
+    if (vid && !vid.classList.contains('an') && vid.videoWidth) return vid;
+    return null;
+  }
+
+  /* Rect cua phan ANH (object-fit: contain) nam trong khung 16:9. */
+  function rectAnhTrongKhung(el) {
+    var khung = el.parentElement;
+    if (!khung) return null;
+    var W = khung.clientWidth, H = khung.clientHeight;
+    var iw = el.naturalWidth || el.videoWidth || 0;
+    var ih = el.naturalHeight || el.videoHeight || 0;
+    if (!W || !H || !iw || !ih) return null;
+    var ty = Math.min(W / iw, H / ih);
+    var pw = iw * ty, ph = ih * ty;
+    return { x: (W - pw) / 2, y: (H - ph) / 2, w: pw, h: ph, iw: iw, ih: ih };
+  }
+
+  function canhCanvasVung() {
+    var el = mediaDangHien();
+    if (!el) return null;
+    var r = rectAnhTrongKhung(el);
+    if (!r) return null;
+    var cv = $('canvas_vung');
+    if (!cv) return null;
+    var dpr = window.devicePixelRatio || 1;
+    cv.classList.remove('an');
+    cv.style.left = r.x + 'px';
+    cv.style.top = r.y + 'px';
+    cv.style.width = r.w + 'px';
+    cv.style.height = r.h + 'px';
+    cv.width = Math.max(1, Math.round(r.w * dpr));
+    cv.height = Math.max(1, Math.round(r.h * dpr));
+    return { el: el, r: r, cv: cv, dpr: dpr };
+  }
+
+  function veVungVe() {
+    var cv = $('canvas_vung');
+    if (!cv || !cv.width) return;
+    var ctx = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (!VUNG.co) return;
+    var t = toaDoVungHienTai();
+    var x = t.x1 * cv.width, y = t.y1 * cv.height;
+    var w = (t.x2 - t.x1) * cv.width, h = (t.y2 - t.y1) * cv.height;
+    ctx.fillStyle = 'rgba(34,197,94,0.16)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#22C55E';
+    ctx.lineWidth = 2 * dpr;
+    ctx.setLineDash([6 * dpr, 4 * dpr]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+  }
+
+  function dongVung(text) {
+    var d = $('dong_vung');
+    if (d) d.textContent = text;
+  }
+
+  function toaDoVungHienTai() {
+    return {
+      x1: Math.min(VUNG.x1, VUNG.x2), y1: Math.min(VUNG.y1, VUNG.y2),
+      x2: Math.max(VUNG.x1, VUNG.x2), y2: Math.max(VUNG.y1, VUNG.y2)
+    };
+  }
+
+  function vungMoTa(t) {
+    return 'x1=' + t.x1.toFixed(3) + ', y1=' + t.y1.toFixed(3) +
+           ', x2=' + t.x2.toFixed(3) + ', y2=' + t.y2.toFixed(3);
+  }
+
+  function batDauVeVung() {
+    var c = canhCanvasVung();
+    if (!c) {
+      thongBao('Chưa có khung hình để vẽ. Bấm “BẮT ĐẦU” (đang phân tích) hoặc “Xem video kết quả” trước, rồi bấm lại “Vẽ vùng”.', null);
+      dongVung('Chưa có khung hình để vẽ. Bấm “BẮT ĐẦU” hoặc “Xem video kết quả” trước rồi vẽ.');
+      return;
+    }
+    VUNG.che_do = true;
+    c.cv.classList.add('ve-duoc');
+    /* Dua khung hinh vao khung nhin (nut "Ve vung" nam o cot trai, khung video
+       co the dang o tren/manhinh) + dong drawer tren dien thoai. */
+    var khung = c.el.parentElement;
+    if (khung && khung.scrollIntoView) {
+      try { khung.scrollIntoView({ block: 'center' }); } catch (e) { khung.scrollIntoView(); }
+    }
+    if (window.innerWidth <= 900) {
+      var cot = $('cot_trai');
+      if (cot && cot.classList.contains('mo')) {
+        cot.classList.remove('mo');
+        var phu = $('ve_phu');
+        if (phu) phu.classList.remove('mo');
+      }
+    }
+    veVungVe();
+    dongVung('Đang vẽ: kéo chuột (hoặc chạm) trên khung hình để khoanh vùng, rồi bấm “Lưu vùng”.');
+    thongBao('Kéo chuột trên khung hình để khoanh vùng canh.', true);
+  }
+
+  function xoaVung() {
+    VUNG.che_do = false;
+    VUNG.co = false;
+    ve_dang_keo = false;
+    var cv = $('canvas_vung');
+    if (cv) {
+      cv.classList.remove('ve-duoc');
+      var ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      cv.classList.add('an');
+    }
+    var nut = $('nut_luu_vung');
+    if (nut) nut.disabled = true;
+    dongVung('Chưa vẽ vùng nào. Bấm “Vẽ vùng trên khung hình”, rồi kéo chuột trên khung video để khoanh vùng.');
+  }
+
+  var canvas_vung = $('canvas_vung');
+  if (canvas_vung) {
+    canvas_vung.addEventListener('pointerdown', function (e) {
+      if (!VUNG.che_do) return;
+      e.preventDefault();
+      var r = this.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      VUNG.x1 = VUNG.x2 = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      VUNG.y1 = VUNG.y2 = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+      VUNG.co = true;
+      ve_dang_keo = true;
+      try { this.setPointerCapture(e.pointerId); } catch (err) { /* bo qua */ }
+      veVungVe();
+      var nut = $('nut_luu_vung');
+      if (nut) nut.disabled = false;
+    });
+    canvas_vung.addEventListener('pointermove', function (e) {
+      if (!ve_dang_keo) return;
+      e.preventDefault();
+      var r = this.getBoundingClientRect();
+      VUNG.x2 = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      VUNG.y2 = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+      veVungVe();
+      dongVung('Đang vẽ: ' + vungMoTa(toaDoVungHienTai()));
+    });
+    canvas_vung.addEventListener('pointerup', function () {
+      if (!ve_dang_keo) return;
+      ve_dang_keo = false;
+      veVungVe();
+      dongVung('Đã khoanh vùng ' + vungMoTa(toaDoVungHienTai()) + '. Bấm “Lưu vùng” để gửi lên máy chủ.');
+    });
+    canvas_vung.addEventListener('pointercancel', function () { ve_dang_keo = false; });
+  }
+
+  $('nut_ve_vung').addEventListener('click', batDauVeVung);
+  $('nut_ve_vung_tai_day').addEventListener('click', function () {
+    xoaVung();
+    /* Bo vung khoi UI: tat "canh vung" + xoa duong dan file vung de lan phan
+       tich sau khong dung vung da luu nua. File vung.txt tren may chu giu nguyen
+       (muon xoa thi dung nut "Luu vung" de ghi de bang vung moi). */
+    var cb = $('c_canh_vung'); if (cb) cb.checked = false;
+    var of = $('o_file_vung'); if (of) of.value = '';
+    thongBao('Đã bỏ vùng: xoá vùng đang vẽ và tắt “Bật canh vùng”. ' +
+             'File vung.txt trên máy chủ vẫn còn — bấm “Lưu vùng” để ghi đè bằng vùng mới.', null);
+  });
+  $('nut_luu_vung').addEventListener('click', function () {
+    if (!VUNG.co) {
+      thongBao('Chưa khoanh vùng nào. Kéo chuột trên khung hình trước.', false);
+      return;
+    }
+    var t = toaDoVungHienTai();
+    thongBao('Đang lưu vùng...', true);
+    api('/api/vung', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        x1: t.x1, y1: t.y1, x2: t.x2, y2: t.y2,
+        video: chuoi('o_duong_dan')
+      })
+    }).then(function (r) {
+      if (r.status === 404) {
+        thongBao('Máy chủ chưa có API lưu vùng — cần khởi động lại web_server.py.', false);
+        return;
+      }
+      if (!r.ok || !r.duLieu || !r.duLieu.ok) {
+        thongBao((r.duLieu && r.duLieu.loi) || 'Không lưu được vùng.', false);
+        return;
+      }
+      var dl = r.duLieu;
+      var cb = $('c_canh_vung'); if (cb) cb.checked = true;
+      /* Vung vua luu nam trong vung.txt -> tro o "File vung" vao dung file do. */
+      var of = $('o_file_vung'); if (of) of.value = 'vung.txt';
+      var px = dl.toa_do_px || {};
+      var kt = dl.kich_thuoc_video || {};
+      dongVung('Đã lưu vùng (' + vungMoTa(t) + ')' +
+        (px.x1 !== undefined
+          ? ' → pixel ' + px.x1 + ',' + px.y1 + ' → ' + px.x2 + ',' + px.y2 +
+            ' trên khung ' + (kt.rong || '?') + '×' + (kt.cao || '?')
+          : '') +
+        '. Lần phân tích sau sẽ dùng vùng này.');
+      thongBao('Đã lưu vùng vào ' + (dl.vung_file || 'vung.txt') +
+               '. Bấm “BẮT ĐẦU” để chạy với vùng này.', true);
+    });
+  });
+  window.addEventListener('resize', function () {
+    if (!VUNG.che_do && !VUNG.co) return;
+    if (canhCanvasVung()) veVungVe();
+  });
+
+  /* -------------------------------------------------- nhom 2: nguoi quen */
+  function dongNguoiQuen(danh) {
+    var lines = (danh && danh.length)
+      ? danh.map(function (x) { return x.ten + ' — ' + x.so_anh + ' ảnh'; }).join('\n')
+      : 'Chưa có người quen nào.';
+    moModalKetQua('Danh sách người đã học (' + ((danh && danh.length) || 0) + ')', lines);
+  }
+
+  $('nut_dang_ky_nguoi_quen').addEventListener('click', function () {
+    var ten = chuoi('o_ten_nguoi_quen');
+    var file = $('o_anh_nguoi_quen');
+    if (!ten) {
+      thongBao('Chưa nhập tên người quen.', false);
+      return;
+    }
+    if (!file || !file.files || !file.files.length) {
+      thongBao('Chưa chọn ảnh khuôn mặt.', false);
+      return;
+    }
+    var du_lieu = new FormData();
+    du_lieu.append('ten', ten);
+    du_lieu.append('anh', file.files[0]);
+    thongBao('Đang đăng ký người quen "' + ten + '"...', true);
+    api('/api/nguoi-quen', { method: 'POST', body: du_lieu }).then(function (r) {
+      if (r.status === 404) {
+        thongBao('Máy chủ chưa có API đăng ký người quen — cần khởi động lại web_server.py.', false);
+        return;
+      }
+      if (!r.ok || !r.duLieu || !r.duLieu.ok) {
+        thongBao((r.duLieu && r.duLieu.loi) || 'Không đăng ký được người quen.', false);
+        return;
+      }
+      var dl = r.duLieu;
+      thongBao('Đã đăng ký "' + dl.ten + '" (' + dl.so_anh + ' ảnh). ' + (dl.thong_bao || ''), true);
+      $('o_ten_nguoi_quen').value = '';
+      $('o_anh_nguoi_quen').value = '';
+      return api('/api/nguoi-quen').then(function (r2) {
+        if (r2.ok && r2.duLieu) dongNguoiQuen(r2.duLieu.danh_sach);
+      });
+    });
+  });
+
+  $('nut_doc_lai_nguoi_quen').addEventListener('click', function () {
+    thongBao('Đang đọc lại danh sách người đã học (lần đầu phải nạp model, vài chục giây)...', true);
+    api('/api/nguoi-quen-tai-lai', { method: 'POST' }).then(function (r) {
+      if (r.status === 404) {
+        thongBao('Máy chủ chưa có API đọc lại người đã học — cần khởi động lại web_server.py.', false);
+        return;
+      }
+      if (!r.ok || !r.duLieu || !r.duLieu.ok) {
+        thongBao((r.duLieu && r.duLieu.loi) || 'Không đọc lại được danh sách người đã học.', false);
+        return;
+      }
+      var dl = r.duLieu;
+      dongNguoiQuen(dl.danh_sach);
+      thongBao(dl.thong_bao || ('Đã đọc lại ' + dl.so_nguoi + ' người đã học.'), true);
+    });
+  });
+
+  /* -------------------------------------------------- nhom 8: bien so - */
+  function napBienSo(co_mo_modal) {
+    return api('/api/bien-so').then(function (r) {
+      var dong = $('dong_bien_so');
+      if (!r.ok || !r.duLieu) {
+        if (dong) dong.textContent = 'Máy chủ chưa có API biển số.';
+        return;
+      }
+      var danh = r.duLieu.danh_sach || [];
+      if (dong) {
+        dong.textContent = danh.length
+          ? 'Đã đọc ' + danh.length + ' biển số: ' +
+            danh.map(function (x) { return x.text || '?'; }).join(', ')
+          : 'Chưa đọc được biển số nào.';
+      }
+      if (!danh.length || !co_mo_modal) return;
+      var lines = danh.map(function (x) {
+        var tin = (x.confidence !== null && x.confidence !== undefined)
+          ? ', tin cậy ' + x.confidence : '';
+        var khung = (x.frame !== null && x.frame !== undefined)
+          ? ', khung hình ' + x.frame : '';
+        return (x.text || '?') + tin + khung;
+      });
+      moModalKetQua('Biển số đã đọc (' + danh.length + ')', lines.join('\n'));
+    });
+  }
+  $('nut_xem_bien_so').addEventListener('click', function () {
+    napBienSo(true);
+  });
+
+  /* -------------------------------------------------- nhom 9: anh su kien */
+  function napAnhSuKien(co_mo_modal) {
+    return api('/api/anh-su-kien').then(function (r) {
+      var dong = $('dong_anh_su_kien');
+      if (!r.ok || !r.duLieu) {
+        if (dong) dong.textContent = 'Máy chủ chưa có API ảnh sự kiện.';
+        return;
+      }
+      var danh = r.duLieu.danh_sach || [];
+      if (dong) {
+        dong.textContent = danh.length
+          ? 'Đã chụp ' + danh.length + ' ảnh sự kiện.'
+          : 'Chưa chụp ảnh sự kiện nào.';
+      }
+      if (!danh.length || !co_mo_modal) return;
+      var lines = danh.map(function (x) {
+        if (typeof x === 'string') return x;
+        return (x.duong_dan || x.path || x.file || JSON.stringify(x)) +
+               (x.thoi_gian ? '  (' + x.thoi_gian + ')' : '');
+      });
+      moModalKetQua('Ảnh sự kiện đã chụp (' + danh.length + ')', lines.join('\n'));
+    });
+  }
+  $('nut_xem_anh_su_kien').addEventListener('click', function () {
+    napAnhSuKien(true);
+  });
+
+  /* -------------------------------------------------- nhom 10: canh bao */
+  $('nut_thu_canh_bao').addEventListener('click', function () {
+    thongBao('Đang tạo cảnh báo thử (không gửi ra ngoài)...', true);
+    api('/api/thu-canh-bao', { method: 'POST' }).then(function (r) {
+      if (r.status === 404) {
+        thongBao('Máy chủ chưa có API thử cảnh báo — cần khởi động lại web_server.py. ' +
+                 'Trong bản desktop: mục “Cảnh báo” → nút “Thử gửi”.', false);
+        return;
+      }
+      if (!r.ok || !r.duLieu || !r.duLieu.ok) {
+        thongBao((r.duLieu && r.duLieu.loi) || 'Không gửi thử được cảnh báo.', false);
+        return;
+      }
+      var dl = r.duLieu;
+      moModalKetQua('Cảnh báo thử (KHÔNG gửi ra ngoài)', dl.noi_dung || '(không có nội dung)');
+      thongBao('Đã tạo cảnh báo thử. Nội dung KHÔNG được gửi ra ngoài.', true);
+    });
+  });
+
+  /* -------------------------------------------------- nhom 11: mo hinh - */
+  $('nut_thong_tin_model').addEventListener('click', function () {
+    thongBao('Đang đọc thông tin mô hình AI...', true);
+    thuApi(['/api/thong-tin-model', '/api/model-info', '/api/thong-tin-mo-hinh'])
+      .then(function (r) {
+        if (r && r.ok && r.duLieu && r.duLieu.models) {
+          var dong = (r.duLieu.models || []).map(function (m) {
+            return [
+              m.ten_hien_thi || m.ten || '?',
+              'thư viện: ' + (m.ten_thu_vien_day_du || m.thu_vien || '?'),
+              'trọng số: ' + (m.kich_thuoc_mb_thuc || m.kich_thuoc_mb || '?') + ' MB',
+              'trạng thái: ' + (m.trang_thai_tieng_viet || m.trang_thai || '?'),
+              'chạy trên: ' + (m.co_gpu ? 'GPU' : 'CPU'),
+              'vai trò: ' + (m.vai_tro || m.mo_ta || '?')
+            ].join('  •  ');
+          });
+          var phien = r.duLieu.phien_ban || {};
+          var pn = [];
+          for (var k in phien) {
+            if (!phien.hasOwnProperty(k)) continue;
+            if (k === 'cuda') continue;
+            pn.push(k + ': ' + phien[k]);
+          }
+          moModalKetQua('Thông tin mô hình AI (' + (r.duLieu.so_model || dong.length) + ')',
+            dong.join('\n') + (pn.length ? '\n\nPhiên bản: ' + pn.join(' | ') : ''));
+          thongBao('Đã đọc thông tin ' + (r.duLieu.so_model || dong.length) + ' mô hình.', true);
+          return;
+        }
+        if (r && r.status === 404) {
+          thongBao('Máy chủ chưa có API thông tin mô hình — cần khởi động lại web_server.py.', false);
+          return;
+        }
+        var thong = {
+          'Mô hình đang chọn': chuoi('o_model') || 'yolo11n.pt',
+          'Ngưỡng tin cậy': so('o_conf'),
+          'Chạy bằng': chuoi('o_thiet_bi') || 'auto',
+          'Quét mặt mỗi': so('o_face_every') + ' khung hình',
+          'Ngưỡng giống mặt': so('o_face_threshold'),
+          'Ghi chú': 'Máy chủ chưa có API thông tin mô hình. Số liệu lấy từ tuỳ chọn trên màn hình.'
+        };
+        moModalKetQua('Thông tin mô hình AI', JSON.stringify(thong, null, 2));
+      });
+  });
+
+  /* -------------------------------------------------- nhom 12: thiet bi - */
+  $('nut_thong_tin_thiet_bi').addEventListener('click', function () {
+    thongBao('Đang đọc thông tin thiết bị...', true);
+    thuApi(['/api/thong-tin-thiet-bi', '/api/thiet-bi', '/api/thong-tin-may'])
+      .then(function (r) {
+        if (r && r.ok && r.duLieu && r.duLieu.he_dieu_hanh) {
+          var d = r.duLieu;
+          var ram = d.ram || {};
+          var gpu = d.gpu || {};
+          var lines = [
+            'Hệ điều hành: ' + d.he_dieu_hanh,
+            'Kiến trúc máy: ' + (d.may || '?'),
+            'Bộ xử lý: ' + (d.bo_vi_xu_lien || '?'),
+            'Số lõi CPU: ' + (d.so_lan_cpu || '?'),
+            'RAM: ' + (ram.tong_mb || '?') + ' MB (đang dùng ' + (ram.dung_mb || '?') +
+              ' MB, còn ' + (ram.con_trong_mb || '?') + ' MB)',
+            'GPU: ' + (gpu.ten_gpu || (gpu.co_gpu ? 'có (không rõ tên)' : 'không có')),
+            'VRAM: ' + (gpu.vram_mb ? gpu.vram_mb + ' MB' : 'không rõ'),
+            'Bộ xử lý AI (onnxruntime): ' + ((gpu.providers && gpu.providers.length)
+              ? gpu.providers.join(', ') : 'không rõ'),
+            'Python: ' + (d.python || '?'),
+            'Chế độ đang chọn trong phần mềm: ' + (chuoi('o_thiet_bi') || 'auto')
+          ];
+          moModalKetQua('Thông tin thiết bị', lines.join('\n'));
+          thongBao('Đã đọc thông tin thiết bị máy chủ.', true);
+          return;
+        }
+        if (r && r.status === 404) {
+          thongBao('Máy chủ chưa có API thông tin thiết bị — cần khởi động lại web_server.py.', false);
+          return;
+        }
+        var thong = {
+          'Chế độ đang chọn': chuoi('o_thiet_bi') || 'auto',
+          'Số lõi xử lý (trình duyệt)': navigator.hardwareConcurrency || 'không rõ',
+          'Dung lượng bộ nhớ (xấp xỉ, GB)':
+            (navigator.deviceMemory ? navigator.deviceMemory : 'không rõ'),
+          'Màn hình': window.screen.width + ' × ' + window.screen.height,
+          'Hệ điều hành': navigator.userAgent,
+          'Ghi chú': 'Máy chủ chưa có API thông tin thiết bị. Số liệu lấy từ máy đang mở giao diện này.'
+        };
+        moModalKetQua('Thông tin thiết bị', JSON.stringify(thong, null, 2));
+      });
+  });
+
+  /* -------------------------------------------------- dong thiet bi ---- */
+  function capNhatDongThietBi() {
+    var el = $('o_thiet_bi');
+    var d = $('dong_thiet_bi');
+    if (!el || !d) return;
+    var gt = el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : el.value;
+    d.textContent = gt;
+  }
+  if ($('o_thiet_bi')) {
+    $('o_thiet_bi').addEventListener('change', capNhatDongThietBi);
+    capNhatDongThietBi();
+  }
+
+  /* -------------------------------------------------- khoi dong ------ */
+  poll().then(function () {
+    batDauPoll();
+    if (layToken()) {
+      napVideoMau();
+      napLopViet();
+      napCauHinh();
+    }
+  });
+  batDauPoll();
+})();
+</script>
+</body>
+</html>

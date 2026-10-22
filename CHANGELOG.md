@@ -2,6 +2,66 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.9] — 2026-10-22 (sau 23:30) — **CHUYỂN GIAO DIỆN SANG WEB-FIRST**
+
+Anh: *"cái nền tảng này đúng là bạn chọn nó quá lạc hậu"* → *"oke bạn làm thế đi nhé cái webview oke
+đấy, **có gì mobile chạy được luôn**"* → *"tôi nói là dùng dt thôi nhưng chưa dùng rồi, bạn vẫn tập
+trung vào tính năng, đảm bảo nó hoạt động oke được đã"*.
+
+**Kiến trúc mới: 1 bộ HTML/CSS/JS duy nhất, chạy được 2 nơi.**
+- **Desktop** → `app_qt.py` = cửa sổ native **PySide6 + QWebEngineView** (bọc server FastAPI sẵn có)
+- **Điện thoại** → trình duyệt điện thoại **cùng Wi-Fi** → `http://<IP-LAN>:<port>` → **cùng
+  trạng thái** với desktop. Không cloud, không tunnel.
+
+### Đã thêm
+
+| # | Hạng mục | Chi tiết |
+|---|---|---|
+| 1 | **`app_qt.py`** (588+ dòng) | Vỏ desktop: bật server FastAPI trong **thread daemon** (không subprocess ⇒ đóng là sạch) · tự dòng port trống · `QWebEngineView` nạp `http://127.0.0.1:<port>` · `QWebChannel` (client JS tự viết, protocol **số** 3/6/8/10) · thanh trạng thái + hộp thoại **"Mở trên điện thoại"** (URL LAN + nút Sao chép + **mật khẩu** + nút Sao chép mật khẩu) |
+| 2 | **`Mo CamAI Qt.vbs`** | Launcher 1-click cho bản desktop mới (100% ASCII, không cửa sổ lệnh). `Mo CamAI.vbs` cũ **giữ nguyên** cho bản Tkinter |
+| 3 | **`giao_dien_web/index.html`** (93 KB) | UI thật: **12 nhóm tính năng** đúng như `gui.py`, **56 control**, responsive 1440/820/390, tự chứa (không tải tài nguyên ngoài), diện mạo tối kiểu Windows 11 Fluent |
+| 4 | **`/api/cau-hinh`** | Trả **37 field** của `AnalysisConfig` theo **12 nhóm**, **tự sinh từ dataclass** (đọc bằng `ast` khi chưa import torch ⇒ **không treo 9 s**) ⇒ thêm field mới là API tự có |
+| 5 | **7 route mới** | `/api/nguoi-quen` (GET+POST) · `/api/nguoi-quen-tai-lai` · `/api/vung` · `/api/thu-canh-báo` · `/api/thong-tin-model` · `/api/thong-tin-thiet-bi` · `/api/ket-qua` · `/api/anh-su-kien` · `/api/bien-so` |
+| 6 | **`/api/anh-nen`** | Khung hình JPEG ≤960px q70 ⇒ **điện thoại xem live view** |
+| 7 | **Hỗ trợ Range 206** | `/api/tai-video` trả `206 Partial Content` + `Accept-Ranges` ⇒ **iPhone/Safari tua được** |
+| 8 | **Mật khẩu tự sinh** | Không có `CAMAI_PASSWORD` ⇒ app **tự sinh** mật khẩu ngẫu nhiên mỗi lần mở, in ra console, **hiện trong hộp thoại** cho điện thoại. Desktop **tự đăng nhập hộ** (token 43 ký tự lưu `localStorage`) |
+| 9 | **8 nút "chưa làm được" → làm thật** | Đăng ký người quen · Đọc lại người đã học · Vẽ vùng trên khung hình · Lưu vùng · Xoá vùng · Thử gửi 1 cảnh báo · Xem thông tin mô hình AI · Xem thông tin thiết bị. Còn 1 nút (**Quét camera**) hướng dẫn về bản desktop (web không chạy webcam) |
+| 10 | **`POST /api/phan-tich` nhận toàn bộ config** | Body JSON phẳng theo tên field `AnalysisConfig`; **ép kiểu an toàn** (sai kiểu ⇒ bỏ qua + ghi log, **không crash**); hợp đồng cũ **vẫn chạy**; **trả về ngay** (phần nặng chạy nền) |
+| 11 | **Bản mẫu** | `mau_gui_qt.py` (PySide6 Widgets + QSS) và `mau_gui_web.py` + `mau_gui_web/` (web trong QWebEngine) — để anh so sánh |
+
+### Đã sửa
+
+| Mục | Chi tiết |
+|---|---|
+| **Chặn path traversal khi đăng ký người quen** | 3 lớp: regex `^[A-Za-z0-9_][A-Za-z0-9_ ]{0,39}$` + chặn `..` `/` `\` `\x00` → **400**; kiểm tra `basename == tên`, `dirname == known_faces`, `startswith(goc+sep)`; **tên file sinh từ UUID** (không dùng tên gửi lên). 10 tên sai → **toàn bộ 400**, thư mục `known_faces/` và thư mục dự án **không đổi** |
+| **`vung.txt` bị bỏ khỏi git** | Đây là **artifact runtime** (đổi mỗi lần vẽ vùng) ⇒ `git rm --cached` + thêm `.gitignore` |
+| **Cảnh báo thử KHÔNG gửi ra ngoài** | `/api/thu-canh-bao` chạy `mo_phong=True` ⇒ `da_gui_thuc=False` (anh đã dừng việc gửi tin ra ngoài) |
+| **Script kiểm chứng `app_qt`** | 6 mục FAIL do **script** (marker kiểm chứng có điều kiện `CAMAI_QT_IN_DIALOG` chưa bật + kiểm tra **trước khi** tự đăng nhập xong) ⇒ sửa script ⇒ **28/28 PASS**. Sản phẩm không đổi (đã tự xác nhận bằng cách chạy app thật) |
+
+### BẰNG CHỨNG — coordinator tự chạy lại, KHÔNG tin báo cáo agent
+
+| Bộ kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_web_server.py` | **52/52 PASS** (37 cũ + 15 mới) |
+| `_kk_kiem_ui_web.py` | **37/37 PASS** — 12 nhóm, **56 control**, DOM thật = số đếm trong file; e2e: đăng nhập → chọn video mẫu → BẮT ĐẦU → 377/377 khung, FPS 17,5, log 37 dòng; **0 tài nguyên ngoài**; **không cuộn ngang** ở 1440/820/390 |
+| `_kk_kiem_app_qt.py` | **28/28 PASS** — tự sinh mật khẩu ✓ · tự đăng nhập ✓ (`TU-DANG-NHAP: OK qua fetch`, token 43 ký tự) · `/api/trang-thai` **HTTP 200** ✓ · hộp thoại có URL + mật khẩu + 2 nút Sao chép ✓ · **đóng cửa sổ ⇒ không còn process** ✓ · mật khẩu **không** bị ghi ra file ✓ |
+| `_kk_kiem_gui_chay_thuc.py` (bản Tkinter cũ) | **7/7 PASS** — 32,2 s (không phá) |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** |
+| `_kk_kiem_nguon_viet.py` | **35/35 PASS** |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_gui_b3.py` · `_kk_kiem_giao_dien.py` · `_kk_kiem_ngon_ngu_v3_3.py` · `_kk_kiem_canvas_vung.py` | **PASS** / PASS / 5/5 / PASS (lệch 0,0000) |
+| `_kk_kiem_khong_mat_tinh_nang.py` | **PASS — không mất tính năng nào** |
+| Vẽ vùng (Playwright kéo chuột thật) | kéo 20%→70%, 25%→80% ⇒ UI báo `x1=0.200 y1=0.250 x2=0.700 y2=0.800` ⇒ lưu ra `pixel 153,108 → 537,345` trên khung 768×432 — **khớp chính xác** |
+| `vung.txt` format | **tương đối 0..1** (`0.1000 0.2000 0.6000 0.8000`) — đúng format `cam_ai_core.load_zone()` đọc (`cam_ai_core.py:1168-1186`), core tự quy đổi sang pixel ở dòng 1862-1865 |
+| Encoding mọi file đã sửa | **BOM=False, CR=0** |
+
+### CHƯA ĐẠT ở bản 3.9
+
+- **Webcam/camera IP chưa chạy được trên bản web** (chỉ phân tích **file video**) ⇒ nút "Quét camera" hướng dẫn về bản desktop. Lý do: web không mở được thiết bị video của máy chủ.
+- **Chưa kiểm chứng trên điện thoại THẬT** (chỉ viewport mô phỏng 390/820 + localhost). Cần máy tính + điện thoại **cùng Wi-Fi** và **cho phép Python trong Windows Defender Firewall** (Private network).
+- **OCR biển số / tự chụp ảnh / tách ô / cảnh báo** chưa chạy hết vòng với dữ liệu thật (cần model OCR + thời gian).
+- **Bản Tkinter cũ vẫn còn nguyên** và vẫn chạy — dùng để đối chiếu.
+
 ## [3.8] — 2026-10-22 (sau 16:00)
 
 Anh báo: *"quét video màn hình trên nó chạy đâu tối thôi"* + *"nền tảng này quá lạc hậu"*.

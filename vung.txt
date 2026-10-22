@@ -1,3 +1,0 @@
-# CamAI - vung canh (tao thu cong de test, khong dung chuot)
-# Toa do tuong doi 0.0 - 1.0, dung chung cho moi video
-0.2000 0.1500 0.8000 0.9500

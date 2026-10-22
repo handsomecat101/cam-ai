@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-22 (sau 16:00 — bản **3.8**: **tối ưu tốc độ pipeline 4,09× (CUDA Graph, BIT-EXACT)** + **sửa lỗi app crash lúc thoát** (thiếu `openh264-2.5.0-win64.dll`) + **bản mẫu giao diện PySide6** để anh duyệt hướng thiết kế; `VERSION` = **3.8**)
+**Ngày cập nhật:** 2026-10-22 (sau 23:30 — bản **3.9**: **CHUYỂN GIAO DIỆN SANG WEB-FIRST** — 1 bộ HTML/CSS dùng chung cho **desktop** (PySide6 + QWebEngineView) và **điện thoại** (trình duyệt, cùng Wi-Fi); **12 nhóm tính năng / 56 control** chạy thật trên web; mật khẩu tự sinh + desktop tự đăng nhập; `VERSION` = **3.9**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 
 > # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
@@ -29,17 +29,11 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.7 (mới nhất):** **hoàn tất** mục tiêu anh chốt (mục 0 đầu file). (1) **GUI nối xong
-2 nguồn mới**: nhóm "NGUỒN" thành chọn nguồn tổng quát + nhãn trạng thái ("Loại nguồn:
-Video / Ảnh tĩnh / Camera máy / Camera IP") + 4 nút **Chọn video… / Chọn ảnh… / Chọn
-camera… / Danh sách camera** + hộp thoại quét camera (nền, không treo) + ô địa chỉ camera
-IP; thanh tiến trình **không xác định** khi quay, nút DỪNG dừng được vòng lặp live.
-(2) **Chọn lớp vật thể bằng TIẾNG VIỆT**: file mới **`lop_viet.py`** — bảng **80 lớp
-COCO ↔ tiếng Việt** (khớp 100% model) + ~200 từ đồng nghĩa; `--lop` nhận có dấu /
-không dấu / tiếng Anh; lệnh **`--list-lop`**. (3) **Đếm phương tiện** `--dem-phuong-tien`
-(4 cột CSV mới ở cuối, 10 cột cũ không đổi). (4) Sửa **3 lỗi thật**: mũi tên mục lớn sai
-trạng thái (lỗi có từ 3.6), GUI live view chỉ hiểu lớp tiếng Anh, OpenCV Hershey âm
-thầm bỏ dấu tiếng Việt. Xem **mục 2.1k**.
+**Bản 3.9 (mới nhất):** **CHUYỂN GIAO DIỆN SANG WEB-FIRST** — 1 bộ HTML/CSS/JS duy nhất chạy được **2 nơi**: desktop (`app_qt.py` = cửa sổ PySide6 + QWebEngineView bọc server FastAPI) và **điện thoại** (trình duyệt, cùng Wi-Fi, `http://<IP-LAN>:<port>` ⇒ **cùng trạng thái** với desktop). 12 nhóm tính năng / **56 control** chạy thật; API `/api/cau-hinh` trả **37 field** tự sinh từ `AnalysisConfig`; **8 nút "chưa làm" → làm thật**; mật khẩu tự sinh + desktop tự đăng nhập. Xem **mục 2.1m**.
+
+**Bản 3.8:** **tối ưu tốc độ pipeline 4,09×** (CUDA Graph, bit-exact) + **sửa lỗi app crash lúc thoát** (thiếu `openh264-2.5.0-win64.dll`) + bản mẫu PySide6. Xem **mục 2.1l**.
+
+**Bản 3.7:** **GUI nối xong 2 nguồn mới** (chọn ảnh / chọn camera) + **lớp vật thể TIẾNG VIỆT** (80 lớp COCO, file mới `lop_viet.py`) + **đếm phương tiện** (`--dem-phuong-tien`). Xem **mục 2.1k**.
 
 **Bản 3.6:** gom 12 nhóm cấu hình → 4 mục lớn + **nguồn ẢNH & CAMERA ở tầng lõi** +
 `--list-camera`; sửa lỗi repo `gui_ngon_ngu.json` bị commit. Xem **mục 2.1j**.
@@ -868,6 +862,82 @@ E2E GUI (`_kk_kiem_gui_chay_thuc.py`): **39,1 s → 26,1 s**.
 
 ---
 
+### 2.1m BẢN 3.9 — CHUYỂN GIAO DIỆN SANG **WEB-FIRST** (2026-10-22)
+
+**Vì sao:** anh nói *"cái nền tảng này đúng là bạn chọn nó quá lạc hậu"* → duyệt hướng **webview** → thêm *"có gì mobile chạy được luôn"* → nhấn mạnh *"**tập trung vào tính năng, đảm bảo nó hoạt động oke**"*.
+
+#### A. Kiến trúc (1 bộ HTML, 2 nơi chạy)
+
+```
+giao_dien_web/index.html   ← UI DUY NHẤT (tự chứa, không tải tài nguyên ngoài)
+        │
+        ├── desktop: app_qt.py  → QWebEngineView (cửa sổ native) ─┐
+        │                                                            ├── web_server.py (FastAPI, bind 0.0.0.0)
+        └── điện thoại: trình duyệt → http://<IP-LAN>:<port> ───────┘        │
+                                                                             └── cam_ai_core.py (KHÔNG ĐỔI)
+```
+- Desktop và điện thoại thấy **cùng một trạng thái** (anh chạy phân tích trên máy tính, xem trên điện thoại).
+- **Không cloud, không tunnel** — chỉ mạng nội bộ (server in cảnh báo "Máy tính + điện thoại phải cùng Wi-Fi / Không mở ra Internet").
+- `cam_ai_core.py`, `face_engine.py`, `bien_so.py`, `lop_viet.py` và **định dạng CSV giữ nguyên 100%**.
+
+#### B. Đã kiểm tra thật trên máy anh (để chọn, không đoán)
+
+| Hướng | Sẵn sàng? | RAM | Phải thêm | Kết luận |
+|---|---|---|---|---|
+| PySide6 Widgets + QSS | ✅ | ~80 MB | không | làm được nhưng giới hạn bởi widget |
+| **PySide6 + QWebEngineView** | ✅ **QtWebEngine đã có** | ~200 MB | **không** | **CHỌN** — UI web, 1 tiến trình, cửa sổ native |
+| pywebview | ✅ WebView2 154 có sẵn | ~150 MB | 1 dep nhỏ | dự phòng |
+| FastAPI + trình duyệt | ✅ **đã có sẵn** | ~120 MB | không | dự phòng |
+| Electron | ✅ node/npm có | ~400 MB | 2 tiến trình + toolchain | **không** — nặng |
+| Tauri | ❌ **cần cài Rust (~1,5 GB)** | thấp | lớn | **không** |
+
+#### C. Tính năng — đủ 12 nhóm, 56 control
+
+| Nhóm | Control UI → field `AnalysisConfig` |
+|---|---|
+| 1 Phát hiện người | `conf`, `model`, `thiet_bi`, `show_box`, `show_label`, `pixelate` |
+| 2 Nhận diện khuôn mặt | `no_face`, `face_threshold`, `min_face`, `face_every`, `faces_dir` + **Đăng ký người quen** + **Đọc lại người đã học** (mới) |
+| 3 Đếm ra vào | `show_line` |
+| 4 Canh vùng | `vung`, `vung_nhay`, `vung_max`, `canh_lau` + **Vẽ vùng trên khung hình** + **Lưu vùng** + **Xoá vùng** (mới) |
+| 5 Lưu clip khi có sự kiện | `tu_luu_clip`, `clip_giay`, `clip_ghi_tat_ca` |
+| 6 Thêm vật thể khác | `nhan_vat_the`, `lop`, `dem_phuong_tien`, `lop_phuong_tien` |
+| 7 Nhận người ở xa | `tach_o` |
+| 8 Đọc biển số xe | `doc_bien_so`, `bien_so_dir`, `bien_so_tin_cay`, `bien_so_nhoan_lai_giay`, `vung_bien_so` |
+| 9 Tự chụp ảnh khi có sự kiện | `tu_chup_dir`, `tu_chup_nhoan_lai_giay` |
+| 10 Cảnh báo | `bat_canh_bao`, `canh_bao_mo_phong`, `canh_bao_go`, `canh_bao_gioi_han` + **Thử gửi 1 cảnh báo** (mới) |
+| 11 Thông tin mô hình AI | nút → `GET /api/thong-tin-model` (mới) |
+| 12 Máy này chạy bằng gì | nút → `GET /api/thong-tin-thiet-bi` (mới) |
+
+`/api/cau-hinh` trả **37 field** theo 12 nhóm, **tự sinh từ dataclass** (đọc bằng `ast` khi chưa import torch ⇒ **không treo 9 s**) ⇒ sau này thêm field mới vào `AnalysisConfig` là API tự có.
+
+#### D. BẰNG CHỨNG — coordinator tự chạy lại, KHÔNG tin báo cáo agent
+
+| Bộ | Kết quả |
+|---|---|
+| `_kk_kiem_web_server.py` | **52/52 PASS** |
+| `_kk_kiem_ui_web.py` | **37/37 PASS** — 12 nhóm, 56 control, e2e 377/377 khung FPS 17,5, 0 tài nguyên ngoài, không cuộn ngang ở 1440/820/390 |
+| `_kk_kiem_app_qt.py` | **28/28 PASS** — tự sinh mật khẩu ✓, tự đăng nhập ✓, `/api/trang-thai` HTTP 200 ✓, đóng sạch ✓, mật khẩu không ghi ra file ✓ |
+| `_kk_kiem_gui_chay_thuc.py` (Tkinter cũ) | **7/7 PASS** — 32,2 s (không phá) |
+| 7 bộ cũ khác | **73/73 · 35/35 · 53/53 · PASS · PASS · 5/5 · PASS** |
+| `_kk_kiem_khong_mat_tinh_nang.py` | **PASS — không mất tính năng nào** |
+| Vẽ vùng (Playwright kéo chuột thật) | 20%→70%, 25%→80% ⇒ `pixel 153,108 → 537,345` trên 768×432 — **khớp chính xác** |
+
+#### E. Bảo mật (đã kiểm chứng bằng dữ liệu thật)
+
+- **Đăng ký người quen — chặn path traversal 3 lớp**: regex `^[A-Za-z0-9_][A-Za-z0-9_ ]{0,39}$` + chặn `..` `/` `\` `\x00` ⇒ **400**; kiểm tra `basename == tên`, `dirname == known_faces`, `startswith(goc+sep)`; **tên file sinh từ UUID** (không dùng tên người dùng gửi lên). **10 tên sai → 400/400**, listing `known_faces/` + thư mục dự án **không đổi**.
+- **Mật khẩu**: nếu `CAMAI_PASSWORD` không có ⇒ **tự sinh** mỗi lần mở (an toàn hơn mật khẩu cố định) ⇒ hiện trong hộp thoại cho điện thoại. Desktop **tự đăng nhập hộ**; **điện thoại vẫn phải nhập tay**.
+- **Cảnh báo thử** luôn ở chế độ **chỉ thử** ⇒ `da_gui_thuc=False` (anh đã dừng việc gửi tin ra ngoài).
+- Mọi route `/api/*` (trừ đăng nhập) đều cần token; token nhận qua cookie · header `X-Camai-Token` / `Authorization: Bearer` · query `?token=`.
+
+#### F. CHƯA ĐẠT ở bản 3.9
+
+- **Webcam / camera IP chưa chạy được trên bản web** (chỉ phân tích **file video**) ⇒ nút "Quét camera" hướng dẫn về bản desktop.
+- **Chưa kiểm chứng trên điện thoại THẬT** (mới chỉ có viewport mô phỏng + localhost). Cần cùng Wi-Fi + cho phép Python trong Windows Defender Firewall (Private network).
+- **OCR biển số / tự chụp ảnh / tách ô / cảnh báo** chưa chạy hết vòng với dữ liệu thật.
+- **Bản Tkinter cũ vẫn còn** (`Mo CamAI.vbs`) và vẫn chạy — dùng để đối chiếu.
+
+---
+
 ### 2.2 CHƯA ĐẠT — chờ anh
 
 | Hạng mục | Vì sao chưa đạt | Việc cần làm |
@@ -1363,6 +1433,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-22 (sau 23:30) | **Bản 3.9 — CHUYỂN GIAO DIỆN SANG WEB-FIRST.** Anh: *"nền tảng này quá lạc hậu"* → duyệt hướng **webview** → *"có gì mobile chạy được luôn"* → *"**tập trung vào tính năng, đảm bảo nó hoạt động oke**"*. **Kiến trúc:** 1 bộ HTML/CSS/JS duy nhất chạy được 2 nơi — desktop (`app_qt.py` = cửa sổ native PySide6 + QWebEngineView bọc server FastAPI) và **điện thoại** (trình duyệt, cùng Wi-Fi, `http://<IP-LAN>:<port>` ⇒ **cùng trạng thái** với desktop). Không cloud/tunnel. **Đã kiểm tra thật trên máy anh để chọn:** QtWebEngine **đã có** (0 dependency mới) · WebView2 154 có sẵn · node có (Electron nặng, 2 tiến trình) · **Rust không có** (Tauri tốn 1,5 GB) ⇒ chọn QWebEngineView. **Tính năng:** đủ **12 nhóm / 56 control** chạy thật; API `/api/cau-hinh` trả **37 field** **tự sinh từ dataclass** (đọc bằng `ast` khi chưa import torch ⇒ không treo 9 s); **8 nút "chưa làm" → làm thật** (đăng ký người quen · đọc lại người đã học · vẽ vùng · lưu vùng · xoá vùng · thử cảnh báo · thông tin model · thông tin thiết bị); `/api/anh-nen` (khung hình JPEG cho điện thoại) + **Range 206** (iPhone tua được); **mật khẩu tự sinh** mỗi lần mở + desktop **tự đăng nhập hộ**. **BẰNG CHỨNG coordinator tự chạy:** web server **52/52** · UI web **37/37** (e2e 377/377 khung FPS 17,5, 0 tài nguyên ngoài, không cuộn ngang 1440/820/390) · app_qt **28/28** · bản Tkinter cũ **7/7** (không phá) · 7 bộ cũ PASS · **không mất tính năng nào** · vẽ vùng bằng Playwright kéo chuột thật ⇒ `pixel 153,108 → 537,345` trên 768×432 khớp chính xác. **Bảo mật:** chặn path traversal 3 lớp khi đăng ký người quen (10 tên sai → 400/400, thư mục không đổi) · cảnh báo thử luôn **chỉ thử** (không gửi ra ngoài). Xem mục **2.1m**. |
 | 2026-10-22 (sau 16:00) | **Bản 3.8 — TỐI ƯU TỐC ĐỘ (4,09×, BIT-EXACT) + SỬA LỖI APP CRASH + BẢN MẪU GIAO DIỆN PySide6.** Anh báo *"quét video màn hình trên nó chạy đâu tối thôi"* + *"nền tảng này quá lạc hậu"*. **Đo trước:** end-to-end 6,7–8,0 khung/s (video 12,5 fps) · `detector(frame)` ~99 ms/khung · `FaceEngine` nạp 21,3 s. **Nguyên nhân THẬT (giả định ban đầu của em SAI):** `torch.profiler` cho thấy **Self CPU 112,64 ms vs Self CUDA 7,11 ms** ⇒ **GPU đói** do CPU-side launch overhead của PyTorch/cuDNN, **không** phải overhead gọi hàm. **Cách sửa:** file mới `nhan_dien_nhanh.py` — **CUDA Graph** cho forward YOLO11n + preprocess nhanh (LetterBox cache, buffer tĩnh) ⇒ **28,97 → 6,33 ms/khung (36,98 → 151,43 khung/s)**, E2E GUI **39,1 s → 26,1 s**. **Loại 3 hướng có lý do:** batching (lệch số đếm tối đa 0,497559) · FP16 (không tăng tốc + lệch tọa độ) · ONNX (bản export cứng 480×480 + NMS nhúng ⇒ hỏng SHA256). **BẰNG CHỨNG coordinator tự chạy:** bit-exact **200/200 khung** · CSV **SHA256 giống hệt** (250 dòng × 10 cột) · đếm phương tiện **21 = 21** (chênh 0,00%) · **10 bộ kiểm chứng PASS**. **Sửa lỗi CRASH lúc thoát (0xC0000005, có sẵn từ lâu — 4/5 lần trên bản gốc `git HEAD`):** thiếu `openh264-2.5.0-win64.dll` ⇒ `VideoWriter` H.264 không khởi tạo được ⇒ crash teardown. Đã tải **bản chính thức Cisco v2.5.0** + **3 file giấy phép** + `_nap_dll_openh264()` (ctypes, giữ handle chống GC) + `_fourcc_ket_qua()` probe thật rồi mới chọn `avc1`, lỗi thì lùi `mp4v`. **Kết quả:** `avc1` mở được, **hết log đỏ**, `app.py` **3/3 exit = 0**. **Bản mẫu giao diện PySide6** (`mau_gui_qt.py`) để anh **duyệt hướng thiết kế trước** — bài học lần trước em tự chọn nền tảng → phải làm lại. Xem mục **2.1l**. |
 | 2026-10-21 (sau 00:00) | **ĐẨY LÊN GITHUB + BỘ CÀI MÁY MỚI.** Anh báo *"đẩy dự án này lên git để tôi làm tiếp ở máy khác, máy này nặng quá"*. **Repo:** `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử commit** (từ `bb52c18` bản 3.5 → `7ebe43b`), kích thước **~3 MB**. Không có `gh` CLI → lấy OAuth token của **GCM** (Credential Manager, tài khoản `handsomecat101`) → `POST /user/repos` với `private=true`; token **không** in ra log. **Cố ý KHÔNG commit:** `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` · `*.pt`/`*.onnx` · file kết quả chạy (GitHub giới hạn 100 MB/file; model tải lại được bằng 1 lệnh). **Giữ lại** `video_mau/moi/NGUON_LICENSE_NGUOI.md` (attribution CC BY / CC BY-SA bắt buộc). **Bộ cài 1 lệnh:** `cai_dat_may_moi.bat` → `cai_dat_may_moi.py` (tạo `.venv` → cài thư viện → tải `yolo11n.pt` → tải model ArcFace → in tổng kết; **không chết khi 1 bước fail**; exit 0 chỉ khi venv + 2 model có). **`requirements.txt`** bổ sung 5 gói thiếu (`customtkinter`, `pillow`, `rapidocr-onnxruntime`, `openpyxl`, `pywin32`), dòng `torch` **cố ý comment** vì `+cu126` không có trên PyPI. **`TAI-MAY-MOI.md`** = hướng dẫn máy mới + bảng "thứ KHÔNG có trong git" + cách lấy lại từng thứ. **`known_faces_mau.zip`** (41 KB, **không commit**) = 10 ảnh "An"/"Binh" để chuyển máy (ảnh khuôn mặt không đưa vào git). **Agent phát hiện xung đột thật:** `rapidocr-onnxruntime` kéo bản **CPU** `onnxruntime` **ghi đè** bản GPU → script cài phát hiện rồi cài lại `onnxruntime-gpu`. **Xác minh:** `pip install --dry-run` exit 0 (11/11 resolve) · `torch-2.14.0+cu126` (cp313) resolve được · `insightface==2.1` có sẵn wheel · chạy thật script exit 0 · chạy từ số 0 (xoá `.venv`) → tạo venv + tiếng Việt có dấu đúng. Xem mục **2.1k** phần F. |
 | 2026-10-20 (sau 17:00) | **Bản 3.7 — hoàn tất mục tiêu anh chốt: GUI nối xong 2 nguồn mới + lớp vật thể TIẾNG VIỆT + đếm phương tiện.** **Agent A (`gui.py`):** nhóm "NGUỒN" thành chọn nguồn tổng quát — label "Nguồn", nhãn trạng thái tự cập nhật theo `loai_nguon()` ("Video / Ảnh tĩnh / Camera máy / Camera IP"), 4 nút **Chọn video… / Chọn ảnh… / Chọn camera… / Danh sách camera**, hộp thoại chọn camera (quét **nền** + nút Huỷ, không treo) + ô địa chỉ camera IP có kiểm tra tiền tố; thanh tiến trình **indeterminate** khi quay, nút DỪNG dừng được vòng lặp live (`stopped=True`); nguồn ảnh xuất **ảnh kết quả `.jpg`** + CSV; **45 chuỗi mới** trong `DICH_VI_EN`. **Agent B (`lop_viet.py` mới + `cam_ai_core.py` + `app.py`):** bảng **80 lớp COCO ↔ tiếng Việt** đọc thật từ `yolo11n.pt` (khớp **100%** model, module **không import torch**), **~200 từ đồng nghĩa**; `--lop` nhận **có dấu / không dấu / tiếng Anh** → cùng kết quả (CSV SHA256 giống hệt), gõ sai báo lỗi **kèm gợi ý**; `--list-lop` in đủ 80 dòng; `--dem-phuong-tien` đếm theo lớp + tổng + max cùng lúc với **4 cột CSV mới ở CUỐI** (10 cột cũ không đổi). **Coordinator tự verify:** 10 bộ kiểm chứng **PASS** (lop tiếng Việt 53/53, chức năng 73/73, nguồn GUI 35/35, e2e 7/7, 3.3 4/4, thiết kế 7/7, ngôn ngữ 5/5, canvas PASS, **không mất tính năng PASS** — 20 checkbox + 12 nhóm con + 13 thẻ video mẫu giống hệt, không mất nút nào); hồi quy video **SHA256 giống hệt** bản gốc. **3 lỗi thật đã sửa** (chi tiết `ISSUE_LOG.md`): (1) **mũi tên mục lớn sai trạng thái** — NGUỒN đang mở nhưng mũi tên vẫn chỉ sang phải, lỗi **có từ bản 3.6** (đã kiểm lại bằng `git show 35250e5:gui.py`), coordinator phát hiện bằng cách **phóng to 3×** ảnh chụp; (2) **GUI "xem trực tiếp" chỉ hiểu lớp tiếng Anh** (`_vong_xem` tự viết lại logic chọn lớp) ⇒ gõ "ô tô" thì khung xem trực tiếp không vẽ khung nào dù báo cáo có → sửa bằng **cùng hàm** của core; (3) **OpenCV Hershey âm thầm bỏ dấu tiếng Việt** khi vẽ nhãn lên khung ("ô tô" → "o to") → khung hình dùng tên **không dấu**, log/báo cáo/CSV dùng tên **có dấu**. Xem mục **2.1k**. |

@@ -9,6 +9,45 @@ và mục 6 (gotcha) cho việc đang làm.
 
 # ĐÃ SỬA
 
+## Script kiểm chứng báo FAIL giả — kiểm tra TRƯỚC khi sự kiện xảy ra
+
+**Triệu chứng:** `_kk_kiem_app_qt.py` báo **21/27 PASS**, 6 mục FAIL:
+`TU-DANG-NHAP: OK` không thấy · `TOKEN-LOCALSTORAGE` không thấy · không lấy được port/token ·
+3 marker hộp thoại (`HOP-THOAI-URL` / `-MK` / `-NUT`) không thấy.
+
+**Nguyên nhân — 2 lỗi của SCRIPT, không phải của sản phẩm:**
+1. **Thứ tự thời gian**: script chờ marker *"TAI-TRANG:"* (trang đã nạp) rồi **kiểm tra
+   ngay** marker *"TU-DANG-NHAP: OK"* — nhưng tự đăng nhập chạy **sau** khi trang nạp ⇒
+   kiểm tra quá sớm. Kịch bản thứ 2 (có `CAMAI_PASSWORD`) **PASS** vì nó làm thêm vài
+   bước nên vô tình chờ lâu hơn.
+2. **Marker có điều kiện**: `CAMAI_QT_IN_DIALOG` **chưa được bật** ở kịch bản 1 ⇒ các
+   marker hộp thoại không bao giờ được in.
+
+**Cách sửa:** thêm `_cho_den_khi(dong, "TU-DANG-NHAP: OK", 40)` **sau** khi chờ trang nạp,
+và bật `CAMAI_QT_IN_DIALOG=1` cho cả hai kịch bản ⇒ **28/28 PASS**.
+
+**Cách chứng minh đây là lỗi script chứ không phải lỗi sản phẩm:** coordinator chạy
+**app thật** bằng `Start-Process` và đọc log ⇒ thấy đúng chuỗi:
+```
+[CAMAI-QT] MAT-KHAU-TU-SINH: %?kBrGgoQx
+[CAMAI-QT] TU-DANG-NHAP: OK qua fetch (token 43 ky tu da luu vao localStorage)
+[CAMAI-QT] TU-DANG-NHAP: GET /api/trang-thai -> HTTP 200 (ok)
+[CAMAI-QT] TOKEN-LOCALSTORAGE: ZqWv0sz-IMwa58jjkDjdl_6TKoaoy4XeVEGAxKQW9G4
+```
+
+**Bài học:**
+- **Khi bộ kiểm chứng FAIL mà tính năng vẫn chạy được thì ĐỪNG SỬA SẢN PHẨM** — hãy
+  **chạy thật** và đọc log để phân biệt "lỗi sản phẩm" với "lỗi kỳ vọng của script".
+- Mọi **marker kiểm chứng có điều kiện** (biến môi trường) thì script phải bật ở
+  **mọi** kịch bản, không chỉ kịch bản đầu.
+- Script kiểm chứng phải **chờ theo mốc thời gian của sự kiện**, không kiểm tra ngay
+  sau một mốc khác.
+- Trên Windows, `Start-Process -ArgumentList` với đường dẫn **có khoảng trắng** phải
+  **bọc nháy kép** (`'"H:\AI Project\...\app.py"'`), nếu không sẽ bị tách thành nhiều
+  đối số và báo `SyntaxError`.
+
+---
+
 ## Thiếu `openh264-2.5.0-win64.dll` → VideoWriter hỏng → **app CRASH lúc thoát** (0xC0000005)
 
 **Triệu chứng:** mỗi lần chạy app/CLI đều in log đỏ:

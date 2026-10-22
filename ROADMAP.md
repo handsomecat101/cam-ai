@@ -193,24 +193,45 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 - [ ] Chuông Windows bằng âm thanh hệ thống
 - [ ] Rà lại `known_faces/` — dữ liệu giả, chờ anh đồng ý xóa
 
-## GIAO DIỆN MỚI (PySide6) — anh yêu cầu làm lại 2026-10-22
+## GIAO DIỆN MỚI — WEB-FIRST (anh duyệt 2026-10-22 16:42) + MO RỘNG RA ĐIỆN THOẠI
 
-Anh: *"cái nền tảng này đúng là bạn chọn nó quá lạc hậu, lên kế hoạch làm lại cho tôi đi cái
-giao diện với mọi thứ không thể chấp nhận được"*. Em **không** tự chọn lần nữa — đã dựng
-**bản mẫu 1 cửa sổ** để anh duyệt trước (bài học lần trước: em chọn nền tảng → phải làm lại).
+Anh: *"cái nền tảng này đúng là bạn chọn nó quá lạc hậu"* + *"oke bạn làm thế đi nhé cái webview oke
+đấy, **có gì mobile chạy được luôn**"*.
 
-- [x] **Bản mẫu PySide6** (`mau_gui_qt.py`, 850 dòng) — hướng **"Windows 11 Fluent"**: nền tối
-      `#16181D`, accent `#4C8DFF`, bo góc 8–10px, font Segoe UI, 4 mục lớn accordion, 6 thẻ số,
-      khung video 16:9, danh sách sự kiện, nhật ký monospace. Icon vẽ tay bằng **QPainter**
-      (không emoji). Ảnh: `_kk_out/mau_qt/`
-- [x] **Sửa tốc độ** (bản 3.8) — **4,09×, bit-exact** → xem `PROJECT_STATE.md` mục 2.1l
-- [ ] **Anh duyệt bản mẫu** → chốt 3 khoảng trống agent tự báo: (1) khoảng trống ~360px dưới
-      4 thẻ cột trái, (2) khoảng trống ~250px dưới hàng thẻ số, (3) danh sách sự kiện thưa
-- [ ] **Dựng app PySide6 thật** — chỉ lớp vỏ GUI viết lại; `cam_ai_core.py`, `face_engine.py`,
-      `bien_so.py`, `lop_viet.py` và **định dạng CSV giữ nguyên 100%**
-- [ ] **Chạy song song 2 bản**, launcher chỉ trỏ sang bản mới khi anh ưng
+**Hướng đã chốt: 1 bộ HTML/CSS/JS duy nhất, chạy được 2 nơi.**
+- **Desktop**: cửa sổ native **PySide6 + QWebEngineView** (dùng chung 1 server FastAPI)
+- **Điện thoại**: mở trình duyệt điện thoại **cùng Wi-Fi** → `http://<IP-máy-tính>:<port>`
+  → **cùng trạng thái** với desktop (anh chạy phân tích trên máy tính, xem trên điện thoại)
 
-## Chờ anh quyết
+**Đã kiểm tra thật trên máy:** `QtWebEngineWidgets` + `QWebChannel` **đã có** (PySide6-Addons) ·
+**WebView2 Runtime 154** có sẵn · **node/npm có sẵn** (Electron khả thi) · **Rust KHÔNG có**
+(Tauri tốn công) · `web_server.py` (FastAPI) **đã có sẵn**.
+
+**Vì sao không chọn Electron/Tauri:** Electron = **2 tiến trình + ~400 MB + toolchain đóng gói** ·
+Tauri = **phải cài Rust (~1,5 GB)**. QWebEngineView = **0 dependency mới, 1 tiến trình Python,
+cửa sổ native Windows**.
+
+- [x] **Bản mẫu web trong QWebEngineView** (`mau_gui_web.py` + `mau_gui_web/index.html`) — có
+      QWebChannel thật + ảnh màn hình **điện thoại 390px / iPad 820px**
+- [x] **`web_server.py`** mở rộng: bind `0.0.0.0`, phục vụ UI tĩnh, `/api/trang-thái` đủ field,
+      `/api/anh-nen` (khung hình JPEG cho điện thoại), `/api/quet-camera`, `/api/lop-viet`,
+      hỗ trợ **Range request** để iPhone phát video
+- [x] **`app_qt.py`** = vỏ cửa sổ desktop: bật server → QWebEngineView → hộp thoại "Mở trên
+      điện thoại" (URL LAN + **mật khẩu tự sinh** + 2 nút Sao chép) + **tự đăng nhập hộ**
+- [x] **UI thật** trong `giao_dien_web/index.html` — **12 nhóm / 56 control**, responsive,
+      e2e chạy phân tích thật (377/377 khung, FPS 17,5)
+- [x] **`/api/cau-hinh`** — mô tả **37 field** `AnalysisConfig` theo 12 nhóm, **tự sinh từ
+      dataclass** (đọc bằng `ast` khi chưa import torch ⇒ không treo)
+- [x] **8 nút "chưa làm" → làm thật**: đăng ký người quen · đọc lại người đã học · vẽ vùng ·
+      lưu vùng · xoá vùng · thử cảnh báo · thông tin model · thông tin thiết bị
+- [x] **Chạy song song 2 bản** — `Mo CamAI Qt.vbs` (web, mới) + `Mo CamAI.vbs` (Tkinter, cũ)
+- [ ] **Chưa kiểm chứng trên điện thoại THẬT** — cần máy tính + điện thoại **cùng Wi-Fi** và
+      **cho phép Python trong Windows Defender Firewall** (Private network)
+- [ ] **Webcam / camera IP chưa chạy được trên bản web** (chỉ phân tích file video) ⇒ nút
+      "Quét camera" hướng dẫn về bản desktop
+- [ ] **OCR biển số / tự chụp ảnh / tách ô / cảnh báo** chưa chạy hết vòng với dữ liệu thật
+
+## TRƯỚC ĐÂY
 
 - [ ] **Camera máy chấm công**: đặt ở cửa hay trên xe? khoảng cách người đứng bao xa?
       cùng lúc bao nhiêu người? cần **nhận diện theo tên** hay chỉ **đếm lượt**?

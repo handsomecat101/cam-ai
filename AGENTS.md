@@ -125,21 +125,45 @@ thêm `kiem_giao_dien` + chụp ảnh tự xem.
 
 ## 6. Bản đồ file
 
+> **Bản 3.9 trở đi: giao diện đã chuyển sang WEB-FIRST.** Xem mục 6b bên dưới.
+
+### 6a. Lõi (KHÔNG đổi khi làm giao diện)
+
 | File | Vai trò |
 |---|---|
-| `cam_ai_core.py` | **lõi**: pipeline phân tích, `AnalysisConfig`, `AnalysisResult`, `run_analysis`, chế độ ảnh/camera, đếm phương tiện |
+| `cam_ai_core.py` | **lõi**: pipeline phân tích, `AnalysisConfig` (37 field), `AnalysisResult`, `run_analysis()`, chế độ ảnh/camera, đếm phương tiện, `load_zone()` (đọc `vung.txt` = toạ độ **tương đối 0..1**) |
 | `lop_viet.py` | bảng **80 lớp COCO ↔ tiếng Việt** + tra cứu + gợi ý. **Không import torch** (import rẻ) |
 | `face_engine.py` | ArcFace (SCRFD + w600k_r50) — dùng chung với app chấm công sau này |
-| `bien_so.py` | OCR biển số (RapidOCR) — chạy 100% local |
-| `app.py` | CLI. Mọi tính năng phải có cờ CLI tương ứng |
-| `gui.py` | GUI CustomTkinter (~5.200 dòng). 4 mục lớn, 12 nhóm con |
-| `giao_dien.py` | **hằng số màu + font + spacing** — nguồn sự thật cho giao diện |
-| `design-system/camai/MASTER.md` | design system (nguồn sự thật cho màu/spacing) |
-| `ve_vung_gui.py` | vẽ vùng bằng PIL |
-| `canh_bao.py` | gửi cảnh báo ra ngoài (mặc định **chỉ thử**, không gửi thật) |
-| `lop_viet.py` → `DICH_VI_EN` | bản dịch Anh **nằm trong `gui.py`** |
+| `bien_so.py` | OCR biển số (RapidOCR) — 100% local |
+| `nhan_dien_nhanh.py` | **CUDA Graph** cho YOLO ⇒ 4,09× nhanh, bit-exact. Tắt: `CAMAI_DETECTOR_NHANH=0` |
+| `giao_dien.py` | hằng số màu + font + spacing của bản Tkinter (cũ) |
+| `canh_bao.py` | gửi cảnh báo ra ngoài (mặc định **chỉ thử**) |
+
+### 6b. Giao diện WEB (bản 3.9 — 1 bộ HTML cho cả desktop lẫn điện thoại)
+
+| File | Vai trò |
+|---|---|
+| **`giao_dien_web/index.html`** | **UI DUY NHẤT** (tự chứa, không tải tài nguyên ngoài). 12 nhóm / 56 control, responsive 1440/820/390 |
+| **`web_server.py`** | FastAPI. `bind 0.0.0.0` để điện thoại cùng LAN vào được. `/api/cau-hinh` trả **37 field** theo 12 nhóm, **tự sinh từ dataclass** (đọc bằng `ast` khi chưa import torch ⇒ không treo). `/api/anh-nen` (JPEG live view), `/api/tai-video` (**hỗ trợ Range 206** cho iPhone) |
+| **`app_qt.py`** | vỏ desktop: bật server trong thread daemon → `QWebEngineView` → tự sinh mật khẩu + tự đăng nhập + hộp thoại "Mở trên điện thoại" |
+| `Mo CamAI Qt.vbs` | launcher bản web (desktop) |
+| `Mo CamAI.vbs` | launcher bản **Tkinter cũ** (vẫn chạy, dùng đối chiếu) |
+| `mau_gui_qt.py` · `mau_gui_web.py` | 2 **bản mẫu** để so sánh hướng giao diện |
+
+**Quy tắc khi sửa giao diện web:**
+- **Mỗi nút phải có handler thật.** Nút báo lỗi chung chung = tính năng chưa làm.
+- **Đặt tên field trong DOM = tên field `AnalysisConfig`** để `/api/phan-tich` nhận thẳng.
+- `input`/`output` **không** gửi lên (server sở hữu 2 field này).
+- **`POST /api/phan-tich` phải trả về ngay** — phần nặng (import torch) chạy nền.
+- Không tải tài nguyên ngoài (app offline).
+
+### 6c. Tài liệu & script kiểm chứng
+
+| File | Vai trò |
+|---|---|
 | `*.md` | tài liệu — coordinator giữ |
 | `_kk_*` | script kiểm chứng (coordinator giữ) |
+| `design-system/camai/MASTER.md` | design system (nguồn sự thật cho màu/spacing) |
 
 ---
 
@@ -147,6 +171,24 @@ thêm `kiem_giao_dien` + chụp ảnh tự xem.
 
 - **`cv2.putText` không có glyph dấu tiếng Việt** → nhãn trên khung hình **không dấu**
   ("xe o to"); **log/báo cáo/CSV thì có dấu** ("ô tô"). Vẽ chữ có dấu phải dùng **PIL**.
+- **YOLO gọi từng khung là rất chậm trên Windows** — không phải vì GPU yếu mà vì **CPU-side
+  launch overhead** của PyTorch/cuDNN (`torch.profiler`: Self CPU **112,64 ms** vs Self CUDA
+  **7,11 ms** ⇒ GPU đói 90% thời gian). Đã dùng **CUDA Graph** trong `nhan_dien_nhanh.py`
+  ⇒ **4,09× nhanh hơn, bit-exact**. Nếu sau này sửa pipeline: **đừng** bỏ CUDA Graph; nếu
+  thêm model mới thì phải **chụp lại Graph** (và kiểm tra `torch.equal` — lệch 1 bit thì tự
+  rơi về đường cũ).
+- **Batching khung làm lệch số đếm** (đo được sai lệch tối đa 0,497559) ⇒ **không dùng**
+  batching cho phần đếm. **FP16** thì không tăng tốc + lệch tọa độ. **ONNX** (`yolo11n.onnx`)
+  là bản export **cứng 480×480** + NMS nhúng ⇒ khác letterbox của ultralytics ⇒ hỏng SHA256.
+- **Thiếu `openh264-2.5.0-win64.dll` ⇒ app CRASH lúc thoát** (0xC0000005, 4/5 lần) — không
+  chỉ là log đỏ. DLL đã nằm trong repo kèm giấy phép Cisco.
+- **Web server phải trả về NGAY** cho `POST /api/phan-tich` — phần nặng (import torch ~9 s)
+  chạy ở **thread nền**, nếu không điện thoại thấy app treo không phản hồi.
+- **Đo `/api/cau-hinh` mà không import `cam_ai_core`** (dùng `ast` đọc file) — nếu import
+  thật thì request đầu tiên treo ~9 s.
+- **Script kiểm chứng phải CHỜ đúng mốc thời gian**: marker "đã đăng nhập" xuất hiện **sau**
+  khi trang web nạp xong. Kiểm tra ngay sau khi cửa sổ mở ⇒ FAIL giả. Đồng thời marker kiểm
+  chứng có điều kiện (biến môi trường) ⇒ phải bật đúng cả hai kịch bản.
 - **Khoá dịch có tham số** phải dùng `self.dich("... {n} ...").format(...)` — dùng f-string thì
   khoá dịch **chết lặng lẽ** ⇒ bật tiếng Anh vẫn hiện tiếng Việt.
 - **`customtkinter 5.2.2` không hiện placeholder** khi `CTkEntry` có `textvariable` (vì
@@ -199,3 +241,16 @@ thêm `kiem_giao_dien` + chụp ảnh tự xem.
 
 Đọc **`TAI-MAY-MOI.md`**. Tóm tắt: `git clone` → `cai_dat_may_moi.bat` → `Mo CamAI.vbs`.
 Model (784 MB) và video mẫu (507 MB) **cố ý không có trong git** — xem bảng trong file đó.
+
+## 11. Bản mẫu giao diện (để anh duyệt trước khi dựng app thật)
+
+| File | Là gì | Chạy thử |
+|---|---|---|
+| `mau_gui_qt.py` | Bản mẫu **PySide6 Widgets + QSS** (hướng "Windows 11 Fluent") | `.venv\Scripts\python.exe mau_gui_qt.py` |
+| `mau_gui_web.py` + `mau_gui_web/index.html` | Bản mẫu **HTML/CSS trong QWebEngineView** (1 tiến trình, 0 dependency mới) | `.venv\Scripts\python.exe mau_gui_web.py` |
+| `requirements-mau-qt.txt` | Chỉ cần cho 2 bản mẫu (PySide6 6.12.0) | `pip install -r requirements-mau-qt.txt` |
+
+Ảnh chụp: `_kk_out/mau_qt/` và `_kk_out/mau_web/`.
+
+> **Nguyên tắc:** đừng viết cả app GUI khi chưa có bản mẫu **được anh xem và duyệt**. Lần trước
+> em tự chọn nền tảng → anh phải làm lại. Có bản mẫu thì chi phí đổi hướng rất thấp.
