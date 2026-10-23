@@ -158,7 +158,7 @@ button{cursor:pointer}
 /* ------------------------------------------------------ FORM ----------- */
 .nhan{display:block;font-size:12px;color:var(--muted);margin:0 0 4px}
 .truong{display:flex;flex-direction:column;min-width:0}
-input[type=text],input[type=password],input[type=number],select{
+input[type=text],input[type=number],select{
   width:100%;min-width:0;height:34px;
   background:var(--panel);color:var(--text);
   border:1px solid var(--border);border-radius:var(--r-s);
@@ -187,12 +187,53 @@ select{cursor:pointer}
 .ghi-chu-vang{color:var(--warn);font-size:11px;margin:0}
 
 /* --------------------------------------------------- VIDEO -------------- */
+/* Khung video LUON o tren khung nhin: dua len dau cot giua + position sticky.
+   sticky -> khi nguoi dung cuon qua cac nhom cau hinh, video van nam yen
+   o tren de vua cau hinh vua xem. */
+.the-video-stick{
+  /* offset -15px = -1px border -14px padding cua .the -> khung video noi
+     dung ngay duoi thanh dau (top cua video = chiều cao thanh dau). */
+  position:sticky;top:calc(var(--h-dau) - 15px);z-index:5;
+  background:var(--panel);
+}
 .khung-video{
   position:relative;background:var(--video-bg);border:1px solid var(--border);
   border-radius:var(--r-m);overflow:hidden;aspect-ratio:16/9;
   display:flex;align-items:center;justify-content:center;
+  /* Gioi san chieu cao 46vh MA GIU DUNG TI LE 16:9:
+     width = min(100%, 46vh*16/9) => chieu cao = width*9/16 <= 46vh. */
+  width:min(100%, calc(46vh * 16 / 9));
+  margin-inline:auto;
 }
 .khung-video img,.khung-video video{width:100%;height:100%;object-fit:contain;background:#000}
+/* Overlay "dang lam viec": spinner + ten giai doan, hien tren khung video. */
+.overlay-busy{
+  position:absolute;inset:0;z-index:6;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--g-2);padding:var(--g-3);text-align:center;
+  background:rgba(10,12,16,.66);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+  pointer-events:none;   /* khong chan thao tac ve vung tren canvas */
+}
+.vong-xoay{
+  width:42px;height:42px;border-radius:50%;flex:none;
+  border:3px solid rgba(233,234,238,.22);
+  border-top-color:var(--accent);
+  animation:quay .9s linear infinite;
+}
+@keyframes quay{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.vong-xoay{animation-duration:2.6s}}
+.overlay-chu{
+  font-size:13px;font-weight:600;color:var(--text);
+  max-width:94%;overflow-wrap:anywhere;text-shadow:0 1px 4px rgba(0,0,0,.7);
+}
+.overlay-chu .nho{
+  color:var(--muted);font-weight:400;font-size:11px;margin-top:3px;
+  text-shadow:0 1px 4px rgba(0,0,0,.7);
+}
+.dong-giai-doan{color:var(--accent-hi);font-size:11.5px;font-weight:600;margin-top:5px}
+.dong-giai-doan.xong{color:var(--ok)}
+.dong-giai-doan.loi{color:var(--err)}
 /* Canvas ve vung: phu dung khung anh, chi bat chuot khi dang o che do ve. */
 #canvas_vung{position:absolute;z-index:4;pointer-events:none;touch-action:none;cursor:crosshair}
 #canvas_vung.ve-duoc{pointer-events:auto}
@@ -257,6 +298,9 @@ input[type=file]::file-selector-button{background:var(--panel-2);color:var(--tex
 .modal-goyi button{font-size:11px;padding:4px 9px;min-height:28px;height:28px;border-radius:999px;border:1px solid var(--border);background:var(--panel-2);color:var(--muted)}
 .modal-goyi button:hover{border-color:var(--accent-line);color:var(--accent-hi)}
 .modal-hanh-dung{display:flex;gap:var(--g-1);justify-content:flex-end;margin-top:var(--g-1)}
+.huong-dan-khoa{margin:0;padding-left:20px;font-size:13px;line-height:1.65;color:var(--text)}
+.huong-dan-khoa li{margin-bottom:6px}
+.huong-dan-khoa b{color:var(--accent-hi);font-weight:600}
 .ket-qua-json{
   font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;word-break:break-word;
   background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-s);
@@ -293,7 +337,7 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
   .chip-v{display:none}
   .nut,.nut-nho,.nut-icon{min-height:44px;height:44px}
   .nut-icon{width:44px}
-  input[type=text],input[type=password],input[type=number],select{height:44px;font-size:14px}
+  input[type=text],input[type=number],select{height:44px;font-size:14px}
   .chon{padding:11px 10px}
   .chon input{width:18px;height:18px}
   .the-so{padding:11px 4px}
@@ -306,19 +350,18 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
 </head>
 <body>
 
-<!-- ============================ DANG NHAP ============================ -->
+<!-- ==================== HUONG DAN TRUY CAP (KHONG CO FORM) ============== -->
+<!-- Khong co o mat khau: nguoi dung mo bang DUONG DAN CO MA.
+     Server cap phien ngay khi mo dung duong dan do (GET /?k=<khoa>).
+     Neu chua co phien -> hien thong bao huong dan + nut lay duong dan. -->
 <div id="man_dang_nhap">
   <div class="the" id="the_dang_nhap">
     <h1>CamAI</h1>
-    <p class="nhan-nho">Nhập mật khẩu để vào phần mềm.</p>
-    <form id="form_dang_nhap" style="margin-top:var(--g-3)">
-      <div class="truong">
-        <label class="nhan" for="o_mat_khauu">Mật khẩu</label>
-        <input type="password" id="o_mat_khauu" placeholder="Mật khẩu"
-               autocomplete="current-password" required>
-      </div>
-      <button class="nut nut-chinh" type="submit" style="width:100%;margin-top:var(--g-2)">Vào phần mềm</button>
-    </form>
+    <p class="nhan-nho" id="tt_dang_nhap">Đang kiểm tra quyền truy cập…</p>
+    <div id="khoi_huong_dan" class="an">
+      <button class="nut nut-chinh" id="nut_lay_duong_dan" type="button"
+              style="width:100%;margin-top:var(--g-2)">Lấy đường dẫn có mã</button>
+    </div>
     <div id="loi_dang_nhap" class="thong-bao"></div>
     <p class="nho" style="margin-top:var(--g-2)">Toàn bộ hình ảnh và video được xử lý ngay trên máy này,
       không gửi lên Internet.</p>
@@ -653,6 +696,28 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
     <!-- ==================== COT CHINH: VIDEO + SO + CHAY ================ -->
     <section class="cot cot-chinh">
 
+      <!-- KHUNG VIDEO: LUON O TREN KHUNG NHIN (sticky).
+           Nam tren "1. Chon nguon" va "2. Chay" => nguoi dung cau hinh xong
+           van thay khung hinh ngay tren, khong phai cuon xuong duoi. -->
+      <div class="the the-video-stick" id="khoi_video">
+        <div class="khung-video">
+          <img id="img_live" class="an" alt="Khung hình đang phân tích">
+          <video id="video_ket_qua" class="an" controls playsinline preload="none"></video>
+          <canvas id="canvas_vung" class="an"></canvas>
+          <div class="chu-thuong" id="chu_khung">Bấm “BẮT ĐẦU” để chạy phân tích.</div>
+          <div class="overlay-busy an" id="overlay_busy" role="status" aria-live="polite">
+            <div class="vong-xoay" aria-hidden="true"></div>
+            <div class="overlay-chu">
+              <span id="overlay_chu">Đang nạp model nhận diện…</span>
+              <div class="nho" id="overlay_chi_dan">Lần đầu mất khoảng 10–20 giây.</div>
+            </div>
+          </div>
+        </div>
+        <div class="thanh-tien"><div id="thanhtien"></div></div>
+        <p class="nho" id="dong_khung_hinh">Chưa có dữ liệu.</p>
+        <p class="dong-giai-doan" id="dong_giai_doan"></p>
+      </div>
+
       <div class="the">
         <div class="the-tieu-de">1. Chọn nguồn</div>
         <div class="truong">
@@ -679,15 +744,7 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
       </div>
 
       <div class="the">
-        <div class="khung-video">
-          <img id="img_live" class="an" alt="Khung hình đang phân tích">
-          <video id="video_ket_qua" class="an" controls playsinline preload="none"></video>
-          <canvas id="canvas_vung" class="an"></canvas>
-          <div class="chu-thuong" id="chu_khung">Bấm “BẮT ĐẦU” để chạy phân tích.</div>
-        </div>
-        <div class="thanh-tien"><div id="thanhtien"></div></div>
-        <p class="nho" id="dong_khung_hinh">Chưa có dữ liệu.</p>
-        <div class="the-tieu-de" style="margin-top:var(--g-1)">3. Kết quả</div>
+        <div class="the-tieu-de">3. Kết quả</div>
         <div class="hang">
           <button class="nut nut-nho" id="nut_xem_video" type="button" style="flex:1 1 150px">Xem video kết quả</button>
           <button class="nut nut-nho" id="nut_tai_csv" type="button" style="flex:1 1 110px">Tải CSV</button>
@@ -746,6 +803,26 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
   </div>
 </div>
 
+<!-- ============================ MODAL HUONG DAN KHOA ==================== -->
+<div class="modal" id="modal_khoa">
+  <div class="modal-hop">
+    <div class="modal-tieu-de">Lấy đường dẫn có mã</div>
+    <ol class="huong-dan-khoa">
+      <li>Trên máy tính (bản desktop), bấm nút <b>Điện thoại</b> ở góc phải
+        (hoặc nhấn phím <b>F2</b>).</li>
+      <li>Trong hộp thoại <b>“Mở trên điện thoại”</b>, bấm <b>Sao chép</b> để lấy
+        đường dẫn đã gắn sẵn mã truy cập.</li>
+      <li>Dán đường dẫn đó vào trình duyệt điện thoại (cùng Wi-Fi) → vào thẳng,
+        không cần gõ mật khẩu.</li>
+    </ol>
+    <p class="nho">Mã truy cập chỉ lộ ra ở hộp thoại trên máy tính, nên người lạ
+      trong mạng nội bộ không mở được phần mềm này.</p>
+    <div class="modal-hanh-dung">
+      <button class="nut nut-chinh" id="modal_khoa_dong" type="button">Đã rõ</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============================ MODAL KET QUA ========================== -->
 <div class="modal" id="modal_ket_qua">
   <div class="modal-hop">
@@ -783,6 +860,10 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
   }
 
   /* -------------------------------------------------- goi API -------- */
+  /* MOI request co han gio (mac dinh 15s) -> request nao treo bi bo.
+     Khong co han gio: 1 request treo = UI "dung hinh" khong phan hoi. */
+  var THOI_GIAN_HET_MAC = 15000;
+
   function api(duong, tuy_chon) {
     var goi = { credentials: 'same-origin' };
     if (tuy_chon) {
@@ -794,15 +875,32 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
       goi.headers['X-Camai-Token'] = token;
       goi.headers['Authorization'] = 'Bearer ' + token;
     }
+    var han = goi.timeout_ms || THOI_GIAN_HET_MAC;
+    delete goi.timeout_ms;
+    var bo_huy = null;
+    if (han > 0 && !goi.signal && typeof AbortController !== 'undefined') {
+      bo_huy = new AbortController();
+      goi.signal = bo_huy.signal;
+    }
+    var hen = null;
+    if (bo_huy) {
+      hen = setTimeout(function () {
+        try { bo_huy.abort(); } catch (e) { /* bo qua */ }
+      }, han);
+    }
     return fetch(duong, goi).then(function (res) {
+      if (hen) clearTimeout(hen);
       return res.text().then(function (chuoi) {
         var duLieu = null;
         try { duLieu = JSON.parse(chuoi); } catch (e) { duLieu = null; }
         return { ok: res.ok, status: res.status, duLieu: duLieu };
       });
-    }).catch(function () {
+    }).catch(function (loi) {
+      if (hen) clearTimeout(hen);
+      var hetMoc = !!(loi && loi.name === 'AbortError');
       return { ok: false, status: 0, duLieu: null,
-               loi: 'Không kết nối được tới máy chủ.' };
+               loi: hetMoc ? 'Máy chủ phản hồi quá chậm.'
+                           : 'Không kết nối được tới máy chủ.' };
     });
   }
 
@@ -828,6 +926,47 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
     o.textContent = nd || '';
   }
 
+  /* ------------------------------------------- chiều cao thanh đầu ---- */
+  /* Khung video dính (sticky) phải nằm NGAY DƯỚI thanh đầu. Chiều cao
+     thanh đầu đổi theo kích thước cửa sổ (nút to hơn ở màn hình nhỏ)
+     -> đo lại rồi cập nhật biến --h-dau. */
+  var CHIEU_CAO_DAU = 56;
+  function dongBoChieuCaoDau() {
+    var dau = document.querySelector('.thanh-dau');
+    if (!dau) return;
+    var h = Math.round(dau.getBoundingClientRect().height);
+    if (h > 0 && h !== CHIEU_CAO_DAU) {
+      CHIEU_CAO_DAU = h;
+      document.documentElement.style.setProperty('--h-dau', h + 'px');
+    }
+  }
+
+  /* ------------------------------------- overlay đang làm việc ------ */
+  /* Spinner + tên giai đoạn: nguoi dung luôn biết phần mềm đang làm gì. */
+  function hienOverlayChay(chu, chi_dan) {
+    var ov = $('overlay_busy');
+    if (!ov) return;
+    ov.classList.remove('an');
+    var t = $('overlay_chu');
+    if (t) t.textContent = chu || 'Đang xử lý…';
+    var c = $('overlay_chi_dan');
+    if (c) c.textContent = chi_dan || '';
+  }
+  function anOverlay() {
+    var ov = $('overlay_busy');
+    if (ov) ov.classList.add('an');
+  }
+  /* Rút gọn tên giai đoạn cho ô trạng thái nhỏ ở thanh đầu. */
+  function nganGiaiDoan(gd) {
+    var s = String(gd || '');
+    if (!s) return '';
+    if (s.indexOf('nạp model') >= 0) return 'Nạp model';
+    if (s.indexOf('mở video') >= 0) return 'Mở video';
+    if (s.indexOf('phân tích') >= 0) return 'Phân tích';
+    if (s.indexOf('Xong') >= 0) return 'Xong';
+    return s;
+  }
+
   function moManChinh() {
     $('man_dang_nhap').classList.add('an');
     $('man_chinh').classList.remove('an');
@@ -835,34 +974,65 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
   function hienManDangNhap() {
     $('man_chinh').classList.add('an');
     $('man_dang_nhap').classList.remove('an');
+    hienHuongDan();
   }
 
-  /* -------------------------------------------------- dang nhap ------ */
-  $('form_dang_nhap').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var loi = $('loi_dang_nhap');
-    loi.className = 'thong-bao loi';
-    loi.textContent = 'Đang kiểm tra...';
-    api('/api/dang-nhap', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mat_khauu: $('o_mat_khauu').value })
-    }).then(function (r) {
-      if (r.ok && r.duLieu && r.duLieu.ok) {
-        luuToken(r.duLieu.token || '');
-        loi.className = 'thong-bao';
-        loi.textContent = '';
-        $('o_mat_khauu').value = '';
-        moManChinh();
-        napVideoMau();
-        napLopViet();
-        napCauHinh();
-        poll();
-      } else {
-        loi.className = 'thong-bao loi';
-        loi.textContent = (r.duLieu && r.duLieu.loi) || 'Đăng nhập không thành công.';
+  /* -------------------------------------------------- truy cap ------- */
+  /* KHONG co form mat khau. Nguoi dung mo bang DUONG DAN CO MA: server cap
+     phien ngay (dat cookie camai_phien) roi phuc vu UI => vao thang.
+     UI chi con hoi server "da co phien chua?".
+     Chua co phien => thong bao huong dan + nut "Lay duong dan co ma". */
+  function hienHuongDan() {
+    var tt = $('tt_dang_nhap');
+    if (tt) {
+      tt.textContent =
+        'Mở bằng đường dẫn có mã (copy từ hộp thoại “Mở trên điện thoại” trên máy tính).';
+    }
+    var khoi = $('khoi_huong_dan');
+    if (khoi) khoi.classList.remove('an');
+  }
+
+  function kiemPhien() {
+    /* True neu da co phien hop le (cookie camai_phien hoac token trong
+       localStorage). Server tra ve token de UI luu vao localStorage. */
+    return api('/api/phien').then(function (r) {
+      if (r.ok && r.duLieu && r.duLieu.token) {
+        luuToken(r.duLieu.token);
+        return true;
       }
+      return false;
     });
+  }
+
+  function choTokenDesktop(tong_ms) {
+    /* Desktop tu dang nhap: webview inject token vao localStorage sau ~1.5s.
+       Cho mot khoang ngan truoc khi hien huong dan de man hinh khong nhay. */
+    var het = Date.now() + tong_ms;
+    function buoc() {
+      return kiemPhien().then(function (ok) {
+        if (ok) return true;
+        if (Date.now() >= het) return false;
+        return new Promise(function (xong) {
+          setTimeout(function () { xong(buoc()); }, 400);
+        });
+      });
+    }
+    return buoc();
+  }
+
+  function vaoPhanMem() {
+    moManChinh();
+    napVideoMau();
+    napLopViet();
+    napCauHinh();
+    poll();
+  }
+
+  $('nut_lay_duong_dan').addEventListener('click', function () {
+    $('modal_khoa').classList.add('mo');
+  });
+  $('modal_khoa_dong').addEventListener('click', function () {
+    $('modal_khoa').classList.remove('mo');
   });
 
   $('nut_dang_xuat').addEventListener('click', function () {
@@ -1253,6 +1423,10 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
       thongBao('Cần bật “Phát hiện người” thì phần mềm mới biết đâu là người.', false);
       return;
     }
+    /* HIEN SPINNER NGAY (khong doi server phan hoi) => nguoi dung thay
+       ngay "dang nap model" chua 1 giay, khong bao gio im lang. */
+    hienOverlayChay('Đang nạp model nhận diện…',
+                    'Lần đầu mất khoảng 10–20 giây. Phần mềm vẫn phản hồi, khoan đợi.');
     thongBao('Đang bắt đầu...', true);
     api('/api/phan-tich', {
       method: 'POST',
@@ -1265,8 +1439,12 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
         $('img_live').classList.remove('an');
         $('chu_khung').classList.add('an');
       } else {
+        anOverlay();
         thongBao((r.duLieu && r.duLieu.loi) || 'Không chạy được.', false);
       }
+    }).catch(function () {
+      anOverlay();
+      thongBao('Không gửi được lệnh phân tích tới máy chủ.', false);
     });
   });
 
@@ -1364,18 +1542,35 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
   function veTrangThai(d) {
     var nhan = $('nhan_trang_thai');
     var chu = $('nhan_trang_thai_chu');
+    var gd = d.giai_doan || '';
     if (d.loi) {
       nhan.className = 'chip-trang-thai v3';
       chu.textContent = 'Lỗi';
     } else if (d.busy) {
       nhan.className = 'chip-trang-thai v2';
-      chu.textContent = 'Đang chạy ' + (d.phan_tram || 0) + '%';
+      chu.textContent = nganGiaiDoan(gd) + ' ' + (d.phan_tram || 0) + '%';
     } else if (d.xong) {
       nhan.className = 'chip-trang-thai';
       chu.textContent = 'Xong';
     } else {
       nhan.className = 'chip-trang-thai';
       chu.textContent = d.trang_thai || 'Chưa chạy';
+    }
+
+    /* --- OVERLAY + ten giai doan: nguoi dung luon biet dang lam gi --- */
+    if (d.busy) {
+      var dong = gd || 'Đang xử lý…';
+      var chi_dan = (dong.indexOf('nạp model') >= 0)
+        ? 'Lần đầu mất khoảng 10–20 giây. Phần mềm vẫn phản hồi, khoan đợi.'
+        : 'Phần mềm vẫn phản hồi, khoan đợi.';
+      hienOverlayChay(dong, chi_dan);
+    } else {
+      anOverlay();
+    }
+    var dong_gd = $('dong_giai_doan');
+    if (dong_gd) {
+      dong_gd.textContent = gd;
+      dong_gd.className = 'dong-giai-doan' + (d.loi ? ' loi' : (d.busy ? '' : ' xong'));
     }
 
     $('nut_chay').disabled = !!d.busy;
@@ -1438,16 +1633,42 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
 
   /* -------------------------------------------------- poll 500 ms --- */
   var bo_dong = null;
+  var luc_ping_gan_nhat = 0;
+
+  /* Máy chủ còn sống không? Dùng /api/ping (trả về tức thì).
+     Nếu ping cũng treo => máy chủ thật sự không phản hồi. */
+  function kiemTraSong() {
+    return api('/api/ping', { timeout_ms: 2000 }).then(function (r) {
+      return !!(r.ok && r.duLieu && r.duLieu.ok);
+    }).catch(function () { return false; });
+  }
+
   function poll() {
-    return api('/api/trang-thai').then(function (r) {
+    return api('/api/trang-thai', { timeout_ms: 8000 }).then(function (r) {
       if (r.status === 401) {
-        hienManDangNhap();
+        if (!$('man_chinh').classList.contains('an')) hienManDangNhap();
         return;
       }
       if (r.ok && r.duLieu) {
         if ($('man_chinh').classList.contains('an')) moManChinh();
         veTrangThai(r.duLieu);
+        return;
       }
+      /* Không nhận được phản hồi: kiểm tra máy chủ còn sống không.
+         Còn sống => máy chủ đang bận (nạp model) -> báo "khoan đợi"
+         thay vì đứng hình im lặng. */
+      var luc = Date.now();
+      if (luc - luc_ping_gan_nhat < 2000) return;
+      luc_ping_gan_nhat = luc;
+      return kiemTraSong().then(function (song) {
+        if (song) {
+          hienOverlayChay('Đang nạp model nhận diện…',
+                          'Máy chủ đang bận, khoan đợi…');
+        } else {
+          hienOverlayChay('Không kết nối được tới máy chủ',
+                          'Thử tải lại trang hoặc mở lại ứng dụng.');
+        }
+      });
     });
   }
   function batDauPoll() {
@@ -1615,10 +1836,18 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
     }
     VUNG.che_do = true;
     c.cv.classList.add('ve-duoc');
-    /* Dua khung hinh vao khung nhin (nut "Ve vung" nam o cot trai, khung video
-       co the dang o tren/manhinh) + dong drawer tren dien thoai. */
+    /* Dua khung hinh vao khung nhin (nut "Ve vung" nam o cot trai) + dong
+       drawer tren dien thoai.
+       Khung video da Dinh (sticky) o tren nen luon thay duoc -> khong cuon
+       bang scrollIntoView (scrollIntoView tren phan tinh cu hay nhay). */
     var khung = c.el.parentElement;
-    if (khung && khung.scrollIntoView) {
+    var bo_dinh = null;
+    try {
+      bo_dinh = c.el.closest ? c.el.closest('.the-video-stick') : null;
+    } catch (e) { bo_dinh = null; }
+    var dangDinh = !!(bo_dinh && window.getComputedStyle &&
+                      window.getComputedStyle(bo_dinh).position === 'sticky');
+    if (!dangDinh && khung && khung.scrollIntoView) {
       try { khung.scrollIntoView({ block: 'center' }); } catch (e) { khung.scrollIntoView(); }
     }
     if (window.innerWidth <= 900) {
@@ -1976,14 +2205,40 @@ footer{padding:0 var(--g-3) var(--g-4);text-align:center;color:var(--muted);font
   }
 
   /* -------------------------------------------------- khoi dong ------ */
-  poll().then(function () {
-    batDauPoll();
-    if (layToken()) {
-      napVideoMau();
-      napLopViet();
-      napCauHinh();
-    }
-  });
+  /* Da co phien (cookie/token) -> vao thang phan mem.
+     Chua co -> cho desktop tu dang nhap roi hien man huong dan (khong co form). */
+  function batDauUI() {
+    return kiemPhien().then(function (ok) {
+      if (ok) {
+        vaoPhanMem();
+        return;
+      }
+      return choTokenDesktop(3000).then(function (co) {
+        if (co) {
+          vaoPhanMem();
+          return;
+        }
+        hienManDangNhap();
+      });
+    });
+  }
+  /* Do chieu cao that cua thanh dau (cho khung video sticky) + theo doi khi
+     doi kich thuoc cua so. */
+  dongBoChieuCaoDau();
+  window.addEventListener('resize', dongBoChieuCaoDau);
+  window.addEventListener('orientationchange', dongBoChieuCaoDau);
+  if (window.ResizeObserver) {
+    try {
+      var the_dau = document.querySelector('.thanh-dau');
+      if (the_dau) {
+        new window.ResizeObserver(dongBoChieuCaoDau).observe(the_dau);
+      }
+    } catch (e) { /* bo qua */ }
+  }
+  window.addEventListener('load', dongBoChieuCaoDau);
+  setTimeout(dongBoChieuCaoDau, 300);
+
+  batDauUI();
   batDauPoll();
 })();
 </script>

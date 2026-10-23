@@ -119,6 +119,16 @@ def kiem_tra_tinh_file() -> None:
     _ghi("Khong co <script src>/<link href> tro ngoai", not the_ngoai,
          "so=%d %s" % (len(the_ngoai), the_ngoai[:5]))
 
+    # A4 (v3.9): UI MOI - khong con form mat khau, co man huong dan.
+    co_input_mk = '<input type="password"' in text
+    _ghi("UI KHONG con form mat khau (v3.9)", not co_input_mk,
+         "co_input_password=%s" % co_input_mk)
+    _ghi("UI co man huong dan + nut 'Lay duong dan co ma'",
+         "Lấy đường dẫn có mã" in text and "Mở bằng đường dẫn có mã" in text,
+         "co_nut=%s co_huong_dan=%s"
+         % ("Lấy đường dẫn có mã" in text,
+            "Mở bằng đường dẫn có mã" in text))
+
 
 # ====================================================================== A3
 class _DemControl(HTMLParser):
@@ -424,7 +434,7 @@ def chup_edge_cli(token: str) -> dict[str, str]:
     return ket_qua
 
 
-def chup_playwright(token: str, mat_khau: str) -> list[dict]:
+def chup_playwright(token: str, mat_khau: str, khoa: str = "") -> list[dict]:
     """Chup + do layout bang Playwright dieu khien Edge da cai."""
     from playwright.sync_api import sync_playwright
 
@@ -465,12 +475,22 @@ def chup_playwright(token: str, mat_khau: str) -> list[dict]:
                     if (m.type == "error" and "Failed to load resource" not in m.text)
                     else (loi_mang.append(m.text) if m.type == "error" else None))
 
-            page.goto(BASE + "/", wait_until="domcontentloaded", timeout=60000)
-            page.fill("#o_mat_khauu", mat_khau)
-            page.click("#form_dang_nhap button[type=submit]")
+            # v3.9: mo bang DUONG DAN CO MA => vao thang, khong co form mat khau.
+            if khoa:
+                page.goto(BASE + "/?k=" + khoa, wait_until="domcontentloaded", timeout=60000)
+            else:
+                page.goto(BASE + "/", wait_until="domcontentloaded", timeout=60000)
             page.wait_for_selector("#man_chinh:not(.an)", timeout=30000)
             _ghi("Dang nhap trong trinh duyet -> man chinh hien ra", True,
-                 "URL %s" % page.url)
+                 "URL %s" % page.url.replace(khoa, "<KHOA>"))
+            co_form = page.query_selector("#form_dang_nhap")
+            co_mk = page.query_selector('input[type="password"]')
+            _ghi("Trinh duyet: KHONG co form mat khau (vao thang bang ?k=)",
+                 co_form is None and co_mk is None,
+                 "form=%s input_password=%s" % (co_form, co_mk))
+            co_cookie = [c for c in ctx.cookies() if c["name"] == "camai_phien"]
+            _ghi("Trinh duyet nhan duoc cookie phien 'camai_phien'",
+                 bool(co_cookie), "so=%d" % len(co_cookie))
 
             page.wait_for_timeout(1200)
 
@@ -484,6 +504,69 @@ def chup_playwright(token: str, mat_khau: str) -> list[dict]:
             except Exception:  # noqa: BLE001
                 _ghi("UI nap /api/cau-hinh (gioi han do may chu tra ve)", False,
                      "khong thay gia tri gioi han tu API")
+
+            # --- v3.9.1: KHUNG VIDEO LUON O TREN (sticky) o 3 kich thuoc ---
+            # Cuon xuong roi do getBoundingClientRect().top cua khung video:
+            # phai <= chieu cao thanh dau + 2px (video dinh ngay duoi thanh dau).
+            ket_sticky = []
+            for rong, cao in KICH_THUOC:
+                page.set_viewport_size({"width": rong, "height": cao})
+                page.wait_for_timeout(400)
+                page.evaluate("() => window.scrollTo(0, 1200)")
+                page.wait_for_timeout(400)
+                do = page.evaluate(
+                    "() => {"
+                    " const d=document.documentElement;"
+                    " const h=document.querySelector('.thanh-dau');"
+                    " const v=document.querySelector('.khung-video');"
+                    " const w=document.querySelector('.the-video-stick');"
+                    " const hh=h?Math.round(h.getBoundingClientRect().height):0;"
+                    " const vr=v?v.getBoundingClientRect():null;"
+                    " return {hh:hh, st:w?getComputedStyle(w).position:'',"
+                    "  top:vr?Math.round(vr.top):null,"
+                    "  bottom:vr?Math.round(vr.bottom):null,"
+                    "  w:vr?Math.round(vr.width):0, h:vr?Math.round(vr.height):0,"
+                    "  vh:window.innerHeight,"
+                    "  tranNgang:d.scrollWidth>d.clientWidth};"
+                    "}")
+                do["rong"] = rong
+                do["cao"] = cao
+                ket_sticky.append(do)
+                _in("  [STICKY] %dx%d: header=%dpx, position=%s, video %dx%d, top=%s "
+                    "(can <= %d), bottom=%s (man hinh %d)"
+                    % (rong, cao, do["hh"], do["st"], do["w"], do["h"], do["top"],
+                       do["hh"] + 2, do["bottom"], do["vh"]))
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.wait_for_timeout(400)
+            page.evaluate("() => window.scrollTo(0, 0)")
+            page.wait_for_timeout(300)
+
+            sai_sticky = [d for d in ket_sticky
+                          if d["st"] != "sticky" or d["top"] is None
+                          or d["top"] > d["hh"] + 2]
+            _ghi("Khung video Dinh (sticky) o ca 3 kich thuoc",
+                 not sai_sticky,
+                 "sai: %s" % ([("%dx%d top=%s hh=%s" % (d["rong"], d["cao"], d["top"],
+                                                      d["hh"])) for d in sai_sticky]
+                              if sai_sticky else "1440x900, 820x1180, 390x844 OK"))
+            trong_khung = [d for d in ket_sticky
+                           if d["bottom"] is None or d["bottom"] > d["vh"] + 2]
+            _ghi("Khung video nam trong khung nhin (khong can cuon)",
+                 not trong_khung,
+                 "sai: %s" % ([("%dx%d bottom=%s vh=%s" % (d["rong"], d["cao"],
+                                                           d["bottom"], d["vh"]))
+                               for d in trong_khung] if trong_khung else "3/3 OK"))
+            sai_ti_le = [d for d in ket_sticky
+                         if not d["w"] or abs((d["h"] / float(d["w"])) - 9.0 / 16.0) > 0.02]
+            _ghi("Khung video giu ti le 16:9 (khong meo)", not sai_ti_le,
+                 "sai: %s" % ([("%dx%d %dx%d" % (d["rong"], d["cao"], d["w"], d["h"]))
+                               for d in sai_ti_le] if sai_ti_le else
+                              ", ".join("%dx%d=%dx%d" % (d["rong"], d["cao"], d["w"], d["h"])
+                                        for d in ket_sticky)))
+            tran = [d for d in ket_sticky if d["tranNgang"]]
+            _ghi("Khong tran ngang sau khi them khung video sticky", not tran,
+                 "tran: %s" % ([("%dx%d" % (d["rong"], d["cao"])) for d in tran]
+                               if tran else "khong"))
 
             # --- E2E: bam nut BAT DAU, chay phan tich that ---
             page.set_viewport_size({"width": 1440, "height": 900})
@@ -501,6 +584,34 @@ def chup_playwright(token: str, mat_khau: str) -> list[dict]:
             page.fill("#o_duong_dan", VIDEO_MAU)
             _in("  [E2E] chay video ngan: %s" % VIDEO_MAU)
             page.click("#nut_chay")
+
+            # --- v3.9.1: phai co spinner + overlay ngay (duoi 1 giay) ---
+            page.wait_for_timeout(400)
+            overlay = page.evaluate(
+                "() => { const o=document.getElementById('overlay_busy');"
+                " if(!o) return null;"
+                " const cs=getComputedStyle(o);"
+                " const hien = cs.display!=='none' && cs.visibility!=='hidden'"
+                "   && parseFloat(cs.opacity||'1')>0.01 && o.offsetParent!==null;"
+                " const v=document.querySelector('.vong-xoay');"
+                " const csV=v?getComputedStyle(v):null;"
+                " return {hien:hien,"
+                "  chu:(document.getElementById('overlay_chu')||{}).textContent||'',"
+                "  coSpinner:!!(v && csV && csV.animationName && csV.animationName!=='none')};"
+                "}")
+            _ghi("Bam BAT DAU -> overlay 'dang lam viec' hien ngay (<1s)",
+                 bool(overlay and overlay.get("hien")),
+                 "chu=%r" % ((overlay or {}).get("chu", "")[:60]))
+            _ghi("Overlay co spinner CSS (khong dung emoji)",
+                 bool(overlay and overlay.get("coSpinner")),
+                 "animationName=%s" % (overlay or {}).get("coSpinner"))
+            _ghi("Overlay co chu 'dang nap model' (tieng Viet, dau dau)",
+                 "nạp model" in ((overlay or {}).get("chu", "").lower()),
+                 "chu=%r" % ((overlay or {}).get("chu", "")[:60]))
+            page.screenshot(path=os.path.join(
+                THU_MUC_OUT, "ui_dang_nap_model_1440x900.png"))
+            _in("  [E2E] da chup anh luc dang nap model")
+
             page.wait_for_timeout(2500)
             tb = page.inner_text("#noi_dung_thong_bao")
             _in("  [E2E] thong bao sau khi bam BAT DAU: %r" % tb[:110])
@@ -759,6 +870,8 @@ def main() -> int:
     env = os.environ.copy()
     env["CAMAI_PASSWORD"] = mat_khau
     env["PYTHONIOENCODING"] = "utf-8"
+    # Cho phep doc khoa truy cap san dung tu log server (che do debug).
+    env["CAMAI_DEBUG_KHOA"] = "1"
     log_path = os.path.join(APP_DIR, "_kk_out", "ui_web_server.log")
     log = open(log_path, "w", encoding="utf-8")
     proc = subprocess.Popen(
@@ -770,6 +883,27 @@ def main() -> int:
             _ghi("Server khoi dong", False, "khong san sang sau 120s")
             return 1
         _ghi("Server khoi dong", True, "cong %d" % CONG)
+
+        # --- doc khoa truy cap san dung tu log server ---
+        khoa = ""
+        het = time.time() + 30
+        while time.time() < het:
+            try:
+                with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                    noi_dung = f.read()
+            except OSError:
+                noi_dung = ""
+            tim = re.search(
+                r"URL san dung:\s*http://[0-9.]+:\d+/\?k=([A-Za-z0-9_\-]+)", noi_dung
+            )
+            if tim:
+                khoa = tim.group(1)
+                break
+            time.sleep(0.5)
+        _ghi("Server sinh khoa truy cap san dung (>= 32 ky tu)", len(khoa) >= 32,
+             "do dai=%d ky tu" % len(khoa))
+        if not khoa:
+            return 1
 
         status, body, _ = _req("/api/dang-nhap", method="POST",
                                data={"mat_khauu": mat_khau})
@@ -786,7 +920,7 @@ def main() -> int:
         _ghi("Edge headless chup duoc 3 anh", len(anh_cli) == 3,
              "so_anh=%d" % len(anh_cli))
 
-        ket_pw = chup_playwright(token, mat_khau)
+        ket_pw = chup_playwright(token, mat_khau, khoa)
 
         trang = [k for k in ket_pw if k.get("tran_ngang")]
         _ghi("KHONG tran ngang o bat ky be rong nao", not trang,

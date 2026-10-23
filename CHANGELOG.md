@@ -2,6 +2,107 @@
 
 Định dạng: Keep a Changelog. Phiên bản theo Semantic Versioning.
 
+## [3.10] — 2026-10-23 — **KHOÁ TRUY CẬP SẴN DÙNG + KHUNG VIDEO LUÔN Ở TRÊN + KHÔNG CẢM GIÁC TREO**
+
+Bốn nhóm thay đổi, tất cả **đã kiểm chứng bằng số đo thật** (coordinator tự chạy lại):
+
+1. **Khoá bootstrap — bỏ form mật khẩu trên trình duyệt.**
+2. **Khung video LUÔN Ở TRÊN (sticky)** trên cả desktop lẫn điện thoại.
+3. **Không treo + có indicator** (overlay spinner + tên giai đoạn).
+4. **Kiến trúc mới: process con giữ sống (warm worker)** — server không bao giờ import torch.
+
+### 1. Khoá bootstrap — bỏ form mật khẩu trên trình duyệt
+
+**Vấn đề:** bản 3.9 vẫn bắt người dùng **gõ mật khẩu** trên trình duyệt điện thoại.
+
+| Nội dung | Chi tiết |
+|---|---|
+| `web_server.py` — khoá truy cập | `KHOA_TRUY_CAP = secrets.token_urlsafe(32)` sinh **1 lần lúc nạp module** (43 ký tự, **đổi mỗi lần khởi động**) |
+| So khớp | `_khop_khoa_truy_cap()` dùng `secrets.compare_digest` (**constant-time**), chuẩn hoá về **byte UTF-8** trước khi so |
+| URL sẵn dùng | `url_san_dung(ip_lan, cong)` → `http://<IP-LAN>:<port>/?k=<khoá>` |
+| `GET /` có `?k=` khớp | ⇒ `PHIEN.cap_phien()` + `set_cookie("camai_phien", httponly=True, samesite="lax", max_age=12h)` ⇒ **vào thẳng, KHÔNG có form mật khẩu** |
+| `GET /` không có khoá / khoá sai | ⇒ vẫn trả **HTTP 200** nhưng UI hiện **màn hướng dẫn** + nút "Lấy đường dẫn có mã"; **API vẫn 401** |
+| Route mới `GET /api/phien` | trả token phiên nếu cookie còn hiệu lực ⇒ UI tự biết đã đăng nhập |
+| `POST /api/dang-nhap` | **KHÔNG đụng** · `CAMAI_PASSWORD` vẫn **fail-closed** như cũ |
+| An toàn khoá | khoá **KHÔNG ghi ra file**, **KHÔNG in ra console** (chỉ in khi `CAMAI_DEBUG_KHOA=1` và stdout thật) |
+| `app_qt.py` | hộp thoại "Mở trên điện thoại" hiện **URL sẵn dùng** (đã có `?k=`) + nút **"Sao chép"**; **bỏ** dòng mật khẩu + nút "Sao chép mật khẩu" |
+| `giao_dien_web/index.html` | **bỏ** `<input type="password">`; thêm **màn hướng dẫn** kèm nút lấy đường dẫn có mã |
+
+### 2. Khung video LUÔN Ở TRÊN (sticky)
+
+| Nội dung | Chi tiết |
+|---|---|
+| Vị trí | video chuyển lên **đầu cột giữa** |
+| CSS | `.the-video-stick{position:sticky;top:calc(var(--h-dau) - 15px)}` — **−15px** = border + padding của `.the` ⇒ khung video nằm **sát dưới thanh đầu** |
+| `--h-dau` (chiều cao thanh đầu) | **đo runtime** bằng `ResizeObserver` + `resize listener` ⇒ đúng ở **mọi** bề rộng cửa sổ |
+| Giữ tỉ lệ 16/9 | `aspect-ratio:16/9` + `width:min(100%, calc(46vh * 16 / 9))` ⇒ chiều cao **≤ 46vh** |
+
+**Đo thật** (yêu cầu: video top ≤ header + 2px):
+
+| Viewport | Chiều cao thanh đầu | `top` của khung video | Kết quả |
+|---|---|---|---|
+| 1440 × 900 | 56 px | **56 px** | ✓ |
+| 820 × 1180 | 56 px | **56 px** | ✓ |
+| 390 × 844 | 61 px | **61 px** | ✓ |
+
+### 3. Không treo + có indicator
+
+| Nội dung | Chi tiết |
+|---|---|
+| `web_server.py` — trường `giai_doan` | thêm vào `/api/trang-thai` (**cả hợp đồng mới và cũ**): "Đang chuẩn bị" → "Đang nạp model nhận diện" → "Đang mở video" → "Đang phân tích" → "Xong" (+ "Lỗi") |
+| Overlay trên khung video | **spinner CSS thuần** (`@keyframes quay`, **không emoji**) + tên giai đoạn + gợi ý *"Lần đầu mất khoảng 10–20 giây. Phần mềm vẫn phản hồi, khoan đợi."* |
+| Badge ở thanh đầu | **"● Nạp model 0%"**; tên giai đoạn cũng hiện **dưới thanh tiến trình** |
+| Độ trễ overlay | hiện **0,8 s** sau khi bấm BẮT ĐẦU (không nháy khi bấm nhầm) |
+
+### 4. Kiến trúc mới: process con giữ sống (warm worker)
+
+| Nội dung | Chi tiết |
+|---|---|
+| Tách tiến trình | phần phân tích chuyển sang **tiến trình con `multiprocessing` (spawn)** giữ torch + YOLO + ArcFace |
+| Ranh giới quan trọng | **Server KHÔNG BAO GIỜ import torch/cv2** ở cấp module (`import cv2` chỉ nằm trong hàm, và ảnh nền đã được resize **trong tiến trình con** ⇒ server không cần `import cv2` trong đường gọi) |
+| Worker sống lâu | ⇒ **lần chạy 2+ KHÔNG phải nạp lại model**: lần 1 = **27,8 s** (cold) → lần 2 = **8,8 s** (warm) |
+| `GET /api/ping` (mới) | "safety net" sống còn |
+| Dừng | tín hiệu `dung`; **watchdog 20 s** huỷ worker không phản hồi |
+
+### BẰNG CHỨNG — coordinator tự chạy lại, KHÔNG tin báo cáo agent
+
+| Bộ kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_web_server.py` | **64/64 PASS** |
+| `_kk_kiem_ui_web.py` | **49/49 PASS** |
+| `_kk_kiem_app_qt.py` | **30/30 PASS** |
+| `_kk_kiem_khoa_truy_cap.py` (mới) | **26/26 PASS** |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** |
+| `_kk_kiem_nguon_viet.py` | **35/35 PASS** — CSV gốc SHA256 `bf97d113fdac39fb` **khớp** |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_gui_chay_thuc.py` | **PASS** (31,7 s) |
+| `_kk_kiem_khong_mat_tinh_nang.py` | **PASS — không mất tính năng nào** |
+
+**Bất biến giữ nguyên:** 20 checkbox · 12 nhóm con · 13 thẻ video mẫu · CSV **10 cột** (mới) / **14 cột** (bật đếm phương tiện, cột mới **ở CUỐI**) · SHA256 CSV khi tắt tính năng **khớp gốc** · 80 lớp COCO khớp 100% model · đếm phương tiện **21 = 21**.
+
+### ĐO ĐƯỢC ĐẦU VÀO — đọc thẳng, không bịa
+
+| Số đo | Kết quả | Nghĩa là gì |
+|---|---|---|
+| Stall khi `import cam_ai_core` (5,26 s) | tối đa **0,055 s** | **GIL KHÔNG bị chiếm** ⇒ giả thuyết "GIL starvation" **bị loại bằng đo đạc** |
+| `/api/trang-thai` poll suốt lần chạy lạnh 75 s | **144/144 OK**, khoảng cách lớn nhất **0,502 s** | event loop FastAPI **không bao giờ đứng** |
+| Browser main-thread rAF | khoảng cách lớn nhất **0,035 s** | trang **không đứng hình** |
+| `/api/anh-nen` latency | tối đa **0,422 s → 0,113 s** | sau sửa |
+| Poll max gap | **0,508 s → 0,532 s** | sau sửa |
+| rAF max gap | **0,035 s → 0,100 s** | sau sửa |
+
+**NGUYÊN NHÂN THẬT (không phải "GIL"):** lúc nạp model **11–27 s** ⇢ **không có gì hiển thị** — overlay không hiện, tiến trình đứng 0%, chip ghi "Đang chạy 0%" ⇒ **cảm giác** như treo. Kèm **lỗi thật thứ hai**: việc nặng chạy **cùng process** với server và với event loop Qt ⇒ một lần stall C-extension/CUDA làm đứng cả app desktop, và core crash làm chết app.
+
+> **Ghi chú thẳng thắn:** server/browser **không hề đứng đo được trước khi sửa**. Giá trị thật của bản sửa là **gỡ bỏ rủi ro treo** + **có phản hồi trực quan** — **KHÔNG phải** "đã sửa một lần đứng đo được".
+
+### CHƯA ĐẠT ở bản 3.10
+
+- **Mục 7** (cảm giác kéo cửa sổ) và **mục 8** (độ nhận diện) **vẫn chờ anh xác nhận** — không tự ý đánh dấu đạt.
+- **Chưa kiểm chứng trên điện thoại THẬT** (mới chỉ có viewport mô phỏng 390/820 + localhost).
+- **Webcam / camera IP chưa chạy được trên bản web** (chỉ phân tích **file video**) ⇒ nút "Quét camera" hướng dẫn về bản desktop.
+- **OCR biển số / tự chụp ảnh / tách ô / cảnh báo** chưa chạy hết vòng với dữ liệu thật.
+- **Bản Tkinter cũ vẫn còn** và vẫn chạy — dùng để đối chiếu.
+
 ## [3.9] — 2026-10-22 (sau 23:30) — **CHUYỂN GIAO DIỆN SANG WEB-FIRST**
 
 Anh: *"cái nền tảng này đúng là bạn chọn nó quá lạc hậu"* → *"oke bạn làm thế đi nhé cái webview oke

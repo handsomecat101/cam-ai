@@ -10,7 +10,7 @@ Kien truc:
        Khong dung subprocess => dong cua so la tat sach, khong con process treo.
     2. QWebEngineView tro toi http://127.0.0.1:<port> => dung UI ma dien thoai cung thay.
     3. Thanh trang thai duoi cung + hop thoai "Mo tren dien thoai"
-       (URL LAN + mat khau + 2 nut "Sao chep").
+       (URL LAN SAN DUNG co ma truy cap + nut "Sao chep").
 
 Mat khau (double-click la chay, khong can cau hinh bien moi truong):
     - Co CAMAI_PASSWORD trong moi truong -> dung nguyen, khong doi.
@@ -20,9 +20,16 @@ Mat khau (double-click la chay, khong can cau hinh bien moi truong):
     - Mat khau khong bao gio ghi ra file, khong ghi ra log file.
       Chi in ra console (chay bang python.exe moi co console).
 
+KHOA TRUY CAP SAN DUNG (v3.9):
+    - web_server sinh 1 khoa ngau nhien (KHOA_TRUY_CAP) moi lan khoi dong.
+    - Hop thoai "Mo tren dien thoai" hien URL SAN DUNG co khoa:
+      http://<IP-LAN>:<port>/?k=<khoa> => dien thoai mo la VAO THANG,
+      KHONG co form mat khau.
+    - Nguoi la trong LAN khong co URL => khong vao duoc.
+
 Dang nhap:
     - Desktop TU DANG NHAP HOP (fetch trong trang -> luu token vao localStorage).
-    - Dien thoai VAN PHAI GO MAT KHAU: server luon bat buoc dang nhap cho moi /api/*.
+    - Dien thoai mo bang DUONG DAN CO MA (server cap phien ngay).
     - Auto-dang nhap chi chay tren webview cuc bo (127.0.0.1) cua may nay.
 
 Nguyen tac:
@@ -528,9 +535,13 @@ if not _LOI_PY:
     }
 
     class _HopThoaiDienThoai(QDialog):
-        """Hộp thoại 'Mở trên điện thoại': URL LAN + mật khẩu + 2 nút sao chép."""
+        """Hộp thoại 'Mở trên điện thoại': URL LAN SẴN DÙNG (có mã) + nút Sao chép.
 
-        def __init__(self, url_lan: str, mat_khau: str = "", parent=None) -> None:
+        Không còn ô mật khẩu: URL đã gắn sẵn mã truy cập, copy dán vào trình
+        duyệt điện thoại là vào thẳng, không gõ mật khẩu.
+        """
+
+        def __init__(self, url_lan: str, url_san_dung: str = "", parent=None) -> None:
             super().__init__(parent)
             self.setWindowTitle("Mở trên điện thoại")
             self.setMinimumWidth(520)
@@ -544,15 +555,14 @@ if not _LOI_PY:
             bo.addWidget(tieu_de)
 
             huong_dan = QLabel(
-                "Điện thoại cùng Wi-Fi với máy tính → mở trình duyệt → dán URL → "
-                "nhập mật khẩu bên dưới."
+                "Điện thoại cùng Wi-Fi với máy tính → mở trình duyệt → dán URL bên dưới."
             )
             huong_dan.setWordWrap(True)
             huong_dan.setStyleSheet("color: %s;" % MAU_CHU_PHU)
             bo.addWidget(huong_dan)
 
             dong = QHBoxLayout()
-            self.o_url = QLineEdit(url_lan)
+            self.o_url = QLineEdit(url_san_dung or url_lan)
             self.o_url.setReadOnly(True)
             self.o_url.setCursorPosition(0)
             self.o_url.setToolTip("Chọn toàn bộ và sao chép (Ctrl+C)")
@@ -562,21 +572,13 @@ if not _LOI_PY:
             dong.addWidget(self.btn_sao_chep)
             bo.addLayout(dong)
 
-            # --- Mật khẩu đăng nhập (điện thoại gõ tay) ---
-            nhan_mk = QLabel("Mật khẩu đăng nhập:")
-            nhan_mk.setStyleSheet("color: %s;" % MAU_CHU_PHU)
-            bo.addWidget(nhan_mk)
-
-            dong_mk = QHBoxLayout()
-            self.o_mk = QLineEdit(mat_khau)
-            self.o_mk.setReadOnly(True)
-            self.o_mk.setCursorPosition(0)
-            self.o_mk.setToolTip("Mật khẩu đổi mỗi lần mở app")
-            dong_mk.addWidget(self.o_mk, 1)
-            self.btn_sao_chep_mk = QPushButton("Sao chép mật khẩu")
-            self.btn_sao_chep_mk.clicked.connect(self._sao_chep_mk)
-            dong_mk.addWidget(self.btn_sao_chep_mk)
-            bo.addLayout(dong_mk)
+            ghi_chu = QLabel(
+                "Dán đường dẫn này vào trình duyệt điện thoại (cùng Wi-Fi) là vào thẳng, "
+                "không cần mật khẩu."
+            )
+            ghi_chu.setWordWrap(True)
+            ghi_chu.setStyleSheet("color: %s;" % MAU_CHU_PHU)
+            bo.addWidget(ghi_chu)
 
             canh_bao = QLabel("Chỉ trong mạng nội bộ. Không mở ra Internet.")
             canh_bao.setStyleSheet("color: #EF4444;")
@@ -587,11 +589,9 @@ if not _LOI_PY:
             bo.addWidget(thoat, 0, Qt.AlignRight)
 
             # Tab order ro rang (de kiem chung bam phim dua dung noi dung vao clipboard):
-            #   o_url -> btn_sao_chep -> o_mk -> btn_sao_chep_mk -> thoat
+            #   o_url -> btn_sao_chep -> thoat
             QWidget.setTabOrder(self.o_url, self.btn_sao_chep)
-            QWidget.setTabOrder(self.btn_sao_chep, self.o_mk)
-            QWidget.setTabOrder(self.o_mk, self.btn_sao_chep_mk)
-            QWidget.setTabOrder(self.btn_sao_chep_mk, thoat)
+            QWidget.setTabOrder(self.btn_sao_chep, thoat)
 
         def showEvent(self, su_kien):  # noqa: N802 - ten cua Qt
             """Dat focus o o dau tien de thu tu Tab co dinh."""
@@ -600,14 +600,23 @@ if not _LOI_PY:
                 self.o_url.setFocus()
             except Exception:  # noqa: BLE001
                 pass
+            # QLineEdit dua con tro ve CUOI khi nhan focus => dat lai ve DAU
+            # (de doc duoc phan dau URL) sau khi focus da xu ly xong.
+            try:
+                QTimer.singleShot(0, lambda: self.o_url.setCursorPosition(0))
+            except Exception:  # noqa: BLE001
+                pass
             # Hook cho kiem chung: in noi dung hop thoai ra console.
             if os.environ.get("CAMAI_QT_IN_DIALOG", "").strip():
                 _in("[CAMAI-QT] HOP-THOAI-URL: %s" % self.o_url.text())
-                _in("[CAMAI-QT] HOP-THOAI-MK: %s" % self.o_mk.text())
-                _in(
-                    "[CAMAI-QT] HOP-THOAI-NUT: %s | %s"
-                    % (self.btn_sao_chep.text(), self.btn_sao_chep_mk.text())
-                )
+                _in("[CAMAI-QT] HOP-THOAI-NUT: %s" % self.btn_sao_chep.text())
+                # Tu kiem: sao chep URL vao clipboard (KHONG can bam phim).
+                if os.environ.get("CAMAI_QT_TU_KIEM", "").strip():
+                    self._sao_chep()
+                    _in(
+                        "[CAMAI-QT] HOP-THOAI-CLIPBOARD: %s"
+                        % QGuiApplication.clipboard().text()
+                    )
 
         def _sao_chep(self) -> None:
             url = self.o_url.text()
@@ -619,16 +628,6 @@ if not _LOI_PY:
             self.btn_sao_chep.setText("Đã sao chép")
             QTimer.singleShot(1500, lambda: self.btn_sao_chep.setText("Sao chép"))
 
-        def _sao_chep_mk(self) -> None:
-            mk = self.o_mk.text()
-            try:
-                QGuiApplication.clipboard().setText(mk)
-            except Exception as loi:  # noqa: BLE001
-                _in("[CAMAI-QT] LOI sao chep mat khau: %s" % loi)
-                return
-            self.btn_sao_chep_mk.setText("Đã sao chép")
-            QTimer.singleShot(1500, lambda: self.btn_sao_chep_mk.setText("Sao chép mật khẩu"))
-
     class _CuaSoCamAI(QMainWindow):
         """Cửa sổ desktop: webview + thanh trạng thái + nút mở trên điện thoại."""
 
@@ -636,6 +635,7 @@ if not _LOI_PY:
             self,
             url: str,
             url_lan: str,
+            url_lan_san_dung: str = "",
             mat_khau: str = "",
             may_chu=None,
             parent=None,
@@ -647,6 +647,7 @@ if not _LOI_PY:
             self.setStyleSheet(QSS)
             self.may_chu = may_chu
             self.url_lan = url_lan
+            self.url_lan_san_dung = url_lan_san_dung or url_lan
             self.url_may = url
             self.mat_khau = mat_khau
             self.tin_cuoi = ""
@@ -678,7 +679,7 @@ if not _LOI_PY:
             self.lbl_trang_thai.setStyleSheet("color: %s;" % MAU_CHU_PHU)
             self.thanh.addWidget(self.lbl_trang_thai, 1)
             self.btn_dien_thoai = QPushButton("Điện thoại")
-            self.btn_dien_thoai.setToolTip("Mở trên điện thoại: %s" % url_lan)
+            self.btn_dien_thoai.setToolTip("Mở trên điện thoại: %s" % self.url_lan_san_dung)
             self.btn_dien_thoai.clicked.connect(self._mo_hop_thoai)
             self.thanh.addPermanentWidget(self.btn_dien_thoai)
             # Phim F2: mo hop thoai "Mo tren dien thoai" (tien khi ban phim).
@@ -693,6 +694,11 @@ if not _LOI_PY:
 
             self.trang.loadFinished.connect(self._trang_tai_xong)
             self.trang.load(QUrl(url))
+
+            # Hook kiem chung: mo hop thoai dien thoai TU DONG (KHONG can bam
+            # phim) - dung khi kiem chung khong duoc gui phim vao may.
+            if os.environ.get("CAMAI_QT_MO_HOP_THOAI", "").strip():
+                QTimer.singleShot(3000, self._mo_hop_thoai)
 
         # ------------------------------------------------------------ trang thai
         def _hien_trang_thai(self, text: str) -> None:
@@ -863,7 +869,7 @@ if not _LOI_PY:
 
         # ------------------------------------------------------------ hop thoai
         def _mo_hop_thoai(self) -> None:
-            hop = _HopThoaiDienThoai(self.url_lan, self.mat_khau, self)
+            hop = _HopThoaiDienThoai(self.url_lan, self.url_lan_san_dung, self)
             hop.exec()
 
         # ------------------------------------------------------------ dong app
@@ -980,19 +986,24 @@ def main() -> int:
             % (THOI_GIAN_CHO_SERVER, url_may)
         )
 
-    # 3) IP LAN cho điện thoại.
+    # 3) IP LAN cho điện thoại + URL SẴN DÙNG (có mã truy cập).
     ip = _ip_lan()
     url_lan = "http://%s:%d" % (ip, cong)
+    khoa_truy_cap = str(getattr(module, "KHOA_TRUY_CAP", "") or "")
+    url_lan_san_dung = url_lan + ("/?k=" + khoa_truy_cap if khoa_truy_cap else "/")
     _in("=" * 66)
     _in("  CamAI - vỏ desktop (PySide6 + QWebEngineView)")
     _in("  Trên máy tính : %s" % url_may)
     _in("  Trên điện thoại: %s" % url_lan)
-    _in("  (điện thoại cùng Wi-Fi, đăng nhập bằng mật khẩu)")
+    _in("  (điện thoại cùng Wi-Fi, mở URL SẴN DÙNG trong hộp thoại là vào thẳng)")
     _in("[CAMAI-QT] URL-LAN: %s" % url_lan)
+    if CO_CONSOLE:
+        # URL sẵn dùng chứa mã truy cập: chỉ in khi có console thật.
+        _in("[CAMAI-QT] URL-LAN-SAN-DUNG: %s" % url_lan_san_dung)
     _in("=" * 66)
 
     # 4) Mở cửa sổ.
-    cua_so = _CuaSoCamAI(url_may, url_lan, mat_khau, may_chu)
+    cua_so = _CuaSoCamAI(url_may, url_lan, url_lan_san_dung, mat_khau, may_chu)
     cua_so.show()
 
     ma = app.exec()

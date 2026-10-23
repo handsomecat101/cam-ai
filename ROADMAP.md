@@ -119,6 +119,13 @@ Nguyên tắc: **AI và dữ liệu luôn ở trên máy anh.** Cloudflare chỉ
 - [x] **Sửa 2 lỗi thị giác** do coordinator phát hiện khi tự mở ảnh: dấu ✓ trong ô checkbox
       biến mất (`fg_color` = `checkmark_color` cùng màu) → tick đổi sang màu nền tối; icon
       nút DỪNG trông như tofu (dùng Stop = hình vuông đặc) → đổi sang Pause
+- [x] **Bản 3.8 — tối ưu tốc độ pipeline 4,09× (bit-exact)** + **sửa lỗi app CRASH lúc thoát**
+      (thiếu `openh264-2.5.0-win64.dll` ⇒ `VideoWriter` H.264 hỏng ⇒ crash `0xC0000005`):
+      file mới `nhan_dien_nhanh.py` dùng **CUDA Graph** cho forward YOLO11n + preprocess nhanh
+      ⇒ **28,97 → 6,33 ms/khung (36,98 → 151,43 khung/s)**, E2E GUI **39,1 s → 26,1 s**;
+      **bit-exact 200/200 khung** · CSV **SHA256 giống hệt** · đếm phương tiện **21 = 21**.
+      **Loại 3 hướng có lý do:** batching (lệch số đếm 0,497559) · FP16 (không tăng tốc) ·
+      ONNX (export cứng 480×480 ⇒ hỏng SHA256). Chi tiết: `PROJECT_STATE.md` mục 2.1l.
 
 ## Đang làm
 
@@ -217,7 +224,8 @@ cửa sổ native Windows**.
       `/api/anh-nen` (khung hình JPEG cho điện thoại), `/api/quet-camera`, `/api/lop-viet`,
       hỗ trợ **Range request** để iPhone phát video
 - [x] **`app_qt.py`** = vỏ cửa sổ desktop: bật server → QWebEngineView → hộp thoại "Mở trên
-      điện thoại" (URL LAN + **mật khẩu tự sinh** + 2 nút Sao chép) + **tự đăng nhập hộ**
+      điện thoại" (**URL LAN**; ở bản 3.10 ô này đã thành **URL sẵn dùng có mã** + 1 nút
+      "Sao chép", bỏ ô mật khẩu) + **tự đăng nhập hộ**
 - [x] **UI thật** trong `giao_dien_web/index.html` — **12 nhóm / 56 control**, responsive,
       e2e chạy phân tích thật (377/377 khung, FPS 17,5)
 - [x] **`/api/cau-hinh`** — mô tả **37 field** `AnalysisConfig` theo 12 nhóm, **tự sinh từ
@@ -230,6 +238,51 @@ cửa sổ native Windows**.
 - [ ] **Webcam / camera IP chưa chạy được trên bản web** (chỉ phân tích file video) ⇒ nút
       "Quét camera" hướng dẫn về bản desktop
 - [ ] **OCR biển số / tự chụp ảnh / tách ô / cảnh báo** chưa chạy hết vòng với dữ liệu thật
+
+## BẢN 3.10 — KHOÁ SẴN DÙNG + KHUNG VIDEO Ở TRÊN + KHÔNG CẢM GIÁC TREO + WARM WORKER (2026-10-23)
+
+Bốn nhóm việc, tất cả **đã kiểm chứng bằng số đo thật** (coordinator tự chạy lại).
+
+- [x] **Khoá bootstrap — bỏ form mật khẩu trên trình duyệt**
+  - `KHOA_TRUY_CAP = secrets.token_urlsafe(32)` sinh 1 lần lúc nạp module (43 ký tự,
+    **đổi mỗi lần khởi động**); so khớp `secrets.compare_digest` (**constant-time**)
+  - `GET /?k=<khoá>` ⇒ set cookie `camai_phien` (httponly, samesite=lax, 12h) ⇒ **vào thẳng**
+  - Không khoá / sai khoá ⇒ vẫn **HTTP 200** nhưng UI hiện **màn hướng dẫn**; **API vẫn 401**
+  - Route mới `GET /api/phien`; `POST /api/dang-nhap` **không đụng**; `CAMAI_PASSWORD` vẫn
+    **fail-closed**; khoá **không ghi file, không in console** (chỉ in khi `CAMAI_DEBUG_KHOA=1`)
+  - `app_qt.py`: hộp thoại hiện **URL sẵn dùng** + nút "Sao chép"; **bỏ** ô mật khẩu
+  - `index.html`: **bỏ** `<input type="password">`; thêm màn hướng dẫn
+  - Kiểm chứng: bộ mới `_kk_kiem_khoa_truy_cap.py` **26/26 PASS**
+- [x] **Khung video LUÔN Ở TRÊN (sticky)** — video lên đầu cột giữa,
+    `position:sticky;top:calc(var(--h-dau) - 15px)`, `--h-dau` **đo runtime**
+    (ResizeObserver + resize listener), giữ tỉ lệ 16/9 (`aspect-ratio:16/9` +
+    `width:min(100%, calc(46vh*16/9))` ⇒ cao ≤ 46vh)
+  - **Đo thật:** 1440×900 → top **56px** · 820×1180 → **56px** · 390×844 → **61px**
+    (yêu cầu ≤ header+2px ⇒ đạt cả 3)
+- [x] **Overlay + tên giai đoạn** — `/api/trang-thai` có trường `giai_doan` (hợp đồng mới **và**
+    cũ): "Đang chuẩn bị" → "Đang nạp model nhận diện" → "Đang mở video" → "Đang phân tích" →
+    "Xong" (+ "Lỗi"); spinner CSS thuần (`@keyframes quay`, **không emoji**); badge
+    "● Nạp model 0%" ở thanh đầu; overlay hiện **0,8 s** sau khi bấm BẮT ĐẦU
+- [x] **Process con giữ sống (warm worker)** — phần phân tích sang tiến trình con
+    `multiprocessing` (spawn) giữ torch + YOLO + ArcFace ⇒ **server không bao giờ import
+    torch/cv2** ở cấp module; lần 1 cold **27,8 s** → lần 2 warm **8,8 s**;
+    `GET /api/ping` safety net; dừng có tín hiệu `dung` + watchdog 20 s
+  - **Đo đầu vào (nói thẳng):** stall khi `import cam_ai_core` (5,26 s) tối đa **0,055 s** ⇒
+    **giả thuyết "GIL starvation" bị bác bỏ bằng đo**; poll `/api/trang-thai` suốt lần chạy
+    lạnh 75 s **144/144 OK**, max gap **0,502 s**; rAF max gap **0,035 s** ⇒ **server/browser
+    KHÔNG hề đứng đo được trước khi sửa**. **Nguyên nhân thật** = lúc nạp model 11–27 s
+    **không có gì hiển thị** ⇒ *cảm giác* như treo (+ lỗi thật thứ hai: việc nặng chạy
+    **cùng process** với server và event loop Qt)
+- [x] **Kiểm chứng (coordinator tự chạy):** web server **64/64** · UI web **49/49** ·
+      app_qt **30/30** · khoá truy cập **26/26** · chức năng **73/73** · nguồn viết **35/35**
+      (CSV gốc SHA256 `bf97d113fdac39fb` khớp) · lớp viết **53/53** · GUI chạy thực **PASS**
+      (31,7 s) · **không mất tính năng PASS**
+- [ ] **Chờ anh xác nhận cảm giác "không treo"** — em đã đo và đã sửa, nhưng **chỉ có số đo**.
+      Anh mở app, bấm BẮT ĐẦU, xem overlay có hiện không và có thấy "giống treo" không
+- [ ] **Chưa kiểm chứng trên điện thoại THẬT** (mới chỉ có viewport mô phỏng 390/820 + localhost)
+- [ ] **Webcam / camera IP chưa chạy được trên bản web** (chỉ phân tích file video)
+- [ ] **Mục 7** (cảm giác kéo cửa sổ) — **vẫn chờ anh xác nhận**, không tự ý đánh dấu đạt
+- [ ] **Mục 8** (độ nhận diện) — **vẫn chờ anh xác nhận**, cần video thật của anh
 
 ## TRƯỚC ĐÂY
 

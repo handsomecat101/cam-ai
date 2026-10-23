@@ -22,6 +22,13 @@ Trong PowerShell:
     $env:CAMAI_PASSWORD = "mat-khau-cua-ban-it-nhat-8-ky-tu"
     .venv\\Scripts\\python.exe web_server.py
 
+KHOA TRUY CAP SAN DUNG (v3.9): module tu sinh 1 khoa ngau nhien dai
+(KHOA_TRUY_CAP, doi moi lan khoi dong). GET / co `?k=<khoa>` khop => cap
+phien ngay (cookie `camai_phien`) => nguoi dung vao thang, KHONG co form dang
+nhap. Dien thoai mo bang duong dan san dung do hop thoai "Mo tren dien thoai"
+ tren may tinh hien. Nguoi la trong LAN khong co URL => khong vao duoc API.
+Khoa KHONG duoc ghi ra file; chi in ra console khi CAMAI_DEBUG_KHOA=1.
+
 Nguyen tac giu nguyen:
     - Pipeline chay trong THREAD NEN, khong chay trong luong xu ly FastAPI.
     - /api/trang-thai chi doc bien trang thai duoi khoa rat ngan -> khong bi chan.
@@ -35,7 +42,9 @@ import argparse
 import ast
 import dataclasses
 import io
+import multiprocessing
 import os
+import queue as _hang_q
 import re
 import secrets
 import shutil
@@ -75,6 +84,13 @@ KHOA_SAI_GIO = 5 * 60            # 5 phut
 HET_HAN_PHIEN_GIO = 12           # cookie song 12 gio
 TEN_COOKIE = "camai_phien"
 
+# Khoa truy cap SAN DUNG: sinh 1 lan khi nap module, doi moi lan khoi dong.
+# Dung cho duong dan "http://<IP-LAN>:<port>/?k=<khoa>" => mo la vao thang,
+# khong co form dang nhap. Nguoi la trong LAN khong co URL => khong vao duoc.
+# KHONG ghi khoa ra file. KHONG in khoa ra console (chi in khi stdout that
+# VA bien moi truong CAMAI_DEBUG_KHOA=1).
+KHOA_TRUY_CAP = secrets.token_urlsafe(32)
+
 # --- gioi han ---------------------------------------------------------------
 KICH_THUOC_TAI_TOI_DA = 300 * 1024 * 1024      # 300 MB
 DUOI_VIDEO_CHAP_NHAN = (".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v")
@@ -87,6 +103,32 @@ KHOA_FRAME_MOI_NHAT = 0.2                       # 0.2s = 5 khung/s cho live view
 DUOI_ANH_CHAP_NHAN = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 KICH_THUOC_ANH_NGUOI_QUEN_TOI_DA = 12 * 1024 * 1024      # 12 MB (moi anh nguoi quen)
 SO_NGUOI_QUEN_TOI_DA = 200                              # so nguoi toi da trong known_faces
+
+# --- giai doan (chuoi tieng Viet cho nguoi dung) ----------------------------
+# Server bao tung giai doan qua /api/trang-thai -> UI hien spinner + ten
+# giai doan. Moi chuoi <= 60 ky tu de UI khop duoc.
+GIAI_DOAN_NAP_MODEL = "Đang nạp model nhận diện"
+GIAI_DOAN_MO_VIDEO = "Đang mở video"
+GIAI_DOAN_PHAN_TICH = "Đang phân tích"
+GIAI_DOAN_XONG = "Xong"
+GIAI_DOAN_LOI = "Lỗi"
+
+# Tinh hieu "dung" cho PROCESS CON (pipeline chay o process rieng).
+_TIEN_TRINH_CON: dict = {"dung": None}
+
+# --- Process con GIU SONG (nap model 1 lan, dung lai cho cac lan sau) -----
+# Server khong bao gio nap torch. Process con giu model da nap => lan chay
+# sau khong ton them thoi gian nap lai (chay nhanh nhu ban cu).
+_WORKER: dict = {
+    "proc": None,          # multiprocessing.Process
+    "hang": None,          # Queue: server -> process con (lenh chay)
+    "ket_qua": None,       # Queue: process con -> server (tin / tien do)
+    "dung": None,          # Event: yeu cau dung
+    "viec": None,          # dict viec dang chay (xong: Event)
+    "duong_khung_hinh": "",
+    "ts_khung_hinh": 0.0,
+    "khoa": threading.Lock(),
+}
 
 # --- MAU SAC: toan bo mau trong trang web deu lay tu dict nay ----------------
 # Khong viet hex rai rac trong HTML: moi noi se the bang tieu de __TEN__.
@@ -132,6 +174,7 @@ class _TrangThai:
         self.yeu_cau_dung = False
         self.tieu_de = ""
         self.trang_thai = "Chưa chạy"          # chuoi tieng Viet cho nguoi dung
+        self.giai_doan = ""                    # ten giai doan (nap model / mo video / phan tich / xong)
         self.phan_tram = 0.0
         self.khung_hinh = 0
         self.tong_khung_hinh = 0
@@ -188,6 +231,8 @@ class _TrangThai:
             self.yeu_cau_dung = False
             if self.trang_thai == "Đang phân tích...":
                 self.trang_thai = "Xong"
+            if not self.loi and self.giai_doan != GIAI_DOAN_XONG:
+                self.giai_doan = GIAI_DOAN_XONG
 
     def reset(self, tieu_de: str, thu_muc_kq: str = "") -> None:
         with self.khoa:
@@ -196,6 +241,7 @@ class _TrangThai:
             self.tieu_de = tieu_de
             self.thu_muc_ket_qua = thu_muc_kq
             self.trang_thai = "Đang phân tích..."
+            self.giai_doan = GIAI_DOAN_NAP_MODEL
             self.phan_tram = 0.0
             self.khung_hinh = 0
             self.tong_khung_hinh = 0
@@ -261,6 +307,7 @@ class _TrangThai:
                 # --- HOP DONG MOI (UI web moi + dien thoai) ---
                 "busy": self.dang_chay,
                 "xong": (not self.dang_chay) and (not self.loi),
+                "giai_doan": self.giai_doan,
                 "loai_nguon": self.loai_nguon,
                 "tep": self.tep,
                 "dong": self.khung_hinh,
@@ -279,6 +326,7 @@ class _TrangThai:
                 # --- HOP DONG CU (giao dien web cu - giu nguyen) ---
                 "dang_chay": self.dang_chay,
                 "trang_thai": self.trang_thai,
+                "giai_doan": self.giai_doan,
                 "tieu_de": self.tieu_de,
                 "phan_tram": round(self.phan_tram, 2),
                 "khung_hinh": self.khung_hinh,
@@ -330,14 +378,23 @@ class _AnhNen:
         self.ts = 0.0             # moc thoi gian cua khung hinh hien tai
         self.nho = b""            # ban da resize (cache)
         self.nho_ts = 0.0
+        self.da_resize = False    # True = bytes da nho roi (process con resize san)
 
-    def dat(self, du_lieu: bytes) -> None:
-        """Callback tu cam_ai_core (frame_cb): nhan bytes JPEG."""
+    def dat(self, du_lieu: bytes, da_resize: bool = False) -> None:
+        """Callback tu cam_ai_core (frame_cb): nhan bytes JPEG.
+
+        `da_resize=True`: bytes da duoc thu nho san o process con -> server
+        KHONG can import cv2 (import cv2 giu GIL ~0.5s -> chan event loop).
+        """
         if not du_lieu:
             return
         with self.khoa:
             self.raw = du_lieu
             self.ts = time.time()
+            self.da_resize = bool(da_resize)
+            if da_resize:
+                self.nho = b""
+                self.nho_ts = 0.0
 
     def xoa(self) -> None:
         with self.khoa:
@@ -345,12 +402,15 @@ class _AnhNen:
             self.nho = b""
             self.ts = 0.0
             self.nho_ts = 0.0
+            self.da_resize = False
 
     def lay(self) -> bytes:
         """Tra bytes JPEG da resize (toi da 960px, chat luong 70)."""
         with self.khoa:
             if not self.raw:
                 return b""
+            if self.da_resize:
+                return self.raw          # da resize san o process con
             if self.nho and self.nho_ts == self.ts:
                 return self.nho
             raw = self.raw
@@ -575,28 +635,45 @@ def _giay_cua_khung_hinh(frame_index: int) -> float:
     return float(frame_index) / fps
 
 
+def _gt(d, ten: str, mac_dinh=0):
+    """Doc 1 truong tu object HOAC tu dict (progress gui qua ranh giua process)."""
+    if isinstance(d, dict):
+        v = d.get(ten, mac_dinh)
+    else:
+        v = getattr(d, ten, mac_dinh)
+    return mac_dinh if v is None else v
+
+
 def _tien_trinh(p) -> bool:
-    """Callback tu cam_ai_core: cap nhat trang thai. Tra False = DUNG ngay."""
+    """Callback tu cam_ai_core: cap nhat trang thai. Tra False = DUNG ngay.
+
+    `p` co the la object `cam_ai_core.Progress` (chay cung process) hoac dict
+    (progress gui tu process con qua hang).
+    """
     with TT.khoa:
-        TT.khung_hinh = p.frame_index
-        TT.tong_khung_hinh = p.total_frames
-        TT.phan_tram = p.percent
-        TT.so_nguoi = p.so_nguoi
-        TT.so_mat = p.so_mat
-        TT.vao = p.vao
-        TT.ra = p.ra
-        TT.trong_vung = p.trong_vung
-        TT.vi_pham = p.vi_pham
-        TT.canh_lau = p.canh_lau
-        TT.nhan_dien = p.nhan_dien
-        for ten in str(p.nhan_dien).split("|"):
+        khung_hinh = _gt(p, "frame_index")
+        so_nguoi = _gt(p, "so_nguoi")
+        vi_pham = _gt(p, "vi_pham")
+        canh_lau = _gt(p, "canh_lau")
+        TT.khung_hinh = khung_hinh
+        TT.tong_khung_hinh = _gt(p, "total_frames")
+        TT.phan_tram = _gt(p, "percent", 0.0)
+        TT.so_nguoi = so_nguoi
+        TT.so_mat = _gt(p, "so_mat")
+        TT.vao = _gt(p, "vao")
+        TT.ra = _gt(p, "ra")
+        TT.trong_vung = _gt(p, "trong_vung")
+        TT.vi_pham = vi_pham
+        TT.canh_lau = canh_lau
+        TT.nhan_dien = _gt(p, "nhan_dien", "")
+        for ten in str(TT.nhan_dien).split("|"):
             ten = ten.strip()
             if ten and ten not in TT.nhat_dien:
                 TT.nhat_dien.append(ten)
 
         # --- do fps thuc te (trong 2 giay gan nhat) ---
         luc = time.monotonic()
-        TT.mau_fps.append((luc, p.frame_index))
+        TT.mau_fps.append((luc, khung_hinh))
         while TT.mau_fps and luc - TT.mau_fps[0][0] > 2.0:
             TT.mau_fps.pop(0)
         if len(TT.mau_fps) >= 2:
@@ -606,20 +683,20 @@ def _tien_trinh(p) -> bool:
                 TT.fps_hien_tai = (f1 - f0) / (t1 - t0)
 
         # --- su kien: vao / ra / vi pham / canh lau (so sanh voi khung truoc) ---
-        giay = _giay_cua_khung_hinh(p.frame_index)
-        if p.so_nguoi > TT.so_nguoi_cuoc:
-            for _ in range(min(20, p.so_nguoi - TT.so_nguoi_cuoc)):
+        giay = _giay_cua_khung_hinh(khung_hinh)
+        if so_nguoi > TT.so_nguoi_cuoc:
+            for _ in range(min(20, so_nguoi - TT.so_nguoi_cuoc)):
                 TT.them_su_kien("vao", "Người vào khu vực", giay)
-        elif p.so_nguoi < TT.so_nguoi_cuoc:
-            for _ in range(min(20, TT.so_nguoi_cuoc - p.so_nguoi)):
+        elif so_nguoi < TT.so_nguoi_cuoc:
+            for _ in range(min(20, TT.so_nguoi_cuoc - so_nguoi)):
                 TT.them_su_kien("ra", "Người ra khu vực", giay)
-        if p.vi_pham > 0 and TT.vi_pham_cuoc <= 0:
+        if vi_pham > 0 and TT.vi_pham_cuoc <= 0:
             TT.them_su_kien("vi_pham", "Cảnh báo vượt quá số người cho phép", giay)
-        if p.canh_lau > 0 and TT.canh_lau_cuoc <= 0:
+        if canh_lau > 0 and TT.canh_lau_cuoc <= 0:
             TT.them_su_kien("canh_lau", "Phát hiện người đứng lâu", giay)
-        TT.so_nguoi_cuoc = p.so_nguoi
-        TT.vi_pham_cuoc = p.vi_pham
-        TT.canh_lau_cuoc = p.canh_lau
+        TT.so_nguoi_cuoc = so_nguoi
+        TT.vi_pham_cuoc = vi_pham
+        TT.canh_lau_cuoc = canh_lau
         dung = TT.yeu_cau_dung
     return not dung
 
@@ -1611,36 +1688,120 @@ def _danh_sach_bien_so(ket_qua) -> list[dict]:
     ]
 
 
-def _chay_phan_tich(duong_dan: str, thu_muc_kq: str, body: dict) -> None:
-    """CHAY TRONG THREAD NEN. Khong bao gio chay trong luong xu ly FastAPI.
+def _ghi_khung_hinh(duong: str, jpeg: bytes) -> None:
+    """Ghi 1 khung hinh (da thu nho) ra file cho server doc live view.
 
-    Import cam_ai_core + tao AnalysisConfig O DAY (khong o route) -> route
-    /api/phan-tich tra ve NGAY, dien thoai khong bi treo ~8-30 giay cho
-    viec load torch. Loi (vd lop vật thể sai) se lo ra qua TT.loi.
+    Ghi ra file tam roi doi ten (os.replace) -> server luon doc duoc file HOAN
+    CHINH, khong bao gio doc file dang ghi doi -> khong loi anh vong.
     """
-    from cam_ai_core import CamAIError, run_analysis
-
-    bat_dau = time.perf_counter()
-    goc_doc = None
-    TT.dat(thu_muc_ket_qua=thu_muc_kq)
     try:
-        # Do fps that cua video (dung de tinh giay cua su kien) - o thread nen.
-        TT.dat(fps_thuoc=_fps_cua_video(duong_dan))
+        nho = _resize_jpeg(jpeg, KICH_THUOC_ANH_TOI_DA, CHAT_LUONG_ANH)
+        tam = duong + ".tmp"
+        with open(tam, "wb") as f:
+            f.write(nho)
+        os.replace(tam, duong)
+    except Exception:                                    # noqa: BLE001
+        pass
+
+
+def _chay_phan_tich_process(
+    duong_dan: str,
+    thu_muc_kq: str,
+    body: dict,
+    hang,
+    dung,
+    duong_khung_hinh: str,
+) -> None:
+    """CHAY TRONG PROCESS CON (multiprocessing kieu "spawn").
+
+    Day la noi nap torch + model YOLO + ArcFace. Nap mot lan mat ~5-20 giay,
+    trong do phan C-extension (dlopen DLL cua torch/CUDA) giu GIL lau. Neu
+    chay trong THREAD cung process voi server, event loop FastAPI va vong lap
+    Qt cua app_qt.py deu bi treo => nguoi dung thay "app dung hinh". Tach ra
+    PROCESS rieng: server luon phan hoi duoc, crash trong loi phan tich KHONG
+    lam sap app.
+
+    Process con gui nguoc: giai doan, tien do, nhat ky, khung hinh live, ket
+    qua cuoi cung. Server chi doc bien -> /api/trang-thai khong bao gio chan.
+    """
+    def gui(msg: dict) -> None:
+        try:
+            hang.put(msg)
+        except Exception:                                # noqa: BLE001
+            pass
+
+    def ghi_log(dong) -> None:
+        gui({"loai": "nhat_ky", "noi_dung": str(dong)})
+
+    goc_doc = None
+    bat_dau = time.perf_counter()
+    try:
+        # --- 1. NAP MODEL (cham nhat) -> bao cho nguoi dung TRUOC khi nap ---
+        gui({"loai": "giai_doan", "giai_doan": GIAI_DOAN_NAP_MODEL})
+        gui({"loai": "nhat_ky", "noi_dung": "[web] Đang nạp model nhận diện..."})
+        from cam_ai_core import run_analysis
+
+        # Do fps that cua video (dung de tinh giay cua su kien) - o process con.
+        gui({"loai": "fps", "fps": _fps_cua_video(duong_dan)})
+
         cfg = _tao_cau_hinh(body, duong_dan, thu_muc_kq)
+        # Chuyen nhat ky config (ghi trong TT cua process con) ve cho server.
+        with TT.khoa:
+            for muc in list(TT.log):
+                gui({"loai": "nhat_ky", "noi_dung": muc.get("noi_dung", "")})
+
         # Doc bien so: boc ham de lay tin_cay + khung (AnalysisResult chi giu chuoi)
         if cfg.doc_bien_so:
             goc_doc = _boc_dich_bien_so()
-        # frame_cb -> luu khung hinh moi nhat cho /api/anh-nen (dien thoai xem live).
-        # interval 0.2s = 5 khung/s: du cho dien thoai, chi +~2% chi phi pipeline.
+
+        # --- 2. MO VIDEO ---
+        gui({"loai": "giai_doan", "giai_doan": GIAI_DOAN_MO_VIDEO})
+        gui({"loai": "nhat_ky", "noi_dung": "[web] Đang mở video..."})
+
+        trang_thai = {"da_quet": False, "gui_cuoi": 0.0}
+
+        def tien_trinh(p) -> bool:
+            """Callback tien do. Tra False = DUNG ngay."""
+            if not trang_thai["da_quet"]:
+                trang_thai["da_quet"] = True
+                # --- 3. DA DOC KHUNG -> dang phan tich ---
+                gui({"loai": "giai_doan", "giai_doan": GIAI_DOAN_PHAN_TICH})
+            luc = time.monotonic()
+            if luc - trang_thai["gui_cuoi"] >= 0.05:      # ~20 lan/s
+                trang_thai["gui_cuoi"] = luc
+                gui({
+                    "loai": "tien_trinh",
+                    "du_lieu": {
+                        "frame_index": p.frame_index,
+                        "total_frames": p.total_frames,
+                        "percent": p.percent,
+                        "so_nguoi": p.so_nguoi,
+                        "so_mat": p.so_mat,
+                        "vao": p.vao,
+                        "ra": p.ra,
+                        "trong_vung": p.trong_vung,
+                        "vi_pham": p.vi_pham,
+                        "canh_lau": p.canh_lau,
+                        "nhan_dien": p.nhan_dien,
+                    },
+                })
+            return not dung.is_set()
+
+        def frame_cb(jpeg: bytes) -> None:
+            """Khung hinh live -> ghi ra file cho server doc."""
+            _ghi_khung_hinh(duong_khung_hinh, jpeg)
+
         ket_qua = run_analysis(
             cfg,
-            progress_cb=_tien_trinh,
-            log=TT.ghi_log,
-            frame_cb=ANH_NEN.dat,
+            progress_cb=tien_trinh,
+            log=ghi_log,
+            frame_cb=frame_cb,
             frame_cb_interval=KHOA_FRAME_MOI_NHAT,
         )
-        TT.dat(
-            ket_qua={
+        gui({
+            "loai": "xong",
+            "dung": bool(ket_qua.stopped),
+            "ket_qua": {
                 "video_ket_qua": os.path.basename(ket_qua.out_path),
                 "file_bao_cao": os.path.basename(ket_qua.report_path),
                 "khung_hinh": ket_qua.frames,
@@ -1662,29 +1823,265 @@ def _chay_phan_tich(duong_dan: str, thu_muc_kq: str, body: dict) -> None:
                 "da_dung": ket_qua.stopped,
                 "xe": int(getattr(ket_qua, "tong_phuong_tien", 0) or 0),
                 "max_xe": int(getattr(ket_qua, "max_phuong_tien", 0) or 0),
-            }
-        )
-        # Hop dong moi: ket qua day du + anh su kien + bien so.
-        TT.dat(ket_qua_day_du=_ket_qua_day_du(ket_qua))
-        TT.dat(anh_su_kien=_danh_sach_anh_su_kien(ket_qua))
-        TT.dat(bien_so=_danh_sach_bien_so(ket_qua))
-        TT.dat(xe=int(getattr(ket_qua, "tong_phuong_tien", 0) or 0))
-        TT.dat(trang_thai="Đã dừng theo yêu cầu" if ket_qua.stopped else "Xong")
-        TT.ghi_log("[web] Xong trong %.1f giây." % (time.perf_counter() - bat_dau))
-    except CamAIError as exc:
-        TT.dat(trang_thai="Lỗi: " + str(exc), loi=str(exc))
-        TT.ghi_log("[loi] " + str(exc))
-        _in("[LOI] %s" % exc)
-    except Exception as exc:                        # noqa: BLE001
-        TT.dat(trang_thai="Lỗi: " + str(exc), loi=str(exc))
-        TT.ghi_log("[loi] " + str(exc))
+            },
+            "ket_qua_day_du": _ket_qua_day_du(ket_qua),
+            "anh_su_kien": _danh_sach_anh_su_kien(ket_qua),
+            "bien_so": _danh_sach_bien_so(ket_qua),
+            "xe": int(getattr(ket_qua, "tong_phuong_tien", 0) or 0),
+            "giay": round(time.perf_counter() - bat_dau, 1),
+        })
+    except Exception as exc:                             # noqa: BLE001
+        gui({"loai": "loi", "noi_dung": str(exc),
+             "traceback": traceback.format_exc()})
         _in("[LOI] %s" % exc)
         _in(traceback.format_exc())
     finally:
         _khoi_boc_dich_bien_so(goc_doc)
+
+
+def _xu_ly_tin_con(msg: dict) -> None:
+    """Ap dung 1 tin tu process con vao bien trang thai cua server."""
+    if not isinstance(msg, dict):
+        return
+    loai = msg.get("loai")
+    if loai == "giai_doan":
+        TT.dat(giai_doan=str(msg.get("giai_doan", "")))
+    elif loai == "nhat_ky":
+        TT.ghi_log(msg.get("noi_dung", ""))
+    elif loai == "fps":
+        TT.dat(fps_thuoc=float(msg.get("fps", 0.0) or 0.0))
+    elif loai == "tien_trinh":
+        _tien_trinh(msg.get("du_lieu") or {})
+    elif loai == "xong":
+        if msg.get("ket_qua"):
+            TT.dat(ket_qua=msg.get("ket_qua"))
+            TT.dat(ket_qua_day_du=msg.get("ket_qua_day_du"))
+            TT.dat(anh_su_kien=msg.get("anh_su_kien") or [])
+            TT.dat(bien_so=msg.get("bien_so") or [])
+            TT.dat(xe=int(msg.get("xe", 0) or 0))
+        dung = bool(msg.get("dung"))
+        TT.dat(trang_thai="Đã dừng theo yêu cầu" if dung else "Xong")
+        TT.dat(giai_doan=GIAI_DOAN_XONG)
+        TT.ghi_log("[web] Xong trong %s giây." % msg.get("giay", "?"))
+    elif loai == "loi":
+        noi_dung = str(msg.get("noi_dung", "Lỗi không rõ"))
+        TT.dat(trang_thai="Lỗi: " + noi_dung, loi=noi_dung,
+               giai_doan=GIAI_DOAN_LOI)
+        TT.ghi_log("[loi] " + noi_dung)
+        _in("[LOI] %s" % noi_dung)
+        tb = msg.get("traceback")
+        if tb:
+            _in(str(tb))
+
+
+def _worker_con(noi_dung, ket_qua, dung) -> None:
+    """VONG LAP trong PROCESS CON: cho lenh -> chay phan tich -> gui ket qua.
+
+    Process con GIU SONG giua cac lan chay => torch + model YOLO + ArcFace chi
+    nap MOT LAN. Lan sau chay nhanh (khong nap lai model). Do la ly do tach
+    process con ra: nap model cham + giu GIL, nhung khong lam lan chay sau
+    bi cham.
+    """
+    while True:
+        try:
+            lenh = noi_dung.get()
+        except (EOFError, OSError):
+            break
+        if not isinstance(lenh, dict):
+            break
+        if lenh.get("lenh") == "thoat":
+            break
+        _chay_phan_tich_process(
+            lenh.get("duong_dan", ""),
+            lenh.get("thu_muc_kq", ""),
+            lenh.get("body") or {},
+            ket_qua,
+            dung,
+            lenh.get("duong_khung_hinh", ""),
+        )
+
+
+def _lay_worker() -> bool:
+    """Tao process con neu chua co (hoac process con da chet). Tra True/False."""
+    with _WORKER["khoa"]:
+        proc = _WORKER.get("proc")
+        if proc is not None and proc.is_alive():
+            return True
+        ctx = multiprocessing.get_context("spawn")
+        hang = ctx.Queue()
+        ket_qua = ctx.Queue()
+        dung = ctx.Event()
+        try:
+            proc = ctx.Process(
+                target=_worker_con,
+                args=(hang, ket_qua, dung),
+                name="camai-worker",
+                daemon=True,
+            )
+            proc.start()
+        except Exception as exc:                         # noqa: BLE001
+            _in("[LOI] khong khoi dong duoc process con: %s" % exc)
+            _in(traceback.format_exc())
+            return False
+        _WORKER.update({
+            "ctx": ctx, "proc": proc, "hang": hang,
+            "ket_qua": ket_qua, "dung": dung,
+        })
+        _TIEN_TRINH_CON["dung"] = dung
+        threading.Thread(
+            target=_doc_ket_qua_worker,
+            args=(ket_qua,),
+            daemon=True,
+            name="camai-doc-ket-qua",
+        ).start()
+        _in("[CAMAI] Da khoi dong process con (nap model 1 lan, dung lai cho cac lan sau).")
+        return True
+
+
+def _doc_khung_hinh() -> None:
+    """Doc khung hinh live moi (file) -> dua vao ANH_NEN cho UI xem."""
+    duong = _WORKER.get("duong_khung_hinh")
+    if not duong:
+        return
+    ts_cu = _WORKER.get("ts_khung_hinh")
+    try:
+        ts = os.path.getmtime(duong)
+        if ts == ts_cu:
+            return
+        _WORKER["ts_khung_hinh"] = ts
+        with open(duong, "rb") as f:
+            ANH_NEN.dat(f.read(), da_resize=True)
+    except OSError:
+        pass
+    except Exception:                                    # noqa: BLE001
+        pass
+
+
+def _doc_ket_qua_worker(ket_qua) -> None:
+    """Doc tin tu process con (giai doan, tien do, ket qua) -> cap nhat TT.
+
+    Thread nay song lon suot phiien cua server -> khong phai tai tao sau moi
+    lan chay, nen tien do khong bi so mat.
+    """
+    while True:
+        try:
+            msg = ket_qua.get(timeout=0.1)
+        except _hang_q.Empty:
+            msg = None
+        except (EOFError, OSError):
+            break
+        if msg is not None:
+            if not isinstance(msg, dict):
+                continue
+            _xu_ly_tin_con(msg)
+            if msg.get("loai") == "xong":
+                viec = _WORKER.get("viec")
+                if isinstance(viec, dict):
+                    viec["ket_qua"] = msg
+                    viec["xong"].set()
+        # Luon thu doc khung hinh live (keo ca khi dang nhan tin tien do).
+        _doc_khung_hinh()
+
+
+def _chay_phan_tich(duong_dan: str, thu_muc_kq: str, body: dict) -> None:
+    """CHAY TRONG THREAD NEN cua SERVER. Giao viec cho PROCESS CON chay pipeline.
+
+    Server process KHONG bao gio nap torch/model -> luon phan hoi duoc
+    (/api/trang-thai, /api/anh-nen van nhanh). Process con giu model da nap
+    -> lan chay sau khong ton them thoi gian nap lai.
+    """
+    TT.dat(thu_muc_ket_qua=thu_muc_kq)
+    if not _lay_worker():
+        noi_dung = "Không khởi động được tiến trình phân tích."
+        TT.dat(trang_thai="Lỗi: " + noi_dung, loi=noi_dung,
+               giai_doan=GIAI_DOAN_LOI)
+        TT.ghi_log("[loi] " + noi_dung)
         TT.an()
         _xoa_tam(duong_dan)
         _don_dep()
+        return
+
+    duong_khung_hinh = os.path.join(
+        THU_MUC_TAM, "khung_hinh_%d_%d.jpg" % (os.getpid(), time.time_ns() % 100000)
+    )
+    viec = {"xong": threading.Event(), "ket_qua": None}
+    with _WORKER["khoa"]:
+        _WORKER["viec"] = viec
+        _WORKER["duong_khung_hinh"] = duong_khung_hinh
+        _WORKER["ts_khung_hinh"] = 0.0
+
+    bat_dau = time.perf_counter()
+    try:
+        _WORKER["dung"].clear()
+        _WORKER["hang"].put({
+            "duong_dan": duong_dan,
+            "thu_muc_kq": thu_muc_kq,
+            "body": body,
+            "duong_khung_hinh": duong_khung_hinh,
+        })
+    except Exception as exc:                             # noqa: BLE001
+        noi_dung = "Không gửi được lệnh phân tích cho tiến trình con: %s" % exc
+        TT.dat(trang_thai="Lỗi: " + noi_dung, loi=noi_dung,
+               giai_doan=GIAI_DOAN_LOI)
+        TT.ghi_log("[loi] " + noi_dung)
+        _in("[LOI] %s" % exc)
+        TT.an()
+        _xoa_tam(duong_dan)
+        _don_dep()
+        return
+
+    # Cho ket qua (thread doc ket_qua se bao hieu khi co tin "xong").
+    dung_luc = 0.0
+    try:
+        while not viec["xong"].is_set():
+            if _WORKER["dung"].is_set() and not dung_luc:
+                dung_luc = time.perf_counter()
+                TT.ghi_log("[web] Yêu cầu dừng: đang thoát pipeline...")
+            if dung_luc and (time.perf_counter() - dung_luc) > 20.0:
+                # Pipeline khong phan hoi (keo qua nhac) -> ep thoat process con.
+                _in("[CAMAI] Ep thoat process con (khong phan hoi sau 20s).")
+                with _WORKER["khoa"]:
+                    proc = _WORKER.get("proc")
+                try:
+                    if proc is not None:
+                        proc.terminate()
+                except Exception:                        # noqa: BLE001
+                    pass
+                viec["ket_qua"] = {
+                    "loai": "loi",
+                    "noi_dung": "Tiến trình phân tích không phản hồi.",
+                }
+                break
+            time.sleep(0.05)
+
+        ket_qua_msg = viec.get("ket_qua") or {}
+        if ket_qua_msg.get("loai") == "loi":
+            noi_dung = str(ket_qua_msg.get("noi_dung", "Lỗi không rõ"))
+            TT.dat(trang_thai="Lỗi: " + noi_dung, loi=noi_dung,
+                   giai_doan=GIAI_DOAN_LOI)
+            TT.ghi_log("[loi] " + noi_dung)
+    except Exception as exc:                             # noqa: BLE001
+        TT.dat(trang_thai="Lỗi: " + str(exc), loi=str(exc),
+               giai_doan=GIAI_DOAN_LOI)
+        TT.ghi_log("[loi] " + str(exc))
+        _in("[LOI] %s" % exc)
+        _in(traceback.format_exc())
+    finally:
+        try:
+            os.remove(duong_khung_hinh)
+        except OSError:
+            pass
+        try:
+            os.remove(duong_khung_hinh + ".tmp")
+        except OSError:
+            pass
+        with _WORKER["khoa"]:
+            _WORKER["viec"] = None
+            _WORKER["duong_khung_hinh"] = ""
+        TT.an()
+        _xoa_tam(duong_dan)
+        _don_dep()
+        _in("[web] Phan tich xong sau %.1f giây." % (time.perf_counter() - bat_dau))
 
 
 def _tao_bao_cao(duong_csv: str, duong_video: str) -> None:
@@ -2215,6 +2612,26 @@ def _can_dang_nhap(request: Request):
     return token, PHIEN.co_hieu_luc(token)
 
 
+def _khop_khoa_truy_cap(nhap) -> bool:
+    """Kiem tra khoa truy cap san dung. So sanh constant-time (compare_digest).
+
+    Chuan hoa ve byte UTF-8 truoc khi so sanh (chuoi co dau se nem TypeError).
+    """
+    if not nhap:
+        return False
+    return secrets.compare_digest(
+        str(nhap).encode("utf-8"), KHOA_TRUY_CAP.encode("utf-8")
+    )
+
+
+def url_san_dung(ip_lan: str, cong: int) -> str:
+    """Duong dan SAN DUNG co khoa truy cap (dung cho hop thoai 'Mo tren dien thoai').
+
+    Mo dung duong dan nay tren dien thoai => vao thang, khong co form dang nhap.
+    """
+    return "http://%s:%d/?k=%s" % (ip_lan, cong, KHOA_TRUY_CAP)
+
+
 def _loi(noi_dung: str, ma: int = 400):
     return JSONResponse({"ok": False, "loi": noi_dung}, status_code=ma)
 
@@ -2575,8 +2992,24 @@ def _html_giao_dien_web() -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def trang_chinh(request: Request):
+    """Trang UI.
+
+    - Co `?k=<khoa truy cap san dung>` khop => CAP PHIEN NGAY (dat cookie
+      `camai_phien`) roi phuc vu UI => nguoi dung vao thang, KHONG co form.
+    - Khong co khoa hop le => van phuc vu UI, nhung UI hien thong bao huong dan
+      (khong co form mat khau). API van bi chan 401 nhu truoc.
+    """
     # Khong cho trinh duyet cache lai trang: luon tai ban moi nhat.
     response = HTMLResponse(_html_giao_dien_web(), headers={"Cache-Control": "no-store"})
+    khoa = (request.query_params.get("k") or "").strip()
+    if _khop_khoa_truy_cap(khoa):
+        token, giay = PHIEN.cap_phien()
+        response.set_cookie(
+            TEN_COOKIE, token, max_age=giay, httponly=True, samesite="lax", path="/"
+        )
+        _in("[OK] %s vao bang duong dan co ma." % _ip(request))
+        if os.environ.get("CAMAI_DEBUG_KHOA", "").strip() and sys.stdout is not None:
+            _in("[DEBUG] khoa truy cap: %s" % KHOA_TRUY_CAP)
     return response
 
 
@@ -2588,6 +3021,30 @@ def trang_giao_dien_cu(request: Request):
     """
     response = HTMLResponse(_trang_web(), headers={"Cache-Control": "no-store"})
     return response
+
+
+@app.get("/api/phien")
+def api_phien(request: Request):
+    """Token phien hien tai (neu cookie/token con hieu luc).
+
+    UI goi endpoint nay de BIET DA DANG NHAP CHUA (va luu token vao
+    localStorage) => bo qua hoan toan man hinh huong dan.
+    """
+    token, ok = _can_dang_nhap(request)
+    if not ok:
+        return _loi("Chưa đăng nhập.", 401)
+    return JSONResponse({"ok": True, "token": token, "het_han_gio": HET_HAN_PHIEN_GIO})
+
+
+@app.get("/api/ping")
+def api_ping(request: Request):
+    """Bong song: tra ve NGAY, KHONG can dang nhap, KHONG lo du lieu nho.
+
+    UI dung endpoint nay de tu kiem tra "may chu con song khong" khi khong
+    nhan duoc phan hinh tu /api/trang-thai. No KHONG phai cua so an toan:
+    tra ve duy nhat {"ok": true}, khong co du lieu video/anh/nguoi dung.
+    """
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/trang-thai")
@@ -3378,6 +3835,13 @@ def api_dung(request: Request):
         if not TT.dang_chay:
             return _loi("Không có video nào đang chạy.")
         TT.yeu_cau_dung = True
+    # Tinh hieu cho PROCESS CON (pipeline chay o process rieng) -> no duyet.
+    su_kien_dung = _TIEN_TRINH_CON.get("dung")
+    if su_kien_dung is not None:
+        try:
+            su_kien_dung.set()
+        except Exception:                                # noqa: BLE001
+            pass
     TT.ghi_log("[web] Người dùng bấm Dừng.")
     return JSONResponse({"ok": True})
 
@@ -3653,6 +4117,9 @@ def main() -> None:
     _don_dep()
     _gan_mount_ui()
     _thong_bao_khoi_dong(args.host, args.port)
+    if os.environ.get("CAMAI_DEBUG_KHOA", "").strip() and sys.stdout is not None:
+        # CHE DO DEBUG: in URL san dung (chua khoa truy cap) de kiem chung.
+        _in("[DEBUG] URL san dung: %s" % url_san_dung(_ip_lan(), args.port))
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 

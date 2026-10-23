@@ -1,6 +1,6 @@
 # Đọc file này đầu tiên khi quay lại làm tiếp
 
-**Ngày cập nhật:** 2026-10-22 (sau 23:30 — bản **3.9**: **CHUYỂN GIAO DIỆN SANG WEB-FIRST** — 1 bộ HTML/CSS dùng chung cho **desktop** (PySide6 + QWebEngineView) và **điện thoại** (trình duyệt, cùng Wi-Fi); **12 nhóm tính năng / 56 control** chạy thật trên web; mật khẩu tự sinh + desktop tự đăng nhập; `VERSION` = **3.9**)
+**Ngày cập nhật:** 2026-10-23 (bản **3.10**: **KHOÁ TRUY CẬP SẴN DÙNG** (bỏ form mật khẩu trên trình duyệt — mở URL có `?k=` là vào thẳng) + **khung video LUÔN Ở TRÊN** (sticky, đo được ở 1440/820/390) + **không cảm giác treo** (overlay spinner + tên giai đoạn) + **process con giữ sống** (warm worker: lần 1 = 27,8 s → lần 2 = **8,8 s**, server **không bao giờ import torch**); `VERSION` = **3.10**)
 **Phiên bàn giao:** `mvs_cb81c4611fb14dd8ba4717ff00672d2b`
 
 > # ⚠ ĐỊNH HƯỚNG SẢN PHẨM — anh chốt 2026-10-20 (sau 14:20). ĐỌC ĐOẠN NÀY TRƯỚC KHI LÀM GÌ.
@@ -29,7 +29,9 @@ xác nhận** nên chưa được coi là đạt. Live view **14.54 fps** liên 
 Bố cục **75.4% → 83.2%**. Nhãn người **0 cặp chồm** trên khung 15 người.
 Công tắc **"Nhận người ở xa (chậm hơn)"** đã có trong CLI và GUI, **mặc định TẮT**.
 
-**Bản 3.9 (mới nhất):** **CHUYỂN GIAO DIỆN SANG WEB-FIRST** — 1 bộ HTML/CSS/JS duy nhất chạy được **2 nơi**: desktop (`app_qt.py` = cửa sổ PySide6 + QWebEngineView bọc server FastAPI) và **điện thoại** (trình duyệt, cùng Wi-Fi, `http://<IP-LAN>:<port>` ⇒ **cùng trạng thái** với desktop). 12 nhóm tính năng / **56 control** chạy thật; API `/api/cau-hinh` trả **37 field** tự sinh từ `AnalysisConfig`; **8 nút "chưa làm" → làm thật**; mật khẩu tự sinh + desktop tự đăng nhập. Xem **mục 2.1m**.
+**Bản 3.10 (mới nhất):** **4 nhóm thay đổi, tất cả đã đo thật** — (1) **Khoá truy cập sẵn dùng**: `KHOA_TRUY_CAP` sinh 1 lần lúc nạp module (43 ký tự, đổi mỗi lần khởi động), so khớp `secrets.compare_digest` (constant-time); `GET /?k=<khoá>` ⇒ set cookie `camai_phien` ⇒ **vào thẳng, KHÔNG còn form mật khẩu** trên trình duyệt; hộp thoại "Mở trên điện thoại" hiện **URL sẵn dùng** + nút "Sao chép"; (2) **khung video LUÔN Ở TRÊN** (`position:sticky`, `--h-dau` đo runtime) — đo thật 1440×900 → top 56px · 820×1180 → 56px · 390×844 → 61px; (3) **overlay spinner + tên giai đoạn** (đo được: "Đang nạp model nhận diện" → "Đang mở video" → "Đang phân tích" → "Xong"); (4) **process con giữ sống** (warm worker) ⇒ lần chạy 2+ **không nạp lại model** (27,8 s → **8,8 s**), **server không bao giờ import torch**. Xem **mục 2.1n**.
+
+**Bản 3.9:** **CHUYỂN GIAO DIỆN SANG WEB-FIRST** — 1 bộ HTML/CSS/JS duy nhất chạy được **2 nơi**: desktop (`app_qt.py` = cửa sổ PySide6 + QWebEngineView bọc server FastAPI) và **điện thoại** (trình duyệt, cùng Wi-Fi, `http://<IP-LAN>:<port>` ⇒ **cùng trạng thái** với desktop). 12 nhóm tính năng / **56 control** chạy thật; API `/api/cau-hinh` trả **37 field** tự sinh từ `AnalysisConfig`; **8 nút "chưa làm" → làm thật**; mật khẩu tự sinh + desktop tự đăng nhập. Xem **mục 2.1m**.
 
 **Bản 3.8:** **tối ưu tốc độ pipeline 4,09×** (CUDA Graph, bit-exact) + **sửa lỗi app crash lúc thoát** (thiếu `openh264-2.5.0-win64.dll`) + bản mẫu PySide6. Xem **mục 2.1l**.
 
@@ -938,17 +940,127 @@ giao_dien_web/index.html   ← UI DUY NHẤT (tự chứa, không tải tài ngu
 
 ---
 
+### 2.1n BẢN 3.10 — KHOÁ SẴN DÙNG + KHUNG VIDEO Ở TRÊN + KHÔNG CẢM GIÁC TREO + WARM WORKER (2026-10-23)
+
+**Vì sao:** bản 3.9 dựng xong web-first thì lộ ra 3 điểm khó chịu thật — (1) trên điện thoại
+phải **gõ mật khẩu**, (2) **khung video trôi mất** khi cuộn xuống phần cấu hình, (3) bấm
+BẮT ĐẦU thì **11–27 s không có gì hiển thị** ⇒ *cảm giác* như treo.
+
+#### A. Khoá bootstrap — bỏ form mật khẩu trên trình duyệt
+
+| Nội dung | Chi tiết |
+|---|---|
+| Sinh khoá | `KHOA_TRUY_CAP = secrets.token_urlsafe(32)` — **1 lần lúc nạp module**, 43 ký tự, **đổi mỗi lần khởi động** |
+| So khớp | `_khop_khoa_truy_cap()` → `secrets.compare_digest` (**constant-time**), chuẩn hoá về **byte UTF-8** trước khi so |
+| URL sẵn dùng | `url_san_dung(ip_lan, cong)` → `http://<IP-LAN>:<port>/?k=<khoá>` |
+| `GET /` có `?k=` khớp | ⇒ `PHIEN.cap_phien()` + `set_cookie("camai_phien", httponly=True, samesite="lax", max_age=12h)` ⇒ **vào thẳng, KHÔNG có form mật khẩu** |
+| `GET /` không khoá / sai khoá | ⇒ vẫn **HTTP 200** nhưng UI hiện **màn hướng dẫn** + nút "Lấy đường dẫn có mã"; **API vẫn 401** |
+| Route mới | `GET /api/phien` ⇒ trả token phiên nếu cookie còn hiệu lực ⇒ UI tự biết đã đăng nhập |
+| Không đụng | `POST /api/dang-nhap` giữ nguyên · `CAMAI_PASSWORD` vẫn **fail-closed** |
+| An toàn | khoá **KHÔNG ghi ra file**, **KHÔNG in ra console** (chỉ in khi `CAMAI_DEBUG_KHOA=1` và stdout thật) |
+| `app_qt.py` | hộp thoại "Mở trên điện thoại" hiện **URL sẵn dùng** (đã có `?k=`) + nút **"Sao chép"**; **bỏ** dòng mật khẩu + nút "Sao chép mật khẩu" |
+| `index.html` | **bỏ** `<input type="password">`; thêm **màn hướng dẫn** |
+
+#### B. Khung video LUÔN Ở TRÊN (sticky)
+
+- Video chuyển lên **đầu cột giữa**.
+- `.the-video-stick{position:sticky;top:calc(var(--h-dau) - 15px)}` — **−15px** = border + padding của `.the` ⇒ khung video nằm **sát dưới thanh đầu**.
+- `--h-dau` (chiều cao thanh đầu) **đo runtime** bằng `ResizeObserver` + `resize listener` ⇒ đúng ở **mọi** bề rộng.
+- Giữ tỉ lệ **16/9**: `aspect-ratio:16/9` + `width:min(100%, calc(46vh * 16 / 9))` ⇒ chiều cao **≤ 46vh**.
+
+**Đo thật** (yêu cầu: video top ≤ header + 2px):
+
+| Viewport | Chiều cao thanh đầu | `top` khung video | Kết quả |
+|---|---|---|---|
+| 1440 × 900 | 56 px | **56 px** | ✓ |
+| 820 × 1180 | 56 px | **56 px** | ✓ |
+| 390 × 844 | 61 px | **61 px** | ✓ |
+
+#### C. Không treo + có indicator
+
+- `web_server.py` thêm trường **`giai_doan`** vào `/api/trang-thai` (**cả hợp đồng mới và cũ**):
+  "Đang chuẩn bị" → "Đang nạp model nhận diện" → "Đang mở video" → "Đang phân tích" → "Xong" (+ "Lỗi").
+- UI: overlay trên khung video có **spinner CSS thuần** (`@keyframes quay`, **không emoji**) + tên giai đoạn +
+  gợi ý *"Lần đầu mất khoảng 10–20 giây. Phần mềm vẫn phản hồi, khoan đợi."*;
+  badge **"● Nạp model 0%"** ở thanh đầu; tên giai đoạn cũng hiện **dưới thanh tiến trình**.
+- Overlay hiện **0,8 s** sau khi bấm BẮT ĐẦU (không nháy khi bấm nhầm).
+
+#### D. Kiến trúc mới: process con giữ sống (warm worker)
+
+- Phần phân tích chuyển sang **tiến trình con `multiprocessing` (spawn)** giữ torch + YOLO + ArcFace.
+- **Server KHÔNG BAO GIỜ import torch/cv2 ở cấp module.** `import cv2` chỉ nằm trong hàm, và ảnh nền đã được
+  resize **ngay trong tiến trình con** ⇒ server không cần `import cv2` trong đường gọi
+  (`import cv2` giữ GIL ~0,5 s ⇒ chặn event loop).
+- Worker sống lâu ⇒ **lần chạy 2+ KHÔNG phải nạp lại model**:
+
+| Lần chạy | Thời gian |
+|---|---|
+| Lần 1 (cold — nạp model) | **27,8 s** |
+| Lần 2 (warm — worker còn sống) | **8,8 s** |
+
+- `GET /api/ping` (mới) làm **"safety net"** sống còn.
+- Dừng: tín hiệu `dung`; **watchdog 20 s** huỷ worker không phản hồi.
+
+#### E. ĐO ĐƯỢC ĐẦU VÀO — đọc thẳng, không bịa
+
+| Số đo | Kết quả | Nghĩa là gì |
+|---|---|---|
+| Stall khi `import cam_ai_core` (5,26 s) | tối đa **0,055 s** | **GIL KHÔNG bị chiếm** ⇒ giả thuyết "GIL starvation" **bị loại bằng đo đạc** |
+| `/api/trang-thai` poll suốt lần chạy lạnh 75 s | **144/144 OK**, khoảng cách lớn nhất **0,502 s** | event loop FastAPI **không bao giờ đứng** |
+| Browser main-thread rAF | khoảng cách lớn nhất **0,035 s** | trang **không đứng hình** |
+| `/api/anh-nen` latency | tối đa **0,422 s → 0,113 s** | sau sửa |
+| Poll max gap | **0,508 s → 0,532 s** | sau sửa |
+| rAF max gap | **0,035 s → 0,100 s** | sau sửa |
+
+**NGUYÊN NHÂN THẬT (không phải "GIL"):** lúc nạp model **11–27 s** ⇢ **không có gì hiển thị**
+— overlay không hiện, tiến trình đứng 0%, chip ghi "Đang chạy 0%" ⇒ **cảm giác** như treo.
+Kèm **lỗi thật thứ hai**: việc nặng chạy **cùng process** với server và với event loop Qt ⇒
+một lần stall C-extension/CUDA làm đứng cả app desktop, và core crash làm chết app.
+
+> **Ghi chú thẳng thắn:** server/browser **không hề đứng đo được trước khi sửa**. Giá trị thật
+> của bản sửa là **gỡ bỏ rủi ro treo** + **có phản hồi trực quan** — **KHÔNG phải** "đã sửa một
+> lần đứng đo được".
+
+#### F. BẰNG CHỨNG — coordinator tự chạy lại, KHÔNG tin báo cáo agent
+
+| Bộ kiểm chứng | Kết quả |
+|---|---|
+| `_kk_kiem_web_server.py` | **64/64 PASS** |
+| `_kk_kiem_ui_web.py` | **49/49 PASS** |
+| `_kk_kiem_app_qt.py` | **30/30 PASS** |
+| `_kk_kiem_khoa_truy_cap.py` (mới) | **26/26 PASS** |
+| `_kk_kiem_chuc_nang.py` | **73/73 PASS** |
+| `_kk_kiem_nguon_viet.py` | **35/35 PASS** — CSV gốc SHA256 `bf97d113fdac39fb` **khớp** |
+| `_kk_kiem_lop_viet.py` | **53/53 PASS** |
+| `_kk_kiem_gui_chay_thuc.py` | **PASS** (31,7 s) |
+| `_kk_kiem_khong_mat_tinh_nang.py` | **PASS — không mất tính năng nào** |
+
+**Bất biến giữ nguyên:** 20 checkbox · 12 nhóm con · 13 thẻ video mẫu · CSV **10 cột** (mới) /
+**14 cột** (bật đếm phương tiện, cột mới **ở CUỐI**) · SHA256 CSV khi tắt tính năng **khớp gốc** ·
+80 lớp COCO khớp 100% model · đếm phương tiện **21 = 21**.
+
+#### G. CHƯA ĐẠT ở bản 3.10
+
+- **Mục 7** (cảm giác kéo cửa sổ) và **mục 8** (độ nhận diện) **vẫn chờ anh xác nhận** — không tự ý đánh dấu đạt.
+- **Chưa kiểm chứng trên điện thoại THẬT** (mới chỉ có viewport mô phỏng 390/820 + localhost).
+- **Webcam / camera IP chưa chạy được trên bản web** (chỉ phân tích **file video**).
+- **OCR biển số / tự chụp ảnh / tách ô / cảnh báo** chưa chạy hết vòng với dữ liệu thật.
+- **Bản Tkinter cũ vẫn còn** và vẫn chạy — dùng để đối chiếu.
+
+---
+
 ### 2.2 CHƯA ĐẠT — chờ anh
 
 | Hạng mục | Vì sao chưa đạt | Việc cần làm |
 |---|---|---|
 | **7. Cảm giác kéo cửa sổ** | Chỉ có số đo, **anh chưa xác nhận**. Em đã sai một lần vì coi số đo là bằng chứng xong | **Anh mở GUI, kéo cửa sổ, xác nhận còn giật hay không.** Nếu còn giật: em sẽ báo cáo tiếp kèm số đo mới |
 | **8. Độ nhận diện trên video** | Video demo là video tải về, không phải video thật của anh; `known_faces/An`, `known_faces/Binh` là **dữ liệu giả**. **Đã đo thật (mục 2.3) và phát hiện hạn chế lớn:** quay drone `nguoi-di-lai` nhận 0/12 khung dù có hàng trăm người; `dam-dong` nhận 2–6 người dù cảnh rất đông | **Anh gửi video thật** (và ảnh người quen nếu muốn nhận diện tên), hoặc tự xem và nhận xét. Nếu anh cần nhận tốt ở cự ly xa/đám đông, xem 3 phương án sửa trong mục 2.3 |
+| **Bản 3.10 — cảm nhận "không treo"** | Đã **đo** và đã sửa (overlay spinner + tên giai đoạn + warm worker), nhưng em **chỉ có số đo**, chưa có cảm nhận của anh. Nói thẳng: server/browser **không hề đứng đo được trước khi sửa** — giá trị thật của bản sửa là **gỡ bỏ rủi ro treo** + **có phản hồi trực quan** | **Anh mở app, bấm BẮT ĐẦU, xem overlay có hiện không và có thấy "giống treo" không.** Nếu anh thấy vẫn lạ ⇒ em đo tiếp theo hướng khác, không tự kết luận |
 | **Đọc biển số xe Việt Nam** (bản 3.0) | **Chưa có ảnh biển số VN thật.** 10 ảnh kiểm chứng là **ảnh giả do PIL dựng**, không đại diện ánh sáng / nhiễu / góc nghiêng / độ nét thật. Logic thì 10/10 PASS nhưng **chưa nghiệm thu được**. **Bản 3.3 đã làm đường đi ngắn**: nút "Đọc biển số thử…" trong GUI → anh gửi ảnh → bấm 1 nút → có kết quả trong vài giây, không cần chạy video | **Anh gửi ảnh biển 2 hàng kiểu `30A`/`12345`** (và biển 1 hàng nếu có) → bấm nút "Đọc biển số thử…" rồi chụp màn hình gửi lại. Chi tiết ở mục 2.1c và 2.1g |
 | **Trạng thái khẩu trang** | Chưa làm | Cột `Mask:` luôn hiện `Chưa rõ`. `FaceResult` không có trường này và **dự án chưa có model khẩu trang**. Chờ anh quyết có cần không |
 | **Lưới "Đối tượng phát hiện" đã bị bỏ** | Agent tự quyết khi đổi bố cục; vai trò chuyển sang danh sách sự kiện. Class `PanelDoiTuong` còn nguyên trong `gui_khung.py` | Chờ anh chọn: giữ lại lưới, hay chỉ giữ timeline sự kiện |
 | **Chọn kênh cảnh báo** | 3 checkbox cũ (Phát chuông / Mở hộp thoại / Telegram) bị thay bằng 4 ô khớp cờ lõi. `AnalysisConfig` chỉ có 4 cờ nên không truyền được kênh nào bật | Cần thêm cờ vào `cam_ai_core.py` — chờ anh xác nhận muốn có |
-| **Web local** | Chạy lại sau khi lõi đổi (2026-10-19): `GET /` → **200**; `/api/trang-thai`, `/api/tai-ket-qua` → **401** chưa đăng nhập; `/api/phan-tich` → 405 vì là POST. **Không còn nằm trong danh sách chưa đạt.** | **Coordinator tự chạy** |
+| **Web local** | **Đã kiểm lại ở bản 3.10** (2026-10-23): `GET /` → **200**; API không có cookie → **401**; `GET /?k=<khoá>` → **200** + set cookie; `GET /api/phien` → token; `GET /api/ping` → OK. Bộ `_kk_kiem_web_server.py` **64/64 PASS**. **Không còn nằm trong danh sách chưa đạt.** | **Coordinator tự chạy** (đã xong) |
 | **Chưa có webcam live** | `--input 0` có trong CLI nhưng chưa thử webcam thật | Chờ anh xác nhận có làm không |
 
 ### 2.3 ĐO ĐỘ NHẬN DIỆN THẬT — có hạn chế lớn, anh PHẢI biết trước khi xác nhận mục 8
@@ -1404,14 +1516,20 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
   thể ghép sai thứ tự. Chỉ chốt được khi có ảnh thật.
 - **Chưa có video camera an ninh thực tế của anh** → chưa đo được thời gian quét cho
   use case máy chấm công (mục tiêu 2/8 tiếng).
+- **Bản 3.10 — warm worker sống trong 1 phiên server**: khởi động lại app ⇒ lần chạy đầu
+  lại là **cold** (~27,8 s). Worker chỉ giữ sống **khi server còn chạy**; đóng app là mất.
+- **Bản 3.10 — khoá truy cập đổi mỗi lần khởi động** ⇒ URL `?k=` cũ đã lưu trong lịch sử
+  trình duyệt điện thoại **hết hiệu lực**; phải lấy URL mới từ hộp thoại "Mở trên điện thoại".
+- **Bản 3.10 — độ trễ overlay 0,8 s**: nếu anh bấm BẮT ĐẦU rồi *thoát ra khỏi app* trong
+  khoảng dưới 0,8 s thì có thể không thấy overlay (đánh đổi có chủ đích để tránh nháy).
 
 ---
 
 ## 8. Việc tiếp theo — thứ tự gợi ý
 
-0. **Sửa lỗi panel "Xem video" đen khi chạy theo lô** (tìm ra 2026-10-20, xem mục
-   2.1e mục E). Cần thêm callback khung hình cho `run_analysis()` + đẩy vào GUI,
-   và ẩn nút "Tạm dừng" (nút của chế độ trực tiếp) khi đang chạy theo lô.
+0. **Anh xác nhận bản 3.10:** mở app, bấm BẮT ĐẦU, xem **overlay có hiện không** và có thấy
+   "giống treo" không. Em đã đo và đã sửa, nhưng **chỉ có số đo** — cần cảm nhận của anh
+   (mục 2.2 + mục 2.1n mục E).
 1. **Anh xác nhận mục 7:** mở GUI, kéo cửa sổ, xác nhận còn giật hay không.
    Nếu còn giật → em đo tiếp và báo kèm số liệu, không tự kết luận.
 2. **Anh xác nhận mục 8:** gửi video thật + ảnh người quen (nếu muốn nhận diện
@@ -1433,6 +1551,7 @@ PowerShell location — dùng đường dẫn tương đối sẽ báo "Could no
 
 | Ngày | Việc |
 |---|---|
+| 2026-10-23 | **Bản 3.10 — KHOÁ TRUY CẬP SẴN DÙNG + KHUNG VIDEO LUÔN Ở TRÊN + KHÔNG CẢM GIÁC TREO + WARM WORKER.** 4 nhóm thay đổi, tất cả **đo thật**. (1) **Khoá bootstrap**: `KHOA_TRUY_CAP = secrets.token_urlsafe(32)` sinh 1 lần lúc nạp module (43 ký tự, đổi mỗi lần khởi động), so khớp `secrets.compare_digest` (constant-time, chuẩn hoá byte UTF-8); `GET /?k=<khoá>` ⇒ set cookie `camai_phien` (httponly, samesite=lax, 12h) ⇒ **vào thẳng, KHÔNG còn form mật khẩu**; không có khoá/sai khoá ⇒ vẫn 200 nhưng UI hiện màn hướng dẫn + nút lấy URL có mã, **API vẫn 401**; route mới `GET /api/phien`; `POST /api/dang-nhap` **không đụng**, `CAMAI_PASSWORD` vẫn fail-closed; khoá **không ghi file, không in console** (chỉ in khi `CAMAI_DEBUG_KHOA=1`); hộp thoại "Mở trên điện thoại" hiện **URL sẵn dùng** + nút "Sao chép", **bỏ** dòng mật khẩu. (2) **Khung video sticky ở trên**: video lên đầu cột giữa, `position:sticky;top:calc(var(--h-dau) - 15px)` (−15px = border+padding của `.the`), `--h-dau` **đo runtime** (ResizeObserver + resize listener), `aspect-ratio:16/9` + `width:min(100%, calc(46vh*16/9))` ⇒ cao ≤ 46vh; **đo thật** 1440×900 → top **56px** · 820×1180 → **56px** · 390×844 → **61px** (yêu cầu ≤ header+2px ⇒ đạt cả 3). (3) **Overlay + tên giai đoạn**: `/api/trang-thai` có trường `giai_doan` (hợp đồng mới **và** cũ): "Đang chuẩn bị" → "Đang nạp model nhận diện" → "Đang mở video" → "Đang phân tích" → "Xong" (+ "Lỗi"); spinner CSS thuần `@keyframes quay` (không emoji) + gợi ý "Lần đầu mất khoảng 10–20 giây…"; badge "● Nạp model 0%" ở thanh đầu; overlay hiện **0,8 s** sau khi bấm BẮT ĐẦU. (4) **Process con giữ sống (warm worker)**: phần phân tích sang tiến trình con `multiprocessing` (spawn) giữ torch+YOLO+ArcFace; **server không bao giờ import torch/cv2** ở cấp module (ảnh nền resize ngay trong tiến trình con ⇒ không cần `import cv2` trong đường gọi); lần 1 cold **27,8 s** → lần 2 warm **8,8 s**; `GET /api/ping` safety net; dừng có tín hiệu `dung` + watchdog 20 s. **ĐO ĐẦU VÀO — nói thẳng:** stall khi `import cam_ai_core` (5,26 s) tối đa **0,055 s** ⇒ **GIL không bị chiếm** ⇒ giả thuyết "GIL starvation" **bị bác bỏ bằng đo**; poll `/api/trang-thai` suốt lần chạy lạnh 75 s **144/144 OK**, max gap **0,502 s**; rAF browser max gap **0,035 s** ⇒ **server/browser không hề đứng đo được trước khi sửa**; **nguyên nhân thật** = lúc nạp model 11–27 s **không có gì hiển thị** (overlay không hiện, tiến trình đứng 0%, chip ghi "Đang chạy 0%") ⇒ *cảm giác* như treo, kèm lỗi thật thứ hai: việc nặng chạy **cùng process** với server và event loop Qt ⇒ 1 lần stall C-extension/CUDA làm đứng cả app desktop, core crash làm chết app. Sau sửa: `/api/anh-nen` latency max **0,422 → 0,113 s**; poll max gap **0,508 → 0,532 s**; rAF max gap **0,035 → 0,100 s**. **BẰNG CHỨNG coordinator tự chạy:** web server **64/64** · UI web **49/49** · app_qt **30/30** · **khoá truy cập 26/26** (bộ mới) · chức năng **73/73** · nguồn viết **35/35** (CSV gốc SHA256 `bf97d113fdac39fb` khớp) · lớp viết **53/53** · GUI chạy thực **PASS** (31,7 s) · **không mất tính năng PASS**. Bất biến giữ nguyên: 20 checkbox · 12 nhóm con · 13 thẻ video mẫu · CSV 10/14 cột (cột mới ở CUỐI) · 80 lớp COCO · đếm phương tiện **21 = 21**. Xem mục **2.1n**. |
 | 2026-10-22 (sau 23:30) | **Bản 3.9 — CHUYỂN GIAO DIỆN SANG WEB-FIRST.** Anh: *"nền tảng này quá lạc hậu"* → duyệt hướng **webview** → *"có gì mobile chạy được luôn"* → *"**tập trung vào tính năng, đảm bảo nó hoạt động oke**"*. **Kiến trúc:** 1 bộ HTML/CSS/JS duy nhất chạy được 2 nơi — desktop (`app_qt.py` = cửa sổ native PySide6 + QWebEngineView bọc server FastAPI) và **điện thoại** (trình duyệt, cùng Wi-Fi, `http://<IP-LAN>:<port>` ⇒ **cùng trạng thái** với desktop). Không cloud/tunnel. **Đã kiểm tra thật trên máy anh để chọn:** QtWebEngine **đã có** (0 dependency mới) · WebView2 154 có sẵn · node có (Electron nặng, 2 tiến trình) · **Rust không có** (Tauri tốn 1,5 GB) ⇒ chọn QWebEngineView. **Tính năng:** đủ **12 nhóm / 56 control** chạy thật; API `/api/cau-hinh` trả **37 field** **tự sinh từ dataclass** (đọc bằng `ast` khi chưa import torch ⇒ không treo 9 s); **8 nút "chưa làm" → làm thật** (đăng ký người quen · đọc lại người đã học · vẽ vùng · lưu vùng · xoá vùng · thử cảnh báo · thông tin model · thông tin thiết bị); `/api/anh-nen` (khung hình JPEG cho điện thoại) + **Range 206** (iPhone tua được); **mật khẩu tự sinh** mỗi lần mở + desktop **tự đăng nhập hộ**. **BẰNG CHỨNG coordinator tự chạy:** web server **52/52** · UI web **37/37** (e2e 377/377 khung FPS 17,5, 0 tài nguyên ngoài, không cuộn ngang 1440/820/390) · app_qt **28/28** · bản Tkinter cũ **7/7** (không phá) · 7 bộ cũ PASS · **không mất tính năng nào** · vẽ vùng bằng Playwright kéo chuột thật ⇒ `pixel 153,108 → 537,345` trên 768×432 khớp chính xác. **Bảo mật:** chặn path traversal 3 lớp khi đăng ký người quen (10 tên sai → 400/400, thư mục không đổi) · cảnh báo thử luôn **chỉ thử** (không gửi ra ngoài). Xem mục **2.1m**. |
 | 2026-10-22 (sau 16:00) | **Bản 3.8 — TỐI ƯU TỐC ĐỘ (4,09×, BIT-EXACT) + SỬA LỖI APP CRASH + BẢN MẪU GIAO DIỆN PySide6.** Anh báo *"quét video màn hình trên nó chạy đâu tối thôi"* + *"nền tảng này quá lạc hậu"*. **Đo trước:** end-to-end 6,7–8,0 khung/s (video 12,5 fps) · `detector(frame)` ~99 ms/khung · `FaceEngine` nạp 21,3 s. **Nguyên nhân THẬT (giả định ban đầu của em SAI):** `torch.profiler` cho thấy **Self CPU 112,64 ms vs Self CUDA 7,11 ms** ⇒ **GPU đói** do CPU-side launch overhead của PyTorch/cuDNN, **không** phải overhead gọi hàm. **Cách sửa:** file mới `nhan_dien_nhanh.py` — **CUDA Graph** cho forward YOLO11n + preprocess nhanh (LetterBox cache, buffer tĩnh) ⇒ **28,97 → 6,33 ms/khung (36,98 → 151,43 khung/s)**, E2E GUI **39,1 s → 26,1 s**. **Loại 3 hướng có lý do:** batching (lệch số đếm tối đa 0,497559) · FP16 (không tăng tốc + lệch tọa độ) · ONNX (bản export cứng 480×480 + NMS nhúng ⇒ hỏng SHA256). **BẰNG CHỨNG coordinator tự chạy:** bit-exact **200/200 khung** · CSV **SHA256 giống hệt** (250 dòng × 10 cột) · đếm phương tiện **21 = 21** (chênh 0,00%) · **10 bộ kiểm chứng PASS**. **Sửa lỗi CRASH lúc thoát (0xC0000005, có sẵn từ lâu — 4/5 lần trên bản gốc `git HEAD`):** thiếu `openh264-2.5.0-win64.dll` ⇒ `VideoWriter` H.264 không khởi tạo được ⇒ crash teardown. Đã tải **bản chính thức Cisco v2.5.0** + **3 file giấy phép** + `_nap_dll_openh264()` (ctypes, giữ handle chống GC) + `_fourcc_ket_qua()` probe thật rồi mới chọn `avc1`, lỗi thì lùi `mp4v`. **Kết quả:** `avc1` mở được, **hết log đỏ**, `app.py` **3/3 exit = 0**. **Bản mẫu giao diện PySide6** (`mau_gui_qt.py`) để anh **duyệt hướng thiết kế trước** — bài học lần trước em tự chọn nền tảng → phải làm lại. Xem mục **2.1l**. |
 | 2026-10-21 (sau 00:00) | **ĐẨY LÊN GITHUB + BỘ CÀI MÁY MỚI.** Anh báo *"đẩy dự án này lên git để tôi làm tiếp ở máy khác, máy này nặng quá"*. **Repo:** `https://github.com/handsomecat101/cam-ai` — **private**, nhánh `master`, **toàn bộ lịch sử commit** (từ `bb52c18` bản 3.5 → `7ebe43b`), kích thước **~3 MB**. Không có `gh` CLI → lấy OAuth token của **GCM** (Credential Manager, tài khoản `handsomecat101`) → `POST /user/repos` với `private=true`; token **không** in ra log. **Cố ý KHÔNG commit:** `models/` (784 MB) · `video_mau/` (507 MB) · `.venv/` · `known_faces/` · `*.pt`/`*.onnx` · file kết quả chạy (GitHub giới hạn 100 MB/file; model tải lại được bằng 1 lệnh). **Giữ lại** `video_mau/moi/NGUON_LICENSE_NGUOI.md` (attribution CC BY / CC BY-SA bắt buộc). **Bộ cài 1 lệnh:** `cai_dat_may_moi.bat` → `cai_dat_may_moi.py` (tạo `.venv` → cài thư viện → tải `yolo11n.pt` → tải model ArcFace → in tổng kết; **không chết khi 1 bước fail**; exit 0 chỉ khi venv + 2 model có). **`requirements.txt`** bổ sung 5 gói thiếu (`customtkinter`, `pillow`, `rapidocr-onnxruntime`, `openpyxl`, `pywin32`), dòng `torch` **cố ý comment** vì `+cu126` không có trên PyPI. **`TAI-MAY-MOI.md`** = hướng dẫn máy mới + bảng "thứ KHÔNG có trong git" + cách lấy lại từng thứ. **`known_faces_mau.zip`** (41 KB, **không commit**) = 10 ảnh "An"/"Binh" để chuyển máy (ảnh khuôn mặt không đưa vào git). **Agent phát hiện xung đột thật:** `rapidocr-onnxruntime` kéo bản **CPU** `onnxruntime` **ghi đè** bản GPU → script cài phát hiện rồi cài lại `onnxruntime-gpu`. **Xác minh:** `pip install --dry-run` exit 0 (11/11 resolve) · `torch-2.14.0+cu126` (cp313) resolve được · `insightface==2.1` có sẵn wheel · chạy thật script exit 0 · chạy từ số 0 (xoá `.venv`) → tạo venv + tiếng Việt có dấu đúng. Xem mục **2.1k** phần F. |

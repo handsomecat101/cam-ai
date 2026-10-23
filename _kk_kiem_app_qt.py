@@ -108,9 +108,15 @@ def _dong_co(chu: str, dong: list) -> str:
     return ""
 
 
-def _tim_cua_so(ten_chua: str):
-    """Tim cua so theo tieu de (dung win32gui nhu mau cua du an)."""
+def _tim_cua_so(ten_chua: str, pid=None):
+    """Tim cua so theo tieu de. Neu `pid` -> CHI tra ve cua so cua tien trinh do.
+
+    QUAN TRONG: app that cua anh cung chay app_qt.py voi CUNG tieu de
+    ("CamAI - Phan tich video giam sat") => phai loc theo PID de KHONG bao
+    gio cham vao cua so ngoai (khong dong app cua anh).
+    """
     import win32gui
+    import win32process
 
     ket = []
 
@@ -118,54 +124,40 @@ def _tim_cua_so(ten_chua: str):
         if not win32gui.IsWindowVisible(hwnd):
             return
         tieu_de = win32gui.GetWindowText(hwnd)
-        if ten_chua.lower() in tieu_de.lower():
-            ket.append((hwnd, tieu_de))
+        if ten_chua.lower() not in tieu_de.lower():
+            return
+        if pid is not None:
+            try:
+                p = win32process.GetWindowThreadProcessId(hwnd)[1]
+            except Exception:  # noqa: BLE001
+                return
+            if p != pid:
+                return
+        ket.append((hwnd, tieu_de))
 
     win32gui.EnumWindows(callback, None)
     return ket
 
 
-def _ep_truoc(hwnd) -> None:
-    """Ép cửa sổ lên trước (AttachThreadInput để SetForegroundWindow có tác dụng)."""
-    import ctypes
-    import win32gui
-    import win32process
+def _mo_hop_thoai(hwnd, pid=None):
+    """Mo hop thoai 'Mo tren dien thoai' - KHONG bam phim toan cuc.
 
-    try:
-        fg = win32gui.GetForegroundWindow()
-        luong_fg = win32process.GetWindowThreadProcessId(fg)[0]
-        luong_dst = win32process.GetWindowThreadProcessId(hwnd)[0]
-        if luong_fg != luong_dst:
-            ctypes.windll.user32.AttachThreadInput(luong_fg, luong_dst, True)
-        win32gui.ShowWindow(hwnd, 9)  # SW_RESTORE
-        win32gui.SetForegroundWindow(hwnd)
-        if luong_fg != luong_dst:
-            ctypes.windll.user32.AttachThreadInput(luong_fg, luong_dst, False)
-    except Exception as loi:  # noqa: BLE001
-        print("   focus loi (bo qua):", loi)
-
-
-def _mo_hop_thoai(hwnd):
-    """Mo hop thoai 'Mo tren dien thoai' bang phim F2 (phim tat app).
+    Uu tien 1: app tu mo hop thoai (hook CAMAI_QT_MO_HOP_THOAI trong app).
+    Uu tien 2 (du phong): PostMessage F2 TRUC TIEP vao cua so CUA TA
+    (khong dung keybd_event => khong gui phim vao cua so dang focus).
 
     Tra (hwnd hop thoai, tieu de) hoac (None, loi).
     """
-    import win32api
     import win32con
     import win32gui
 
-    _ep_truoc(hwnd)
-    time.sleep(0.6)
-    win32api.keybd_event(win32con.VK_F2, 0, 0, 0)
-    win32api.keybd_event(win32con.VK_F2, 0, win32con.KEYEVENTF_KEYUP, 0)
-
-    het = time.time() + 8
+    het = time.time() + 15
     while time.time() < het:
-        for h, t in _tim_cua_so(TIEU_DE_HOP):
+        for h, t in _tim_cua_so(TIEU_DE_HOP, pid):
             return h, t
         time.sleep(0.3)
 
-    # Cách 2: gui WM_KEYDOWN truc tiep vao cua so.
+    # Du phong: gui F2 truc tiep vao cua so cua ta (khong dung keybd_event).
     try:
         win32gui.PostMessage(hwnd, win32con.WM_KEYDOWN, win32con.VK_F2, 0)
         win32gui.PostMessage(hwnd, win32con.WM_KEYUP, win32con.VK_F2, 0)
@@ -173,7 +165,7 @@ def _mo_hop_thoai(hwnd):
         print("   post F2 loi:", loi)
     het = time.time() + 8
     while time.time() < het:
-        for h, t in _tim_cua_so(TIEU_DE_HOP):
+        for h, t in _tim_cua_so(TIEU_DE_HOP, pid):
             return h, t
         time.sleep(0.3)
     return None, "khong thay hop thoai"
@@ -364,36 +356,10 @@ def _xoa_clipboard() -> None:
         pass
 
 
-def _bam_sao_chep(hwnd_hop) -> list:
-    """Di chuyen focus bang Tab va bam Space, thu 3 lan.
-
-    Thu tu Tab trong app: o_url -> btn_sao_chep -> o_mk -> btn_sao_chep_mk -> thoat.
-    Focus bat dau o o_url, nen 3 vong Tab+Space cham dung 2 nut "Sao chep"
-    (khong bao gio cham nut "Dong" => hop thoai khong bi dong).
-
-    Tra danh sach noi dung clipboard sau moi vong.
-    """
-    import win32api
-    import win32con
-    import win32gui
-
-    try:
-        win32gui.SetForegroundWindow(hwnd_hop)
-    except Exception:  # noqa: BLE001
-        pass
-    time.sleep(0.6)
-    _xoa_clipboard()
-
-    ket = []
-    for _ in range(3):
-        win32api.keybd_event(win32con.VK_TAB, 0, 0, 0)
-        win32api.keybd_event(win32con.VK_TAB, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(0.25)
-        win32api.keybd_event(win32con.VK_SPACE, 0, 0, 0)
-        win32api.keybd_event(win32con.VK_SPACE, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(0.6)
-        ket.append(_doc_clipboard())
-    return ket
+# GHI CHU (v3.9): KHONG dung keybd_event de bam phim trong bo kiem nay.
+# App that cua anh dang chay tren may nay => phim toan cuc se bay vao app
+# cua anh. Thay bang: app tu sao chep URL (hook CAMAI_QT_TU_KIEM) roi doc
+# clipboard tu he thong.
 
 
 def _cho_den_khi(dong: list, chu: str, tong: float) -> bool:
@@ -406,11 +372,37 @@ def _cho_den_khi(dong: list, chu: str, tong: float) -> bool:
     return False
 
 
+def _pid_app(proc) -> int:
+    """PID THUC su so huu cua so Qt cua app vua spawn.
+
+    `.venv\\Scripts\\python.exe` la LAUNCHER STUB: no tao 1 process con
+    chay `app_qt.py` va CHINH process con do so huu cua so Qt.
+    => phai tim process con de loc cua so (tranh cham nham app khac).
+    """
+    try:
+        import psutil
+
+        pr = psutil.Process(proc.pid)
+        for c in pr.children(recursive=True):
+            try:
+                cmd = c.cmdline() or []
+            except Exception:  # noqa: BLE001
+                continue
+            if any("app_qt.py" in str(x) for x in cmd):
+                return c.pid
+    except Exception as loi:  # noqa: BLE001
+        print("   [canh bao] khong lay duoc PID thuc: %s" % loi)
+    return proc.pid
+
+
 def _dong_cua_so(proc, dong: list, tong: float = THOI_GIAN_CHO_CUA_SO):
-    """Cho cua so chinh cua app xuat hien. Tra (hwnd, tieu_de) hoac (None, loi)."""
+    """Cho cua so chinh cua app xuat hien. Tra (hwnd, tieu de) hoac (None, loi).
+
+    CHI tim cua so cua tien trinh `proc` (khong bao gio cham cua so app khac).
+    """
     het = time.time() + tong
     while time.time() < het:
-        cua_so = _tim_cua_so(TIEU_DE_CUA_SO)
+        cua_so = _tim_cua_so(TIEU_DE_CUA_SO, _pid_app(proc))
         if cua_so:
             return cua_so[0][0], cua_so[0][1]
         if proc.poll() is not None:
@@ -431,6 +423,8 @@ def _main_kiem_1_mat_khau_tu_sinh():
             "CAMAI_QT_IN_TOKEN": "1",
             "CAMAI_QT_IN_DIALOG": "1",
             "CAMAI_QT_TU_KIEM": "Sẵn sàng",
+            # App tu mo hop thoai dien thoai (KHONG can bam phim).
+            "CAMAI_QT_MO_HOP_THOAI": "1",
         },
     )
 
@@ -447,7 +441,7 @@ def _main_kiem_1_mat_khau_tu_sinh():
     )
 
     # --- app co dung hien hop thoai "Chưa đặt mật khẩu" khong? ---
-    hop_loi = _tim_cua_so("Chưa đặt mật khẩu")
+    hop_loi = _tim_cua_so("Chưa đặt mật khẩu", _pid_app(proc))
     _bao(
         not hop_loi,
         "1c. Khong dung hien hop thoai loi 'Chưa đặt mật khẩu'",
@@ -487,6 +481,9 @@ def _main_kiem_1_mat_khau_tu_sinh():
     )
 
     # --- token doc tu localStorage bang runJavaScript ---
+    # App in "TOKEN-LOCALSTORAGE" SAU dong "TU-DANG-NHAP: OK" (giua 2 dong
+    # co 1 loi goi HTTP) => phai CHO dong do, khong duoc kiem ngay.
+    _cho_den_khi(dong, "TOKEN-LOCALSTORAGE:", 15)
     dong_token = _dong_co("TOKEN-LOCALSTORAGE:", dong)
     token = dong_token.split("TOKEN-LOCALSTORAGE:")[-1].strip() if dong_token else ""
     _bao(
@@ -515,35 +512,44 @@ def _main_kiem_1_mat_khau_tu_sinh():
         _bao(False, "3c. GET /api/trang-thai voi token localStorage -> HTTP 200",
              "khong tim thay cong/token")
 
-    # --- hop thoai dien thoai: URL + mat khau + 2 nut Sao chep ---
+    # --- hop thoai dien thoai: URL SAN DUNG (co ma) + 1 nut "Sao chep" ---
     url_lan = ""
+    url_san_dung = ""
     for d in dong:
-        if "URL-LAN:" in d:
+        if "URL-LAN-SAN-DUNG:" in d:
+            url_san_dung = d.split("URL-LAN-SAN-DUNG:")[-1].strip()
+        elif "URL-LAN:" in d:
             url_lan = d.split("URL-LAN:")[-1].strip()
 
-    h_hop, t_hop = _mo_hop_thoai(hwnd)
+    h_hop, t_hop = _mo_hop_thoai(hwnd, _pid_app(proc))
     if h_hop is None:
         _bao(False, "4a. Hop thoai 'Mo tren dien thoai' mo duoc", t_hop)
     else:
         _bao(True, "4a. Hop thoai 'Mo tren dien thoai' mo duoc", repr(t_hop))
 
         # --- noi dung hop thoai (doc qua hook console cua app) ---
-        _kiem_noi_dung_hop_thoai(dong, url_lan, mat_khau)
+        _kiem_noi_dung_hop_thoai(dong, url_lan, url_san_dung)
 
-        # --- 2 nut "Sao chep" dua dung noi dung vao clipboard ---
-        noi_dungs = _bam_sao_chep(h_hop)
-        print("   Clipboard sau moi vong Tab+Space: %r" % (noi_dungs,))
-        co_url = any(url_lan and url_lan in n for n in noi_dungs)
+        # --- nut "Sao chep" dua URL san dung vao clipboard ---
+        # KHONG bam phim: app tu sao chep (hook tu kiem) roi in ra console.
+        dong_clip = _dong_co("HOP-THOAI-CLIPBOARD:", dong)
+        clip_app = dong_clip.split("HOP-THOAI-CLIPBOARD:")[-1].strip() if dong_clip else ""
+        clip_sys = _doc_clipboard()
+        print("   Clipboard (tu app): %r" % (clip_app[:120],))
+        print("   Clipboard (he thong): %r" % (clip_sys[:120],))
+        co_url = bool(url_san_dung) and (
+            url_san_dung in clip_app or url_san_dung in clip_sys
+        )
         _bao(
             co_url,
-            "4b. Nut 'Sao chep' dua dung URL LAN vao clipboard",
-            "tim thay URL trong clipboard" if co_url else "khong thay URL: %r" % (noi_dungs,),
+            "4b. Nut 'Sao chep' dua URL SAN DUNG vao clipboard (khong bam phim)",
+            "tim thay URL san dung trong clipboard" if co_url
+            else "khong thay URL san dung: app=%r sys=%r" % (clip_app[:80], clip_sys[:80]),
         )
-        co_mk = any(mat_khau and mat_khau in n for n in noi_dungs)
         _bao(
-            co_mk,
-            "4c. Nut 'Sao chep mat khau' dua dung mat khau vao clipboard",
-            "tim thay mat khau trong clipboard" if co_mk else "khong thay mat khau: %r" % (noi_dungs,),
+            "?k=" in clip_app or "?k=" in clip_sys,
+            "4c. Clipboard chua khoa truy cap (?k=...) - mo la vao thang",
+            "co ?k= trong clipboard",
         )
 
         try:
@@ -599,15 +605,8 @@ def _main_kiem_1_mat_khau_tu_sinh():
         "5b. Tien trinh app_qt.py da thoat",
         "ma thoat=%s" % proc.poll(),
     )
-    if proc.poll() is None:
-        try:
-            proc.terminate()
-            proc.wait(timeout=5)
-        except Exception:  # noqa: BLE001
-            try:
-                proc.kill()
-            except Exception:  # noqa: BLE001
-                pass
+    # Dung ca cay process (stub + app that) de khong de lai cua so/server.
+    _dung_app(proc)
 
     # --- 6) Mat khau KHONG bi ghi ra file ---
     bi_lo, da_quet = _quet_file_mat_khau(mat_khau)
@@ -624,39 +623,64 @@ def _main_kiem_1_mat_khau_tu_sinh():
     return mat_khau
 
 
-def _kiem_noi_dung_hop_thoai(dong: list, url_lan: str, mat_khau: str):
+def _kiem_noi_dung_hop_thoai(dong: list, url_lan: str, url_san_dung: str):
     """Kiem noi dung hop thoai qua hook console cua app (HOP-THOAI-*).
 
     Qt khong tao HWND con cho widget => khong doc duoc bang EnumChildWindows.
     """
     dong_url = _dong_co("HOP-THOAI-URL:", dong)
-    dong_mk = _dong_co("HOP-THOAI-MK:", dong)
     dong_nut = _dong_co("HOP-THOAI-NUT:", dong)
+    dong_mk = _dong_co("HOP-THOAI-MK:", dong)
 
     url_hop = dong_url.split("HOP-THOAI-URL:")[-1].strip() if dong_url else ""
-    mk_hop = dong_mk.split("HOP-THOAI-MK:")[-1].strip() if dong_mk else ""
     nut_hop = dong_nut.split("HOP-THOAI-NUT:")[-1].strip() if dong_nut else ""
 
     _bao(
-        bool(url_hop) and (not url_lan or url_hop == url_lan),
-        "4g. Hop thoai hien dung URL LAN",
+        bool(url_hop) and (not url_lan or url_hop.startswith(url_lan)),
+        "4g. Hop thoai hien URL LAN dung",
         url_hop or "khong thay HOP-THOAI-URL",
     )
     _bao(
-        bool(mk_hop) and (not mat_khau or mk_hop == mat_khau),
-        "4h. Hop thoai hien dung mat khau",
-        ("mat khau %d ky tu khop" % len(mk_hop)) if mk_hop else "khong thay HOP-THOAI-MK",
+        "?k=" in url_hop,
+        "4h. Hop thoai hien URL SAN DUNG (co khoa truy cap ?k=)",
+        url_hop[:90] if url_hop else "khong thay HOP-THOAI-URL",
+    )
+    _bao(
+        bool(url_san_dung) and url_hop == url_san_dung,
+        "4i. URL trong hop thoai DUNG bang URL san dung (console)",
+        "hop=%r san_dung=%r" % (url_hop[:60], url_san_dung[:60]),
     )
     so_nut = len([t for t in nut_hop.split("|") if t.strip()])
     _bao(
-        so_nut == 2,
-        "4i. Hop thoai co 2 nut 'Sao chep'",
+        so_nut == 1,
+        "4j. Hop thoai co 1 nut 'Sao chep' (khong con nut mat khau)",
         nut_hop or "khong thay HOP-THOAI-NUT",
+    )
+    _bao(
+        not dong_mk,
+        "4k. Hop thoai KHONG con dong mat khau (da bo form go tay)",
+        "khong co dong HOP-THOAI-MK" if not dong_mk else "CO dong mat khau",
     )
 
 
 def _dung_app(proc):
-    """Dung app phat sinh (dung khi co loi)."""
+    """Dung app phat sinh (dung khi co loi).
+
+    PHẢI kết cả process con: `.venv\\Scripts\\python.exe` chi la launcher stub,
+    process con moi la app that. Dung stub thi app con con song => con cua so
+    + server treo lai.
+    """
+    try:
+        import psutil
+
+        pr = psutil.Process(proc.pid)
+        for c in pr.children(recursive=True):
+            try:
+                c.kill()
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception:  # noqa: BLE001
+        pass
     if proc.poll() is None:
         try:
             proc.terminate()

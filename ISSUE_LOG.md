@@ -3,11 +3,164 @@
 Ghi lại lỗi đã biết để không phát minh lại. Xem `PROJECT_STATE.md` mục 2 (bảng ĐẠT/CHƯA ĐẠT)
 và mục 6 (gotcha) cho việc đang làm.
 
-**Ngày cập nhật:** 2026-10-20
+**Ngày cập nhật:** 2026-10-23
 
 ---
 
 # ĐÃ SỬA
+
+## Giả thuyết "GIL starvation" bị BÁC BỎ bằng đo — phải đo trước khi sửa theo giả định
+
+**Triệu chứng:** ở bản 3.9, khi bấm BẮT ĐẦU, phần nặng (import torch + nạp model) chạy trong
+**cùng process** với server ⇒ nghi ngờ GIL bị chiếm và event loop FastAPI không phục vụ được
+`/api/trang-thai` ⇒ UI poll không có phản hồi ⇒ **app "đứng hình"**.
+
+**Cách kiểm chứng giả thuyết (đo, không đoán):**
+
+| Số đo | Kết quả | Kết luận |
+|---|---|---|
+| Thời gian `import cam_ai_core` | 5,26 s | — |
+| **Stall tối đa** trong lúc import | **0,055 s** | **GIL KHÔNG bị chiếm** ⇒ giả thuyết **SAI** |
+| Poll `/api/trang-thai` suốt lần chạy lạnh 75 s | **144/144 OK**, khoảng cách lớn nhất **0,502 s** | event loop **không bao giờ đứng** |
+| Browser main-thread rAF | khoảng cách lớn nhất **0,035 s** | trang **không đứng hình** |
+
+→ **Giả thuyết "GIL starvation" bị loại bằng đo đạc.** Trước khi sửa, **server và trình duyệt
+KHÔNG hề đứng đo được** — nếu báo "đã sửa lỗi đứng" thì là bịa.
+
+**Bài học (nhớ lâu):**
+- **Phải đo trước khi sửa theo giả định.** Một giả thuyết nghe hợp lý ("nạp torch giữ GIL ⇒
+  event loop chết") rất dễ dẫn tới một "cách sửa" tốn công mà **không sửa đúng thứ gì**.
+- **Số đo loại được giả thuyết thì phải ghi lại giả thuyết đã bị loại** — không xoá khỏi đầu
+  danh sách, vì lần sau rất dễ nghĩ lại đúng cái sai đó.
+- Phân biệt rõ: *"đứng đo được"* ≠ *"cảm giác đứng"*. Xem mục kế tiếp.
+
+---
+
+## Nguyên nhân THẬT của cảm giác treo: THIẾU PHẢN HỒI TRỰC QUAN lúc nạp model
+
+**Triệu chứng:** bấm BẮT ĐẦU ⇒ **11–27 s không có gì hiển thị**: overlay không hiện, thanh tiến
+trình đứng ở 0%, chip ghi "Đang chạy 0%". Người dùng ⇒ *"app treo"*. Nhưng đo thì server
+**không đứng** (mục trên) ⇒ treo ở **mắt**, không phải ở **event loop**.
+
+**Nguyên nhân — 2 tầng:**
+
+1. **Tầng cảm nhận (đúng là lỗi UX thật):** trong lúc nạp model, UI **không có tín hiệu nào**
+   nói "tao đang làm gì" ⇒ 11–27 s im lặng ⇒ **cảm giác** như treo.
+2. **Tầng kiến trúc (lỗi thật, có rủi ro thật):** việc nặng chạy **cùng process** với server và
+   với **event loop Qt** ⇒ một lần stall C-extension/CUDA làm đứng **cả app desktop**, và
+   core crash làm **chết app**.
+
+**Cách sửa (`VERSION` 3.10):**
+- Thêm trường **`giai_doan`** vào `/api/trang-thai` (hợp đồng mới **và** cũ): "Đang chuẩn bị" →
+  "Đang nạp model nhận diện" → "Đang mở video" → "Đang phân tích" → "Xong" (+ "Lỗi").
+- Overlay trên khung video: **spinner CSS thuần** (`@keyframes quay`, **không emoji**) + tên
+  giai đoạn + gợi ý *"Lần đầu mất khoảng 10–20 giây. Phần mềm vẫn phản hồi, khoan đợi."*;
+  badge **"● Nạp model 0%"** ở thanh đầu; tên giai đoạn cũng hiện dưới thanh tiến trình.
+  Overlay hiện **0,8 s** sau khi bấm BẮT ĐẦU (không nháy khi bấm nhầm).
+- Tách phần phân tích sang **tiến trình con `multiprocessing` (spawn)** giữ torch + YOLO +
+  ArcFace ⇒ **server không bao giờ import torch/cv2** ở cấp module ⇒ app desktop không còn bị
+  stall C-extension/CUDA của server làm đứng, và core crash không giết app.
+- Worker sống lâu ⇒ lần chạy 2+ **không nạp lại model**: lần 1 cold **27,8 s** → lần 2 warm **8,8 s**.
+
+**Số đo sau khi sửa:** `/api/anh-nen` latency max **0,422 s → 0,113 s**; poll max gap
+**0,508 s → 0,532 s**; rAF max gap **0,035 s → 0,100 s**.
+
+**Bài học:**
+- **"Cảm giác treo" là một loại bug thật, và nó KHÁC "app treo".** Phải đo cả hai: (1) có đứng
+  thật không (poll/rAF), (2) có **báo cho người dùng biết đang làm gì** không.
+- **Thêm feedback trực quan rẻ hơn nhiều so với tối ưu hiệu năng** — và nó là thứ anh nhìn thấy.
+- Nói thẳng trong tài liệu: giá trị của bản sửa là **gỡ bỏ rủi ro treo** + **có phản hồi trực
+  quan**, **KHÔNG phải** "đã sửa một lần đứng đo được" (vì trước đó có đứng đo được đâu).
+
+---
+
+## `position:sticky` không ăn vì `.lay-out{align-items:start}` — khối chứa video quá ngắn
+
+**Triệu chứng:** thêm `position:sticky` cho khung video ⇒ **không dính**, video vẫn trôi mất khi
+cuộn xuống phần cấu hình.
+
+**Nguyên nhân:** `.lay-out` có `align-items:start` ⇒ các cột **KHÔNG được kéo dài** theo chiều
+cao của cột cao nhất ⇒ **khối chứa video** (cột giữa) chỉ cao bằng nội dung của nó ⇒ **chiều cao
+khối cha ngắn hơn vùng sticky** ⇒ `sticky` không có chỗ để "dính" ⇒ **không hiệu lực**.
+
+**Cách sửa (`VERSION` 3.10):**
+- Bỏ ràng buộc kéo dài cột giữa (để cột giữa đủ cao cho vùng sticky) ⇒ `sticky` ăn.
+- Video chuyển lên **đầu cột giữa**; `.the-video-stick{position:sticky;top:calc(var(--h-dau) - 15px)}`
+  — **−15px** = border + padding của `.the` ⇒ khung video nằm **sát dưới thanh đầu**.
+- `--h-dau` (chiều cao thanh đầu) **đo runtime** bằng `ResizeObserver` + `resize listener`
+  ⇒ đúng ở **mọi** bề rộng (nút to hơn ở màn hình nhỏ ⇒ thanh đầu cao hơn).
+- Giữ tỉ lệ **16/9**: `aspect-ratio:16/9` + `width:min(100%, calc(46vh * 16 / 9))` ⇒ cao ≤ 46vh.
+
+**Đo thật** (yêu cầu: video top ≤ header + 2px):
+
+| Viewport | Chiều cao thanh đầu | `top` khung video | Kết quả |
+|---|---|---|---|
+| 1440 × 900 | 56 px | **56 px** | ✓ |
+| 820 × 1180 | 56 px | **56 px** | ✓ |
+| 390 × 844 | 61 px | **61 px** | ✓ |
+
+**Bài học:**
+- **`position:sticky` không phải lỗi của nó — nó cần khối cha đủ cao.** Không có `align-items:stretch`
+  (hoặc tương đương) thì cột ngắn ⇒ `top` không bao giờ "chạm" ngưỡng ⇒ **tưởng như CSS hỏng**.
+- **Chiều cao thanh đầu là biến runtime** (đổi theo bề rộng) ⇒ phải **đo** bằng `ResizeObserver`,
+  không hardcode `56px` (sẽ hỏng ở màn hình nhỏ).
+
+---
+
+## Lỗi TEST (không phải lỗi app): đọc `TOKEN-LOCALSTORAGE` quá sớm — race 3b
+
+**Triệu chứng:** bộ kiểm chứng `app_qt` báo FAIL ở marker `TOKEN-LOCALSTORAGE` trong khi
+`TU-DANG-NHAP: OK` **đã** PASS.
+
+**Nguyên nhân — race do chính SCRIPT gây ra, không phải lỗi sản phẩm:** app in
+`TOKEN-LOCALSTORAGE` **SAU** `TU-DANG-NHAP: OK`, và **giữa 2 dòng đó có 1 lời gọi HTTP**
+(`GET /api/trang-thai` → HTTP 200). Script kiểm `TOKEN-LOCALSTORAGE` ngay khi thấy
+`TU-DANG-NHAP: OK` ⇒ **đọc trước khi app kịp in dòng đó**.
+
+**Cách sửa:** test **phải chờ đúng marker** (`_cho_den_khi(dong, "TOKEN-LOCALSTORAGE", ...)`),
+**không kiểm ngay** sau một marker khác.
+
+**Bài học:**
+- **Marker kiểm chứng phải được chờ theo đúng thứ tự phát ra** — có lời gọi HTTP chen giữa
+  thì thứ tự in ra **không** là thứ tự hoàn thành.
+- **Khi bộ kiểm chứng FAIL mà tính năng vẫn chạy được ⇒ ĐỪNG SỬA SẢN PHẨM.** Hãy **chạy thật**
+  và đọc log để phân biệt "lỗi sản phẩm" với "lỗi kỳ vọng của script".
+
+---
+
+## `.venv\Scripts\python.exe` là LAUNCHER STUB ⇒ cửa sổ Qt thuộc tiến trình CON, không phải PID cha
+
+**Triệu chứng:** test tìm cửa sổ Qt (để bấm nút / đọc nội dung hộp thoại) bằng cách lọc theo
+PID của tiến trình đã spawn ⇒ **không thấy cửa sổ nào**.
+
+**Nguyên nhân:** `H:\AI Project\cam-ai\.venv\Scripts\python.exe` là **launcher stub** của Windows
+Store / venv ⇒ nó **spawn tiến trình con thật** rồi thoát. ⇒ **cửa sổ Qt thuộc tiến trình CON**,
+không thuộc PID mà test giữ.
+
+**Cách sửa:** test phải **lọc cửa sổ theo PID của tiến trình con** (đã có helper `_pid_app()`),
+không lọc theo PID launcher.
+
+**Bài học:**
+- **PID mà bạn spawn không phải PID làm việc thật** khi chạy qua launcher/venv stub trên Windows.
+  Mọi test tương tác với cửa sổ native phải **lọc theo PID con thật**.
+- Test **đóng cửa sổ ⇒ không còn process** cũng phải theo đúng cây tiến trình
+  (`taskkill /PID <pid> /T /F`) — vì còn tiến trình con thì app **chưa** đóng sạch.
+
+---
+
+## 404 `/favicon.ico` — trình duyệt tự xin, VÔ HẠI (đừng sửa)
+
+**Triệu chứng:** log server có dòng `404 /favicon.ico`.
+
+**Nguyên nhân:** **trình duyệt tự xin** favicon mỗi lần mở trang. Không liên quan gì tới logic
+app.
+
+**Cách xử lý:** **không sửa** — đây là hành vi chuẩn của trình duyệt.
+
+**Bài học:** log 404 của favicon là **nhiễu nền**. Đừng để nó làm phân tâm sự chú ý khi đọc log
+sau khi sửa lỗi thật.
+
+---
 
 ## Script kiểm chứng báo FAIL giả — kiểm tra TRƯỚC khi sự kiện xảy ra
 

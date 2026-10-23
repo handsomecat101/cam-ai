@@ -3,8 +3,14 @@
 > Đọc file này **trước khi sửa bất cứ thứ gì**. Nó là "bộ nhớ làm việc" của dự án.
 > Mọi thứ ở đây đã được **kiểm chứng bằng số đo thật** — đừng phải đoán lại.
 
-**CamAI v3.7** · `VERSION` nằm trong `cam_ai_core.py` · nhánh `master` · repo **public**
+**CamAI v3.10** · `VERSION` nằm trong `cam_ai_core.py` · nhánh `master` · repo **public**
 `https://github.com/handsomecat101/cam-ai`
+
+> **Có đội agent cứng: `camai-ui` · `camai-server` · `camai-qa`.**
+> Đọc `AGENT_TEAM.md` (mục 2 = vai trò + sở hữu file, mục 5 = việc còn lại đã phân công)
+> và `C:\Users\TTC\.minimax\agents\camai-<tên>\BO_CONG_VIEC.md` (bàn giao riêng của từng agent)
+> **trước khi nhận việc**. Giao việc tiếp theo bằng `task_append` để **giữ context** — đừng
+> spawn agent mới mỗi vòng.
 
 ---
 
@@ -30,10 +36,11 @@ Chi tiết: `PROJECT_STATE.md` mục 0 + mục 3, `USE_CASE.md` mục 0 + 3.1.
 | # | File | Vì sao |
 |---|---|---|
 | 1 | `AGENTS.md` (file này) | quy tắc + bất biến + lệnh |
-| 2 | `PROJECT_STATE.md` mục **0** (định hướng), **2** (ĐÃ ĐẠT / CHƯA ĐẠT), **3** (quyết định đã chốt), **4** (cách chạy + kiểm chứng), **6** (gotcha), **9** (lịch sử) | bộ nhớ dài hạn của dự án |
-| 3 | `ISSUE_LOG.md` | lỗi đã biết — **đọc trước khi sửa** để không phát minh lại |
-| 4 | `CHANGELOG.md` | thay đổi gì, bằng chứng ra sao |
-| 5 | `ROADMAP.md` | việc đã xong / việc tiếp theo / việc chờ anh |
+| 2 | `AGENT_TEAM.md` | **đội agent cứng**: vai trò, sở hữu file, trạng thái v3.10, việc còn lại |
+| 3 | `PROJECT_STATE.md` mục **0** (định hướng), **2** (ĐÃ ĐẠT / CHƯA ĐẠT), **3** (quyết định đã chốt), **4** (cách chạy + kiểm chứng), **6** (gotcha), **9** (lịch sử) | bộ nhớ dài hạn của dự án |
+| 4 | `ISSUE_LOG.md` | lỗi đã biết — **đọc trước khi sửa** để không phát minh lại |
+| 5 | `CHANGELOG.md` | thay đổi gì, bằng chứng ra sao |
+| 6 | `ROADMAP.md` | việc đã xong / việc tiếp theo / việc chờ anh |
 
 ---
 

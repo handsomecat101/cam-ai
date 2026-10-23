@@ -52,6 +52,8 @@ FIELD_YEU_CAU = [
     "busy", "xong", "loai_nguon", "tep", "dong", "tong_khung", "fps_hien_tai",
     "nguoi", "mat", "nguoi_quen", "vao", "ra", "trong_vung", "xe",
     "su_kien", "nhat_ky", "loi",
+    # v3.9.1: ten giai doan (nap model / mo video / phan tich / xong) cho UI
+    "giai_doan",
 ]
 
 KET_QUA: list[tuple[str, bool, str]] = []
@@ -88,8 +90,8 @@ def req(duong, method="GET", data=None, headers=None, token=None, timeout=300):
         return exc.code, exc.read(), dict(exc.headers)
 
 
-def req_json(duong, method="GET", data=None, token=None):
-    status, body, _ = req(duong, method=method, data=data, token=token)
+def req_json(duong, method="GET", data=None, token=None, timeout=300):
+    status, body, _ = req(duong, method=method, data=data, token=token, timeout=timeout)
     try:
         return status, json.loads(body.decode("utf-8"))
     except Exception:  # noqa: BLE001
@@ -175,6 +177,51 @@ def _doc_canh_bao():
     with open(FILE_LOG, "r", encoding="utf-8", errors="replace") as f:
         noi_dung = f.read()
     return noi_dung
+
+
+def _doc_khoa_truy_cap():
+    """Doc khoa truy cap san dung tu log server (che khi CAMAI_DEBUG_KHOA=1).
+
+    Server in dong: "[DEBUG] URL san dung: http://<ip>:<port>/?k=<khoa>"
+    """
+    noi_dung = _doc_canh_bao()
+    tim = re.search(
+        r"URL san dung:\s*http://[0-9.]+:\d+/\?k=([A-Za-z0-9_\-]+)", noi_dung
+    )
+    return tim.group(1) if tim else ""
+
+
+def _head(headers: dict, ten: str) -> str:
+    """Doc header KHONG phan biet hoa/thuong (uvicorn gui 'set-cookie')."""
+    for k, v in (headers or {}).items():
+        if str(k).lower() == ten.lower():
+            return str(v)
+    return ""
+
+
+def _opener_rieng():
+    """Mo phong 1 trinh duyet moi (cookie jar rieng)."""
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        urllib.request.HTTPCookieProcessor(jar),
+    )
+    return jar, opener
+
+
+def req_rieng(opener, duong, method="GET", data=None, headers=None, timeout=60):
+    """Tra (status, body bytes, headers dict) - dung opener rieng."""
+    h = dict(headers or {})
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode("utf-8")
+        h.setdefault("Content-Type", "application/json")
+    r = urllib.request.Request(BASE + duong, data=body, headers=h, method=method)
+    try:
+        with opener.open(r, timeout=timeout) as resp:
+            return resp.status, resp.read(), dict(resp.headers)
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(), dict(exc.headers)
 
 
 # ------------------------------------------------------------------ v3.8
@@ -282,6 +329,8 @@ def main() -> int:
     env = os.environ.copy()
     env["CAMAI_PASSWORD"] = mat_khau
     env["PYTHONIOENCODING"] = "utf-8"
+    # Cho phep doc khoa truy cap san dung tu log (che do debug cua server).
+    env["CAMAI_DEBUG_KHOA"] = "1"
 
     log = open(FILE_LOG, "w", encoding="utf-8")
     proc = subprocess.Popen(
@@ -307,6 +356,51 @@ def main() -> int:
         la_html = b"<html" in body.lower() or b"<!doctype html" in body.lower()
         _ghi("GET / -> 200 + HTML", status == 200 and la_html,
              "status=%d, %d byte" % (status, len(body)))
+
+        # --- 1b. v3.9: UI MOI khong con form mat khau ---
+        html = body.decode("utf-8", "replace")
+        co_input_mk = '<input type="password"' in html
+        _ghi("GET / -> UI KHONG con form mat khau (v3.9)",
+             status == 200 and not co_input_mk,
+             "co_input_password=%s" % co_input_mk)
+        _ghi("GET / -> UI co thong bao huong dan + nut lay duong dan",
+             "Lấy đường dẫn có mã" in html
+             and "Mở bằng đường dẫn có mã" in html,
+             "co_nut=%s co_huong_dan=%s"
+             % ("Lấy đường dẫn có mã" in html,
+                "Mở bằng đường dẫn có mã" in html))
+
+        # --- 1c..1g. v3.9: KHOA TRUY CAP SAN DUNG ---
+        khoa = _doc_khoa_truy_cap()
+        _ghi("Server tu sinh khoa truy cap san dung (>= 32 ky tu)",
+             len(khoa) >= 32,
+             "do dai=%d ky tu" % len(khoa))
+
+        jar_sai, op_sai = _opener_rieng()
+        status, _, head_sai = req_rieng(op_sai, "/?k=" + secrets.token_urlsafe(32))
+        _ghi("GET /?k=<khoa sai> -> KHONG cap phien",
+             "camai_phien=" not in _head(head_sai, "Set-Cookie"),
+             "set_cookie=%r" % _head(head_sai, "Set-Cookie")[:40])
+        status, _, _ = req_rieng(op_sai, "/api/trang-thai")
+        _ghi("GET /api/trang-thai voi khoa sai -> 401", status == 401,
+             "status=%d" % status)
+
+        jar_dung, op_dung = _opener_rieng()
+        status, _, head_dung = req_rieng(op_dung, "/?k=" + khoa)
+        _ghi("GET /?k=<khoa dung> -> cap phien (set cookie phien)",
+             status == 200 and "camai_phien=" in _head(head_dung, "Set-Cookie"),
+             "status=%d" % status)
+        status, _, _ = req_rieng(op_dung, "/api/trang-thai")
+        _ghi("GET /api/trang-thai voi cookie tu khoa -> 200", status == 200,
+             "status=%d" % status)
+        status, body_phien, _ = req_rieng(op_dung, "/api/phien")
+        try:
+            du_lieu_phien = json.loads(body_phien.decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            du_lieu_phien = {}
+        _ghi("GET /api/phien -> 200 + token phien (UI bo qua form)",
+             status == 200 and bool(du_lieu_phien.get("token")),
+             "status=%d" % status)
 
         # --- 2. GET /api/trang-thai khong token -> 401 ---
         status, _, _ = req("/api/trang-thai")
@@ -349,6 +443,20 @@ def main() -> int:
         _ghi("GET /api/trang-thai co token -> 200 + du field",
              status == 200 and not thieu,
              "status=%d, thieu=%s" % (status, thieu if thieu else "khong"))
+
+        # --- 5b. giai_doan: ten giai doan cho UI (nap model / mo video / ...) ---
+        giai_doan = (trang_thai or {}).get("giai_doan") if isinstance(trang_thai, dict) else None
+        _ghi("/api/trang-thai co truong 'giai_doan' (chuoi tieng Viet)",
+             isinstance(giai_doan, str),
+             "giai_doan=%r" % (giai_doan,))
+
+        # --- 5c. GET /api/ping: bong song, tra ve ngay ---
+        t0 = time.perf_counter()
+        status_ping, du_ping = req_json("/api/ping", timeout=10)
+        tre_ping = time.perf_counter() - t0
+        _ghi("GET /api/ping -> 200 + ok=true (bong song)",
+             status_ping == 200 and bool((du_ping or {}).get("ok")),
+             "status=%d, ok=%s, %.3fs" % (status_ping, (du_ping or {}).get("ok"), tre_ping))
 
         # --- 6. GET /api/lop-viet ---
         status, du_lieu = req_json("/api/lop-viet", token=token)
@@ -394,11 +502,23 @@ def main() -> int:
         thay_xong = False
         het = time.time() + 420
         trang_thai_cu = {}
+        giai_doan_thay = []
+        so_poll = 0
+        tre_poll_lon_nhat = 0.0
+        lan_cuoi = None
         while time.time() < het:
+            tg = time.perf_counter()
             _, trang_thai_cu = req_json("/api/trang-thai", token=token)
+            so_poll += 1
+            if lan_cuoi is not None:
+                tre_poll_lon_nhat = max(tre_poll_lon_nhat, tg - lan_cuoi)
+            lan_cuoi = time.perf_counter()
             if not isinstance(trang_thai_cu, dict):
                 time.sleep(1)
                 continue
+            gd = trang_thai_cu.get("giai_doan")
+            if gd and (not giai_doan_thay or giai_doan_thay[-1] != gd):
+                giai_doan_thay.append(gd)
             if trang_thai_cu.get("busy"):
                 thay_busy = True
             if thay_busy and not trang_thai_cu.get("busy") and trang_thai_cu.get("xong"):
@@ -410,6 +530,14 @@ def main() -> int:
         _ghi("Phan tich chay that: thay busy=true", thay_busy, "busy=%s" % trang_thai_cu.get("busy"))
         _ghi("Phan tich chay that: ket thuc xong=true", thay_xong,
              "xong=%s, loi=%r" % (trang_thai_cu.get("xong"), trang_thai_cu.get("loi")))
+        # v3.9.1: server PHAI phan hoi duoc lien tuc khi dang nap model/chay.
+        _ghi("Server khong bi treo khi phan tich (tre poll < 2s)",
+             tre_poll_lon_nhat < 2.0,
+             "so poll=%d, tre lon nhat=%.3fs" % (so_poll, tre_poll_lon_nhat))
+        # v3.9.1: co ten giai doan bao cho nguoi dung (nap model -> ... -> xong).
+        _ghi("Co ten giai doan trong /api/trang-thai khi chay",
+             len(giai_doan_thay) >= 2,
+             "chuoi: %s" % " -> ".join(giai_doan_thay))
         _in("")
         _in("  TRANG THAI CUOI: " + json.dumps(
             {k: v for k, v in (trang_thai_cu or {}).items()
